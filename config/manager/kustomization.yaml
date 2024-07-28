@@ -6,7 +6,7 @@ resources:
 
 images:
 - name: controller
-  newName: quay.io/yshnaidm/amd-gpu-operator
+  newName: yan1996/amd-gpu-operator
   newTag: latest
 
 configMapGenerator:

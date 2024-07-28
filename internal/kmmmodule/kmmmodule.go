@@ -41,7 +41,7 @@ const (
 )
 
 var (
-	//go:embed dockerfiles/driversDockerfile.txt
+	//go:embed dockerfiles/amdDriversDockerfile.txt
 	buildDockerfile string
 )
 

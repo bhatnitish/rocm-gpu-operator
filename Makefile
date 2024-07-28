@@ -12,7 +12,7 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # quay.io/yshnaidm/amd-gpu-operator-bundle:$PROJECT_VERSION and quay.io/yshnaidm/amd-gpu-operator-catalog:$PROJECT_VERSION.
-IMAGE_TAG_BASE ?= quay.io/yshnaidm/amd-gpu-operator
+IMAGE_TAG_BASE ?= yan1996/amd-gpu-operator
 
 # This is the default tag of all images made by this Makefile.
 IMAGE_TAG ?= latest
@@ -144,11 +144,11 @@ KUSTOMIZE_CONFIG_CRD ?= config/crd
 
 .PHONY: install
 install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	oc apply -k $(KUSTOMIZE_CONFIG_CRD)
+	kubectl apply -k $(KUSTOMIZE_CONFIG_CRD)
 
 .PHONY: uninstall
 uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	oc delete -k $(KUSTOMIZE_CONFIG_CRD) --ignore-not-found=$(ignore-not-found)
+	kubectl delete -k $(KUSTOMIZE_CONFIG_CRD) --ignore-not-found=$(ignore-not-found)
 
 KUSTOMIZE_CONFIG_DEFAULT ?= config/default
 KUSTOMIZE_CONFIG_HUB_DEFAULT ?= config/default-hub
@@ -156,12 +156,12 @@ KUSTOMIZE_CONFIG_HUB_DEFAULT ?= config/default-hub
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	oc apply -k $(KUSTOMIZE_CONFIG_DEFAULT)
+	kubectl apply -k $(KUSTOMIZE_CONFIG_DEFAULT)
 	#$(KUSTOMIZE) build config/default > yaml.file
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	oc delete -k $(KUSTOMIZE_CONFIG_DEFAULT) --ignore-not-found=$(ignore-not-found)
+	kubectl delete -k $(KUSTOMIZE_CONFIG_DEFAULT) --ignore-not-found=$(ignore-not-found)
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
