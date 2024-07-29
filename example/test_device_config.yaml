@@ -1,0 +1,12 @@
+apiVersion: amd.io/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-device-config
+  namespace: openshift-amd-gpu
+spec:
+  driversImage: yan1996/ubuntu:non-exist233
+  devicePluginImage: rocm/k8s-device-plugin
+  imageRepoSecret:
+    name: docker-auth
+  selector:
+    kubernetes.io/hostname: leto
