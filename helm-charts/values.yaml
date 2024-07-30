@@ -1,0 +1,74 @@
+controllerManager:
+  kubeRbacProxy:
+    args:
+    - --secure-listen-address=0.0.0.0:8443
+    - --upstream=http://127.0.0.1:8080/
+    - --logtostderr=true
+    - --v=0
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+    image:
+      repository: registry.redhat.io/openshift4/ose-kube-rbac-proxy
+      tag: v4.13
+    resources:
+      limits:
+        cpu: 500m
+        memory: 128Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  manager:
+    args:
+    - --config=controller_manager_config.yaml
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    image:
+      repository: yan1996/amd-gpu-operator
+      tag: latest
+    imagePullPolicy: Always
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+kmmDevicePlugin:
+  serviceAccount:
+    annotations: {}
+kmmModuleLoader:
+  serviceAccount:
+    annotations: {}
+kubernetesClusterDomain: cluster.local
+managerConfig:
+  controllerManagerConfigYaml: |-
+    healthProbeBindAddress: :8081
+    metricsBindAddress: 127.0.0.1:8080
+    leaderElection:
+      enabled: true
+      resourceID: gpue.openshift.io
+metricsService:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  type: ClusterIP
+nodeLabeller:
+  serviceAccount:
+    annotations: {}
+nodeMetrics:
+  ports:
+  - name: node-metrics
+    port: 9110
+    protocol: TCP
+    targetPort: node-metrics
+  serviceAccount:
+    annotations: {}
+  type: ClusterIP

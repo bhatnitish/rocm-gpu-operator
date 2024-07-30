@@ -12,7 +12,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1alpha1 "github.com/yevgeny-shnaidman/amd-gpu-operator/api/v1alpha1"
+	v1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	types "k8s.io/apimachinery/pkg/types"
 )

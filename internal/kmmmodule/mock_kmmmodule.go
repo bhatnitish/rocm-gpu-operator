@@ -11,8 +11,8 @@ package kmmmodule
 import (
 	reflect "reflect"
 
+	v1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	v1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
-	v1alpha1 "github.com/yevgeny-shnaidman/amd-gpu-operator/api/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
 )

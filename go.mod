@@ -1,4 +1,4 @@
-module github.com/yevgeny-shnaidman/amd-gpu-operator
+module github.com/pensando/gpu-operator
 
 go 1.20
 

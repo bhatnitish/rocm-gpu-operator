@@ -248,3 +248,33 @@ opm:
 .PHONY: index
 index: opm
 	${OPM} index add --bundles ${BUNDLE_IMG} --tag ${INDEX_IMG}
+
+## Download and install helmify locally.
+HELMIFY = helmify
+
+.PHONY: helm
+helm: manifests kustomize clean-helm gen-kmm-charts
+        $(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts -cert-manager-as-subchart -cert-manager-install-crd
+        cp $(shell pwd)/hack/Chart.yaml $(shell pwd)/helm-charts/
+        cp $(shell pwd)/hack/values.yaml $(shell pwd)/helm-charts/
+        cp $(shell pwd)/hack/Chart_kmm.yaml $(shell pwd)/helm-charts/charts/kmm/
+		cp $(shell pwd)/hack/templates/* $(shell pwd)/helm-charts/templates/
+        cd $(shell pwd)/helm-charts; helm dependency update; helm lint; rm -rf templates/node-metrics*; cd ..; helm package helm-charts/
+
+helm-install:
+        helm repo add jetstack https://charts.jetstack.io --force-update
+        helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.15.1 --set crds.enabled=true
+        helm install test ./gpu-operator-0.0.1.tgz -n amd-gpu-operator --create-namespace
+
+helm-uninstall:
+        helm uninstall test -n amd-gpu-operator
+        helm uninstall cert-manager -n cert-manager
+        ${KUBECTL_CMD} delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io
+
+gen-kmm-charts:
+        git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
+        $(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts/charts/kmm -cert-manager-as-subchart -cert-manager-install-crd
+
+clean-helm:
+        rm -rf $(shell pwd)/helm-charts
+        rm -rf /tmp/kmm
