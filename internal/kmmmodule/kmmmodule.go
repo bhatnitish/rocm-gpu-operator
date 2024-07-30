@@ -19,6 +19,8 @@ package kmmmodule
 import (
 	_ "embed"
 	"fmt"
+	"k8s.io/client-go/discovery"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,6 +45,8 @@ const (
 var (
 	//go:embed dockerfiles/amdDriversDockerfile.txt
 	buildDockerfile string
+	//go:embed dockerfiles/driversDockerfile.txt
+	buildOcDockerfile string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -63,12 +67,28 @@ func NewKMMModule(client client.Client, scheme *runtime.Scheme) KMMModuleAPI {
 	}
 }
 
+func (km *kmmModule) isOpenshift() bool {
+	if dc, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie()); err == nil {
+		if gplist, err := dc.ServerGroups(); err == nil {
+			for _, gp := range gplist.Groups {
+				if gp.Name == "route.openshift.io" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error {
 	if buildCM.Data == nil {
 		buildCM.Data = make(map[string]string)
 	}
-
-	buildCM.Data["dockerfile"] = buildDockerfile
+	if !km.isOpenshift() {
+		buildCM.Data["dockerfile"] = buildDockerfile
+	} else {
+		buildCM.Data["dockerfile"] = buildOcDockerfile
+	}
 	return controllerutil.SetControllerReference(devConfig, buildCM, km.scheme)
 }
 
