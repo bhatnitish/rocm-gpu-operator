@@ -13,6 +13,7 @@ keywords:
   - cluster
   - hardware
   - gpu
+  - amd
 
 kubeVersion: ">= 1.30.0-0"
 version: 0.0.1

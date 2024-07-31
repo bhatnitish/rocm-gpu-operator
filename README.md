@@ -2,7 +2,63 @@
 
   Explore the power of AMD Instinct GPU accelerators within your OpenShift cluster with the AMD GPU Operator. This documentation is your go-to resource to enable, configure, and run accelerated workloads with your AMD Instinct GPU accelerators. The AMD GPU Operator lets you seamlessly harness computing capabilities for machine learning, Generative AI, and GPU-accelerated applications.
 
-## Overview of the AMD GPU operator installation
+## Developer Guidelines
+Please follow these steps to prepare development environment:
+1. Use golang v1.20 to develop this project, there are some [golang open issues](https://github.com/golang/go/issues/65637) when using golang v1.21 or v1.22
+2. Install Helm (Use Helm official script to install Helm):
+```
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+```
+for other methods of installing Helm, please refer to [Helm Official Website](https://helm.sh/docs/intro/install/)
+
+3. Install Helmify:
+Download the relased binary from [Helmify GitHub repo release page](https://github.com/arttor/helmify/releases/tag/v0.4.13), unpack the binary and move it to your ```PATH```
+
+4. Compile the project:
+Run ```make``` to generate the basic yaml files for CRD and build controller images
+
+5. Prepare the helm charts:
+Run ```make helm``` to generate helm charts
+
+## Installation (for developers):
+* Method 1 - Build and install from Helm Charts (Preferred):
+  * Must have a k8s or openshift cluster up and running
+  * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred)
+  * Run ```make helm``` to generate helm charts, the helm charts will be packed into ```gpu-operator-x.x.x.tgz``` 
+  * Run ```make cert-manager-install``` to install cert-manager, one dependency operator
+  * Run ```make helm-install``` to depoly the operator
+  * When you need to uninstall, run ```make helm-uninstall``` then ```make cert-manager-uninstall```
+
+* Method 2 - Build and install from source code:
+  
+  * Must have a k8s or openshift cluster up and running
+  * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred)
+  * Install dependencies:
+    * Install Node Feature Discovery (NFD) Operator: 
+    
+    ``` kubectl apply -k https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.16.3```
+
+    wait for NFD's master and worker pods ready 
+    * Install Kernel Module Management Operator:
+    
+    ```
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
+    kubectl -n cert-manager wait --for=condition=Available deployment \
+    cert-manager \
+    cert-manager-cainjector \
+    cert-manager-webhook
+
+    kubectl apply -k https://github.com/kubernetes-sigs/kernel-module-management/config/default
+    ```
+
+    wait for cert manager and kmm pods ready
+  * Run ```make install``` to install the CRD
+  * Run ```make deploy``` to deploy the AMD GPU Operator
+  * When you need to uninstall, run ```make undeploy``` then ```make uninstall```, finally run ```kubectl delete``` on the dependencies resource URL in the reverse order
+
+## Overview of the AMD GPU operator installation (Openshift)
 
 The AMD GPU Operator is distributed in the community OperatorHub and is usable from the OpenShift console.
 
