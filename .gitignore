@@ -1,0 +1,4 @@
+*.tgz
+bin/
+manager
+helm-charts/*.lock

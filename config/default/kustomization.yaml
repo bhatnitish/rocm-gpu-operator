@@ -23,7 +23,6 @@ resources:
 - ../crd
 - ../rbac
 - ../manager
-- ../prometheus
 
 configurations:
 - kustomizeconfig.yaml

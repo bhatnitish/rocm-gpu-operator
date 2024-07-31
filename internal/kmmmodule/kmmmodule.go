@@ -1,5 +1,5 @@
 /*
-Copyright 2022.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package kmmmodule
 import (
 	_ "embed"
 	"fmt"
+
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -183,6 +184,6 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	}
 
 	ns := make(map[string]string, 0)
-	ns[fmt.Sprintf("feature.node.kubernetes.io/pci-%s.present", amdv1alpha1.AMDPCIVendorID)] = "true"
+	ns["feature.node.kubernetes.io/amd-gpu"] = "true"
 	return ns
 }

@@ -14,14 +14,16 @@ keywords:
   - hardware
   - gpu
 
-kubeVersion: ">= 1.18.0-0"
+kubeVersion: ">= 1.30.0-0"
 version: 0.0.1
-appVersion: "1.25.2.8"
+appVersion: "0.0.1"
 
 dependencies:
 - name: node-feature-discovery
   version: ">= 0.8.1-0"
   repository: "https://kubernetes-sigs.github.io/node-feature-discovery/charts"
+  condition: node-feature-discovery.enabled
 - name: kmm
-  version: v0.1.0
+  version: v0.0.1
   repository: "file://./charts/kmm"
+  condition: kmm.enabled

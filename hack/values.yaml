@@ -1,25 +1,8 @@
+node-feature-discovery:
+  enabled: true  # Set to false to disable the subchart
+kmm:
+  enabled: true  # Set to false to disable the subchart
 controllerManager:
-  kubeRbacProxy:
-    args:
-    - --secure-listen-address=0.0.0.0:8443
-    - --upstream=http://127.0.0.1:8080/
-    - --logtostderr=true
-    - --v=0
-    containerSecurityContext:
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-        - ALL
-    image:
-      repository: registry.redhat.io/openshift4/ose-kube-rbac-proxy
-      tag: v4.13
-    resources:
-      limits:
-        cpu: 500m
-        memory: 128Mi
-      requests:
-        cpu: 5m
-        memory: 64Mi
   manager:
     args:
     - --config=controller_manager_config.yaml
@@ -63,12 +46,3 @@ metricsService:
 nodeLabeller:
   serviceAccount:
     annotations: {}
-nodeMetrics:
-  ports:
-  - name: node-metrics
-    port: 9110
-    protocol: TCP
-    targetPort: node-metrics
-  serviceAccount:
-    annotations: {}
-  type: ClusterIP

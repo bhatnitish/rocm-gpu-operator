@@ -1,5 +1,5 @@
 /*
-Copyright 2022.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import (
 	"github.com/pensando/gpu-operator/internal/controllers"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	"github.com/pensando/gpu-operator/internal/nodelabeller"
-	"github.com/pensando/gpu-operator/internal/nodemetrics"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
@@ -90,12 +89,10 @@ func main() {
 	client := mgr.GetClient()
 	kmmHandler := kmmmodule.NewKMMModule(client, scheme)
 	nlHandler := nodelabeller.NewNodeLabeller(scheme)
-	nmHandler := nodemetrics.NewNodeMetrcis(scheme)
 	dcr := controllers.NewDeviceConfigReconciler(
 		client,
 		kmmHandler,
-		nlHandler,
-		nmHandler)
+		nlHandler)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright 2022.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import (
 	mock_client "github.com/pensando/gpu-operator/internal/client"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	"github.com/pensando/gpu-operator/internal/nodelabeller"
-	"github.com/pensando/gpu-operator/internal/nodemetrics"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -98,11 +97,6 @@ var _ = Describe("Reconcile", func() {
 			goto executeTestFunction
 		}
 		mockHelper.EXPECT().handleNodeLabeller(ctx, devConfig).Return(nil)
-		if handleMetricsError {
-			mockHelper.EXPECT().handleNodeMetrics(ctx, devConfig).Return(fmt.Errorf("some error"))
-			goto executeTestFunction
-		}
-		mockHelper.EXPECT().handleNodeMetrics(ctx, devConfig).Return(nil)
 
 	executeTestFunction:
 
@@ -153,7 +147,7 @@ var _ = Describe("getLabelsPerModules", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -198,7 +192,7 @@ var _ = Describe("setFinalizer", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -234,7 +228,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -247,11 +241,6 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 	nodeLabellerNN := types.NamespacedName{
 		Name:      devConfigName + "-node-labeller",
-		Namespace: devConfigNamespace,
-	}
-
-	metricsNN := types.NamespacedName{
-		Name:      devConfigName + "-node-metrics",
 		Namespace: devConfigNamespace,
 	}
 
@@ -280,7 +269,6 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	It("failed to get Metrics daemonset", func() {
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(fmt.Errorf("some error")),
 		)
 
 		err := dcrh.finalizeDeviceConfig(ctx, devConfig)
@@ -290,7 +278,6 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	It("node metrics daemonset exists", func() {
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(nil),
 			kubeClient.EXPECT().Delete(ctx, gomock.Any()).Return(nil),
 		)
 
@@ -301,7 +288,6 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	It("failed to get KMM Module", func() {
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(fmt.Errorf("some error")),
 		)
 
@@ -316,7 +302,6 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "moduleName")),
 			kubeClient.EXPECT().Patch(ctx, expectedDevConfig, gomock.Any()).Return(nil),
 		)
@@ -339,7 +324,6 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Do(
 				func(_ interface{}, _ interface{}, mod *kmmv1beta1.Module, _ ...client.GetOption) {
 					mod.Name = nn.Name
@@ -365,7 +349,7 @@ var _ = Describe("handleKMMModule", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil)
 	})
 
 	ctx := context.Background()
@@ -426,7 +410,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil)
 	})
 
 	ctx := context.Background()
@@ -487,7 +471,7 @@ var _ = Describe("handleNodeLabeller", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		nodeLabellerHelper = nodelabeller.NewMockNodeLabeller(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nodeLabellerHelper, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nodeLabellerHelper)
 	})
 
 	ctx := context.Background()
@@ -529,63 +513,6 @@ var _ = Describe("handleNodeLabeller", func() {
 		)
 
 		err := dcrh.handleNodeLabeller(ctx, devConfig)
-		Expect(err).ToNot(HaveOccurred())
-	})
-})
-
-var _ = Describe("handleNodeMetrics", func() {
-	var (
-		kubeClient        *mock_client.MockClient
-		nodeMetricsHelper *nodemetrics.MockNodeMetrics
-		dcrh              deviceConfigReconcilerHelperAPI
-	)
-
-	BeforeEach(func() {
-		ctrl := gomock.NewController(GinkgoT())
-		kubeClient = mock_client.NewMockClient(ctrl)
-		nodeMetricsHelper = nodemetrics.NewMockNodeMetrics(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nodeMetricsHelper)
-	})
-
-	ctx := context.Background()
-	devConfig := &amdv1alpha1.DeviceConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      devConfigName,
-			Namespace: devConfigNamespace,
-		},
-	}
-
-	It("NodeMetrics DaemonSet does not exist", func() {
-		newDS := &appsv1.DaemonSet{
-			ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-node-metrics"},
-		}
-
-		gomock.InOrder(
-			kubeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "whatever")),
-			nodeMetricsHelper.EXPECT().SetNodeMetricsAsDesired(newDS, devConfig).Return(nil),
-			kubeClient.EXPECT().Create(ctx, gomock.Any()).Return(nil),
-		)
-
-		err := dcrh.handleNodeMetrics(ctx, devConfig)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("NodeMetrcis DaemonSet exists", func() {
-		existingDS := &appsv1.DaemonSet{
-			ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-node-metrics"},
-		}
-
-		gomock.InOrder(
-			kubeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Do(
-				func(_ interface{}, _ interface{}, ds *appsv1.DaemonSet, _ ...client.GetOption) {
-					ds.Name = devConfig.Name + "-node-metrics"
-					ds.Namespace = devConfig.Namespace
-				},
-			),
-			nodeMetricsHelper.EXPECT().SetNodeMetricsAsDesired(existingDS, devConfig).Return(nil),
-		)
-
-		err := dcrh.handleNodeMetrics(ctx, devConfig)
 		Expect(err).ToNot(HaveOccurred())
 	})
 })

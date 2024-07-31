@@ -1,5 +1,5 @@
 /*
-Copyright 2022.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	"github.com/pensando/gpu-operator/internal/nodelabeller"
-	"github.com/pensando/gpu-operator/internal/nodemetrics"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -49,9 +48,8 @@ type DeviceConfigReconciler struct {
 func NewDeviceConfigReconciler(
 	client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
-	nlHandler nodelabeller.NodeLabeller,
-	nmHandler nodemetrics.NodeMetrics) *DeviceConfigReconciler {
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, nmHandler)
+	nlHandler nodelabeller.NodeLabeller) *DeviceConfigReconciler {
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler)
 	return &DeviceConfigReconciler{
 		helper: helper,
 	}
@@ -121,11 +119,6 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle node labeller for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
-	logger.Info("start metrics reconciliation")
-	err = r.helper.handleNodeMetrics(ctx, devConfig)
-	if err != nil {
-		return res, fmt.Errorf("failed to handle node metrics for DeviceConfig %s: %v", req.NamespacedName, err)
-	}
 	// [TODO] add status handling for DeviceConfig
 	return res, nil
 }
@@ -138,25 +131,20 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
-	handleNodeMetrics(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type deviceConfigReconcilerHelper struct {
 	client     client.Client
 	kmmHandler kmmmodule.KMMModuleAPI
 	nlHandler  nodelabeller.NodeLabeller
-	nmHandler  nodemetrics.NodeMetrics
 }
 
 func newDeviceConfigReconcilerHelper(client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
-	nlHandler nodelabeller.NodeLabeller,
-	nmHandler nodemetrics.NodeMetrics) deviceConfigReconcilerHelperAPI {
+	nlHandler nodelabeller.NodeLabeller) deviceConfigReconcilerHelperAPI {
 	return &deviceConfigReconcilerHelper{
 		client:     client,
 		kmmHandler: kmmHandler,
-		nlHandler:  nlHandler,
-		nmHandler:  nmHandler,
 	}
 }
 
@@ -196,22 +184,6 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	} else {
 		logger.Info("deleting nodelabeller daemonset", "daemonset", namespacedName)
 		return dcrh.client.Delete(ctx, &nlDS)
-	}
-
-	nmDS := appsv1.DaemonSet{}
-	namespacedName = types.NamespacedName{
-		Namespace: devConfig.Namespace,
-		Name:      devConfig.Name + "-node-metrics",
-	}
-
-	err = dcrh.client.Get(ctx, namespacedName, &nmDS)
-	if err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return fmt.Errorf("failed to get nodemetrics daemonset %s: %v", namespacedName, err)
-		}
-	} else {
-		logger.Info("deleting nodemetrics daemonset", "daemonset", namespacedName)
-		return dcrh.client.Delete(ctx, &nmDS)
 	}
 
 	mod := kmmv1beta1.Module{}
@@ -284,22 +256,6 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 
 	if err == nil {
 		logger.Info("Reconciled node labeller", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
-	}
-
-	return err
-}
-
-func (dcrh *deviceConfigReconcilerHelper) handleNodeMetrics(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
-	ds := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-node-metrics"},
-	}
-	logger := log.FromContext(ctx)
-	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
-		return dcrh.nmHandler.SetNodeMetricsAsDesired(ds, devConfig)
-	})
-
-	if err == nil {
-		logger.Info("Reconciled node metrics", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 	}
 
 	return err
