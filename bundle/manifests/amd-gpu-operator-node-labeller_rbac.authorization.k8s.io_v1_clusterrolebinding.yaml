@@ -14,4 +14,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: amd-gpu-operator-node-labeller
-  namespace: openshift-amd-gpu
+  namespace: kube-amd-gpu

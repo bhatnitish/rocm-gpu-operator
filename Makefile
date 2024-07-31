@@ -7,6 +7,7 @@ include dev.env
 # - use environment variables to overwrite this value (e.g export PROJECT_VERSION=0.0.2)
 PROJECT_VERSION ?= 0.0.1
 
+YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.io_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml config/default/kustomization.yaml
 ifdef OPENSHIFT
 $(info selected openshift)
 KUBECTL_CMD=oc
@@ -100,6 +101,12 @@ help: ## Display this help.
 manifests: controller-gen ## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./internal/controllers" output:rbac:artifacts:config=config/rbac
+
+.PHONY: update-oc-yaml update-kube-yaml
+update-oc-yaml:
+	sed -i 's/kube-amd-gpu/openshift-amd-gpu/' ${YAML_FILES}
+update-kube-yaml:
+	sed -i 's/openshift-amd-gpu/kube-amd-gpu/' ${YAML_FILES}
 
 .PHONY: generate
 generate: controller-gen mockgen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -225,7 +232,7 @@ bundle: operator-sdk manifests kustomize
 		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader" \
 		     PKG=amd-gpu-operator \
 		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
-		     ./hack/generate-bundle
+		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 
 	${OPERATOR_SDK} bundle validate ./bundle
 

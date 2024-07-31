@@ -2,7 +2,7 @@ apiVersion: amd.io/v1alpha1
 kind: DeviceConfig
 metadata:
   name: test-device-config
-  namespace: openshift-amd-gpu
+  namespace: kube-amd-gpu
 spec:
   driversImage: yan1996/ubuntu:non-exist233
   devicePluginImage: rocm/k8s-device-plugin

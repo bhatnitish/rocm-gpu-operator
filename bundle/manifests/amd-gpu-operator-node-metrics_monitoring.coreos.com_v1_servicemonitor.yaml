@@ -16,7 +16,7 @@ spec:
     scrapeTimeout: 20s
   namespaceSelector:
     matchNames:
-    - openshift-amd-gpu
+    - kube-amd-gpu
   selector:
     matchLabels:
       app.kubernetes.io/component: amd-gpu
