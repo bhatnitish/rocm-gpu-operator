@@ -145,6 +145,7 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	return &deviceConfigReconcilerHelper{
 		client:     client,
 		kmmHandler: kmmHandler,
+		nlHandler:  nlHandler,
 	}
 }
 
