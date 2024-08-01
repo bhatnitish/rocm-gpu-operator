@@ -10,7 +10,7 @@ patches:
 images:
 - name: controller
   newName: yan1996/amd-gpu-operator
-  newTag: latest
+  newTag: demo
 
 configurations:
 - kustomizeconfig.yaml

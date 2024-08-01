@@ -8,6 +8,9 @@ include dev.env
 PROJECT_VERSION ?= 0.0.1
 
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.io_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml config/default/kustomization.yaml
+CRD_YAML_FILES = deviceconfig-crd.yaml
+KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfig-crd.yaml
+
 ifdef OPENSHIFT
 $(info selected openshift)
 KUBECTL_CMD=oc
@@ -25,7 +28,7 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 IMAGE_TAG_BASE ?= yan1996/amd-gpu-operator
 
 # This is the default tag of all images made by this Makefile.
-IMAGE_TAG ?= latest
+IMAGE_TAG ?= demo
 
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
@@ -263,12 +266,20 @@ HELMIFY = helmify
 
 .PHONY: helm
 helm: manifests kustomize clean-helm gen-kmm-charts
-	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts -cert-manager-as-subchart -cert-manager-install-crd
+	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts
 	cp $(shell pwd)/hack/Chart.yaml $(shell pwd)/helm-charts/
 	cp $(shell pwd)/hack/values.yaml $(shell pwd)/helm-charts/
 	cp $(shell pwd)/hack/Chart_kmm.yaml $(shell pwd)/helm-charts/charts/kmm/Chart.yaml
 	cp $(shell pwd)/hack/values_kmm.yaml $(shell pwd)/helm-charts/charts/kmm/values.yaml
 	cp $(shell pwd)/hack/templates/* $(shell pwd)/helm-charts/templates/
+	cd $(shell pwd)/helm-charts; helm dependency update; helm lint; cd ..;
+	mkdir $(shell pwd)/helm-charts/crds
+	echo "moving crd yaml files to crds folder"
+	@for file in $(CRD_YAML_FILES); do \
+		helm template helm-charts -s templates/$$file > $(shell pwd)/helm-charts/crds/$$file; \
+	done
+	rm $(shell pwd)/helm-charts/templates/*crd.yaml
+	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts; helm dependency update; helm lint; cd ..; helm package helm-charts/
 
 helm-install:
@@ -279,7 +290,13 @@ helm-uninstall:
 
 gen-kmm-charts:
 	git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
-	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts/charts/kmm -cert-manager-as-subchart -cert-manager-install-crd
+	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts/charts/kmm
+	mkdir helm-charts/charts/kmm/crds
+	@for file in $(KMM_CRD_YAML_FILES); do \
+		helm template helm-charts/charts/kmm -s templates/$$file > helm-charts/charts/kmm/crds/$$file; \
+	done
+	rm helm-charts/charts/kmm/templates/*crd.yaml
+	rm -rf /tmp/kmm
 
 cert-manager-install:
 	helm repo add jetstack https://charts.jetstack.io --force-update
@@ -291,4 +308,3 @@ cert-manager-uninstall:
 
 clean-helm:
 	rm -rf $(shell pwd)/helm-charts
-	rm -rf /tmp/kmm

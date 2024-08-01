@@ -1,4 +1,4 @@
 *.tgz
-bin/
-manager
-helm-charts/*.lock
+/bin/
+/manager
+/helm-charts/*.lock
