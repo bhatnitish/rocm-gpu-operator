@@ -28,6 +28,8 @@ Run ```make helm``` to generate helm charts
   * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred)
   * Run ```make helm``` to generate helm charts, the helm charts will be packed into ```gpu-operator-x.x.x.tgz``` 
   * Run ```make cert-manager-install``` to install cert-manager, one dependency operator
+  * Configure helm-charts/values.yaml to change default config
+              (node-feature-discovery, kmm, controller image version etc)
   * Run ```make helm-install``` to depoly the operator
   * When you need to uninstall, run ```make helm-uninstall``` then ```make cert-manager-uninstall```
 

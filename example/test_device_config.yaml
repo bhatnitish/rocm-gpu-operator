@@ -4,7 +4,7 @@ metadata:
   name: test-device-config
   namespace: kube-amd-gpu
 spec:
-  driversImage: yan1996/ubuntu:non-exist233
+  driversImage: yan1996/ubuntu:non-exist233 # set driver image
   devicePluginImage: rocm/k8s-device-plugin
   imageRepoSecret:
     name: docker-auth

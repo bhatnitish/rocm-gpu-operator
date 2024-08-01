@@ -283,13 +283,13 @@ helm: manifests kustomize clean-helm gen-kmm-charts
 	cd $(shell pwd)/helm-charts; helm dependency update; helm lint; cd ..; helm package helm-charts/
 
 helm-install:
-	helm install test ./gpu-operator-0.0.1.tgz -n amd-gpu-operator --create-namespace
+	helm install -f helm-charts/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace
 
 helm-uninstall:
-	helm uninstall test -n amd-gpu-operator
+	helm uninstall amd-gpu-operator -n amd-gpu-operator
 
 gen-kmm-charts:
-	git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
+	rm -rf /tmp/kmm && git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts/charts/kmm
 	mkdir helm-charts/charts/kmm/crds
 	@for file in $(KMM_CRD_YAML_FILES); do \
