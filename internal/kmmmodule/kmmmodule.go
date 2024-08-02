@@ -19,6 +19,7 @@ package kmmmodule
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,8 +40,10 @@ const (
 	gpuDriverModuleName            = "amdgpu"
 	imageFirmwarePath              = "firmwareDir/updates"
 	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
-	defaultDriversImageTemplate    = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_VERSION"
-	defaultDriversVersion          = "el9-6.1.1"
+	defaultDriversImageTemplate    = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s"
+	defaultOcDriversVersion        = "el9-6.1.1"
+	defaultDriversVersion          = "6.1.3"
+	kernelVersionTemplate          = "-$KERNEL_FULL_VERSION" // KMM will automatically set values for this template
 )
 
 var (
@@ -94,7 +97,7 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 }
 
 func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
-	err := setKMMModuleLoader(mod, devConfig)
+	err := setKMMModuleLoader(mod, devConfig, km.isOpenshift())
 	if err != nil {
 		return fmt.Errorf("failed to set KMM Module: %v", err)
 	}
@@ -102,15 +105,22 @@ func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *am
 	return controllerutil.SetControllerReference(devConfig, mod, km.scheme)
 }
 
-func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
+func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) error {
 	driversVersion := devConfig.Spec.DriversVersion
 	if driversVersion == "" {
-		driversVersion = defaultDriversVersion
+		if isOpenshift {
+			driversVersion = defaultOcDriversVersion
+		} else {
+			driversVersion = defaultDriversVersion
+		}
 	}
 
 	driversImage := devConfig.Spec.DriversImage
 	if driversImage == "" {
 		driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
+	}
+	if !strings.HasSuffix(driversImage, kernelVersionTemplate) {
+		driversImage += kernelVersionTemplate
 	}
 
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{

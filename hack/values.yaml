@@ -1,7 +1,7 @@
 node-feature-discovery:
-  enabled: true  # Set to false to disable the subchart
+  enabled: true  # Set to false to disable node-feature-discovery
 kmm:
-  enabled: true  # Set to false to disable the subchart
+  enabled: true  # Set to false to disable kmm
 installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
 controllerManager:
   manager:
@@ -10,8 +10,8 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
-      repository: yan1996/amd-gpu-operator
-      tag: latest
+      repository: yan1996/amd-gpu-operator # set controller image
+      tag: latest # set controller image version
     imagePullPolicy: Always
     resources:
       limits:

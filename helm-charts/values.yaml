@@ -11,7 +11,7 @@ controllerManager:
       allowPrivilegeEscalation: false
     image:
       repository: yan1996/amd-gpu-operator # set controller image
-      tag: latest      # set controller image version
+      tag: latest # set controller image version
     imagePullPolicy: Always
     resources:
       limits:

@@ -60,7 +60,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = defaultDriversVersion
 		expectedMod.Spec.Selector = map[string]string{"feature.node.kubernetes.io/pci-1002.present": "true"}
 
-		err = setKMMModuleLoader(&mod, &input)
+		err = setKMMModuleLoader(&mod, &input, false)
 
 		Expect(err).To(BeNil())
 		Expect(mod).To(Equal(expectedMod))
@@ -104,7 +104,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 		expectedMod.Spec.Selector = map[string]string{"some label": "some label value"}
 		expectedMod.Spec.ImageRepoSecret = &v1.LocalObjectReference{Name: "image repo secret name"}
 
-		err = setKMMModuleLoader(&mod, &input)
+		err = setKMMModuleLoader(&mod, &input, false)
 
 		Expect(err).To(BeNil())
 		Expect(mod).To(Equal(expectedMod))
