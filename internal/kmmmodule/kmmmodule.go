@@ -19,7 +19,6 @@ package kmmmodule
 import (
 	_ "embed"
 	"fmt"
-	"strings"
 
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,10 +39,11 @@ const (
 	gpuDriverModuleName            = "amdgpu"
 	imageFirmwarePath              = "firmwareDir/updates"
 	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
-	defaultDriversImageTemplate    = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s"
-	defaultOcDriversVersion        = "el9-6.1.1"
-	defaultDriversVersion          = "6.1.3"
-	kernelVersionTemplate          = "-$KERNEL_FULL_VERSION" // KMM will automatically set values for this template
+	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s"
+	// start local registry image-registry:5000 in k8s
+	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION`"
+	defaultOcDriversVersion     = "el9-6.1.1"
+	defaultDriversVersion       = "6.1.3"
 )
 
 var (
@@ -60,18 +60,20 @@ type KMMModuleAPI interface {
 }
 
 type kmmModule struct {
-	client client.Client
-	scheme *runtime.Scheme
+	client      client.Client
+	scheme      *runtime.Scheme
+	isOpenShift bool
 }
 
 func NewKMMModule(client client.Client, scheme *runtime.Scheme) KMMModuleAPI {
 	return &kmmModule{
-		client: client,
-		scheme: scheme,
+		client:      client,
+		scheme:      scheme,
+		isOpenShift: isOpenshift(),
 	}
 }
 
-func (km *kmmModule) isOpenshift() bool {
+func isOpenshift() bool {
 	if dc, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie()); err == nil {
 		if gplist, err := dc.ServerGroups(); err == nil {
 			for _, gp := range gplist.Groups {
@@ -88,16 +90,16 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 	if buildCM.Data == nil {
 		buildCM.Data = make(map[string]string)
 	}
-	if !km.isOpenshift() {
-		buildCM.Data["dockerfile"] = buildDockerfile
-	} else {
+	if km.isOpenShift {
 		buildCM.Data["dockerfile"] = buildOcDockerfile
+	} else {
+		buildCM.Data["dockerfile"] = buildDockerfile
 	}
 	return controllerutil.SetControllerReference(devConfig, buildCM, km.scheme)
 }
 
 func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
-	err := setKMMModuleLoader(mod, devConfig, km.isOpenshift())
+	err := setKMMModuleLoader(mod, devConfig, km.isOpenShift)
 	if err != nil {
 		return fmt.Errorf("failed to set KMM Module: %v", err)
 	}
@@ -117,10 +119,11 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 
 	driversImage := devConfig.Spec.DriversImage
 	if driversImage == "" {
-		driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
-	}
-	if !strings.HasSuffix(driversImage, kernelVersionTemplate) {
-		driversImage += kernelVersionTemplate
+		if isOpenshift {
+			driversImage = fmt.Sprintf(defaultOcDriversImageTemplate, driversVersion)
+		} else {
+			driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
+		}
 	}
 
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
