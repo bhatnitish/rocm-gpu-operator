@@ -17,10 +17,15 @@ limitations under the License.
 package kmmmodule
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
+	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	v1 "k8s.io/api/core/v1"
@@ -93,9 +98,29 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 	if km.isOpenShift {
 		buildCM.Data["dockerfile"] = buildOcDockerfile
 	} else {
-		buildCM.Data["dockerfile"] = buildDockerfile
+		dockerfile, err := resolveDockerfile(buildCM.Name)
+		if err != nil {
+			return err
+		}
+		buildCM.Data["dockerfile"] = dockerfile
 	}
 	return controllerutil.SetControllerReference(devConfig, buildCM, km.scheme)
+}
+
+func resolveDockerfile(cmName string) (string, error) {
+	splits := strings.SplitN(cmName, "-", 2)
+	os := splits[0]
+	version := splits[1]
+	var dockerfileTemplate string
+	switch os {
+	case "ubuntu":
+		dockerfileTemplate = buildDockerfile
+	//TODO: add more mappings here
+	default:
+		return "", fmt.Errorf("no dockerfile found for OS: %s", os)
+	}
+	resolvedDockerfile := strings.Replace(dockerfileTemplate, "$$VERSION", version, -1)
+	return resolvedDockerfile, nil
 }
 
 func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -108,6 +133,24 @@ func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *am
 }
 
 func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) error {
+	kernelMappings, err := getKernelMappings(devConfig, isOpenshift)
+	if err != nil {
+		return err
+	}
+	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
+		Modprobe: kmmv1beta1.ModprobeSpec{
+			ModuleName:   gpuDriverModuleName,
+			FirmwarePath: imageFirmwarePath,
+		},
+		KernelMappings: kernelMappings,
+	}
+	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
+	mod.Spec.ImageRepoSecret = devConfig.Spec.ImageRepoSecret
+	mod.Spec.Selector = getNodeSelector(devConfig)
+	return nil
+}
+
+func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([]kmmv1beta1.KernelMapping, error) {
 	driversVersion := devConfig.Spec.DriversVersion
 	if driversVersion == "" {
 		if isOpenshift {
@@ -126,12 +169,8 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 		}
 	}
 
-	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
-		Modprobe: kmmv1beta1.ModprobeSpec{
-			ModuleName:   gpuDriverModuleName,
-			FirmwarePath: imageFirmwarePath,
-		},
-		KernelMappings: []kmmv1beta1.KernelMapping{
+	if isOpenshift {
+		return []kmmv1beta1.KernelMapping{
 			{
 				Regexp:               "^.+$",
 				ContainerImage:       driversImage,
@@ -148,12 +187,81 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 					},
 				},
 			},
+		}, nil
+	}
+
+	nodes, err := GetK8SNodes(devConfig)
+	if err != nil {
+		// unable to fetch nodes
+		return nil, err
+	}
+	if nodes == nil || len(nodes.Items) == 0 {
+		return nil, fmt.Errorf("No nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
+	}
+	kernelMappings := []kmmv1beta1.KernelMapping{}
+	kmSet := map[string]bool{}
+	for _, node := range nodes.Items {
+		km := getKM(driversImage, driversVersion, node)
+		if kmSet[km.Literal] {
+			continue
+		}
+		kernelMappings = append(kernelMappings, km)
+		kmSet[km.Literal] = true
+	}
+	return kernelMappings, nil
+}
+
+func getKM(driversImage, driversVersion string, node v1.Node) kmmv1beta1.KernelMapping {
+	return kmmv1beta1.KernelMapping{
+		Literal:              node.Status.NodeInfo.KernelVersion,
+		ContainerImage:       driversImage,
+		InTreeModuleToRemove: gpuDriverModuleName,
+		Build: &kmmv1beta1.Build{
+			DockerfileConfigMap: &v1.LocalObjectReference{
+				Name: GetCMName(node),
+			},
+			BuildArgs: []kmmv1beta1.BuildArg{
+				{
+					Name:  "DRIVERS_VERSION",
+					Value: driversVersion,
+				},
+			},
 		},
 	}
-	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
-	mod.Spec.ImageRepoSecret = devConfig.Spec.ImageRepoSecret
-	mod.Spec.Selector = getNodeSelector(devConfig)
-	return nil
+}
+
+func GetCMName(node v1.Node) string {
+	osImage := strings.ToLower(node.Status.NodeInfo.OSImage)
+	splits := strings.Split(osImage, " ")
+	os := splits[0]
+	version := splits[1]
+	versionSplits := strings.Split(version, ".")
+	trimmedVersion := strings.Join(versionSplits[:2], ".")
+	return fmt.Sprintf("%s-%s", os, trimmedVersion)
+}
+
+func GetK8SNodes(devConfig *amdv1alpha1.DeviceConfig) (*v1.NodeList, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	options := metav1.ListOptions{
+		LabelSelector: MapToLabelSelector(devConfig.Spec.Selector),
+	}
+	return clientset.CoreV1().Nodes().List(context.TODO(), options)
+}
+
+func MapToLabelSelector(selector map[string]string) string {
+	selectorSlice := make([]string, 0)
+	for k, v := range selector {
+		selectorSlice = append(selectorSlice, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(selectorSlice, ",")
 }
 
 func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) {

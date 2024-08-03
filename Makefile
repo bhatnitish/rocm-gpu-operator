@@ -25,7 +25,7 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # quay.io/yshnaidm/amd-gpu-operator-bundle:$PROJECT_VERSION and quay.io/yshnaidm/amd-gpu-operator-catalog:$PROJECT_VERSION.
-IMAGE_TAG_BASE ?= yan1996/amd-gpu-operator
+IMAGE_TAG_BASE ?= registry.test.pensando.io:5000/amd-gpu-operator
 
 # This is the default tag of all images made by this Makefile.
 IMAGE_TAG ?= demo

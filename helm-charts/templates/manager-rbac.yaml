@@ -47,6 +47,14 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kmm.sigs.x-k8s.io
   resources:
   - modules

@@ -6,8 +6,8 @@ resources:
 
 images:
 - name: controller
-  newName: yan1996/amd-gpu-operator
-  newTag: demo
+  newName: registry.test.pensando.io:5000/amd-gpu-operator
+  newTag: latest
 
 configMapGenerator:
 - files:

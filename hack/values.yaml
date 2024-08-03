@@ -10,8 +10,8 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
-      repository: yan1996/amd-gpu-operator # set controller image
-      tag: latest # set controller image version
+      repository: registry.test.pensando.io:5000/amd-gpu-operator
+      tag: latest
     imagePullPolicy: Always
     resources:
       limits:
