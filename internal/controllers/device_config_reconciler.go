@@ -255,7 +255,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 	}
 	logger := log.FromContext(ctx)
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
-		return dcrh.kmmHandler.SetKMMModuleAsDesired(kmmMod, devConfig)
+		return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig)
 	})
 
 	if err == nil {

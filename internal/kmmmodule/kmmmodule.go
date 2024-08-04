@@ -22,19 +22,18 @@ import (
 	"fmt"
 	"strings"
 
+	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
-	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -61,7 +60,7 @@ var (
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
 type KMMModuleAPI interface {
 	SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error
-	SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error
+	SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type kmmModule struct {
@@ -123,8 +122,8 @@ func resolveDockerfile(cmName string) (string, error) {
 	return resolvedDockerfile, nil
 }
 
-func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
-	err := setKMMModuleLoader(mod, devConfig, km.isOpenShift)
+func (km *kmmModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
+	err := setKMMModuleLoader(ctx, mod, devConfig, km.isOpenShift)
 	if err != nil {
 		return fmt.Errorf("failed to set KMM Module: %v", err)
 	}
@@ -132,7 +131,21 @@ func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *am
 	return controllerutil.SetControllerReference(devConfig, mod, km.scheme)
 }
 
-func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) error {
+func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) error {
+	kmlog := log.FromContext(ctx)
+
+	args := &kmmv1beta1.ModprobeArgs{}
+	firmwarePath := imageFirmwarePath
+
+	if devConfig.Spec.SkipDrivers {
+		args = &kmmv1beta1.ModprobeArgs{
+			Load:   []string{"-n"},
+			Unload: []string{"-n"},
+		}
+		firmwarePath = ""
+		kmlog.Info("skip driver install/uninstall")
+	}
+
 	kernelMappings, err := getKernelMappings(devConfig, isOpenshift)
 	if err != nil {
 		return err
@@ -140,7 +153,8 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
 		Modprobe: kmmv1beta1.ModprobeSpec{
 			ModuleName:   gpuDriverModuleName,
-			FirmwarePath: imageFirmwarePath,
+			FirmwarePath: firmwarePath,
+			Args:         args,
 		},
 		KernelMappings: kernelMappings,
 	}
@@ -152,6 +166,7 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 
 func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([]kmmv1beta1.KernelMapping, error) {
 	driversVersion := devConfig.Spec.DriversVersion
+	inTreeModuleToRemove := gpuDriverModuleName
 	if driversVersion == "" {
 		if isOpenshift {
 			driversVersion = defaultOcDriversVersion
@@ -169,12 +184,16 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 		}
 	}
 
+	if devConfig.Spec.SkipDrivers {
+		inTreeModuleToRemove = ""
+	}
+
 	if isOpenshift {
 		return []kmmv1beta1.KernelMapping{
 			{
 				Regexp:               "^.+$",
 				ContainerImage:       driversImage,
-				InTreeModuleToRemove: gpuDriverModuleName,
+				InTreeModuleToRemove: inTreeModuleToRemove,
 				Build: &kmmv1beta1.Build{
 					DockerfileConfigMap: &v1.LocalObjectReference{
 						Name: getDockerfileCMName(devConfig),
@@ -201,7 +220,7 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 	kernelMappings := []kmmv1beta1.KernelMapping{}
 	kmSet := map[string]bool{}
 	for _, node := range nodes.Items {
-		km := getKM(driversImage, driversVersion, node)
+		km := getKM(driversImage, driversVersion, node, inTreeModuleToRemove)
 		if kmSet[km.Literal] {
 			continue
 		}
@@ -211,11 +230,11 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 	return kernelMappings, nil
 }
 
-func getKM(driversImage, driversVersion string, node v1.Node) kmmv1beta1.KernelMapping {
+func getKM(driversImage, driversVersion string, node v1.Node, inTreeModuleToRemove string) kmmv1beta1.KernelMapping {
 	return kmmv1beta1.KernelMapping{
 		Literal:              node.Status.NodeInfo.KernelVersion,
 		ContainerImage:       driversImage,
-		InTreeModuleToRemove: gpuDriverModuleName,
+		InTreeModuleToRemove: inTreeModuleToRemove,
 		Build: &kmmv1beta1.Build{
 			DockerfileConfigMap: &v1.LocalObjectReference{
 				Name: GetCMName(node),

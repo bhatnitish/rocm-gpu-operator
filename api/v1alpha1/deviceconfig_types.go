@@ -30,6 +30,9 @@ type DeviceConfigSpec struct {
 	// if the in-tree driver should be used instead of OOT drivers
 	UseInTreeDrivers bool `json:"useInTreeDrivers,omitempty"`
 
+	// skip driver install/uninstall
+	SkipDrivers bool `json:"skipDrivers,omitempty"`
+
 	// defines image that includes drivers and firmware blobs
 	// +optional
 	DriversImage string `json:"driversImage,omitempty"`

@@ -62,6 +62,9 @@ spec:
                 description: Selector describes on which nodes the GPU Operator should
                   enable the GPU device.
                 type: object
+              skipDrivers:
+                description: skip driver install/uninstall
+                type: boolean
               useInTreeDrivers:
                 description: if the in-tree driver should be used instead of OOT drivers
                 type: boolean

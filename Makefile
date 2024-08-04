@@ -20,12 +20,13 @@ KUBECTL_CMD=kubectl
 endif
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
+# IMAGE_NAME defines the docker.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# quay.io/yshnaidm/amd-gpu-operator-bundle:$PROJECT_VERSION and quay.io/yshnaidm/amd-gpu-operator-catalog:$PROJECT_VERSION.
-IMAGE_TAG_BASE ?= registry.test.pensando.io:5000/amd-gpu-operator
+DOCKER_REGISTRY ?= registry.test.pensando.io:5000
+IMAGE_NAME ?= amd-gpu-operator
+IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
 
 # This is the default tag of all images made by this Makefile.
 IMAGE_TAG ?= demo
@@ -100,8 +101,12 @@ help: ## Display this help.
 
 ##@ Development
 
-.PHONY: manifests
-manifests: controller-gen ## Generate ClusterRole and CustomResourceDefinition objects.
+.PHONY: manifests update-registry
+update-registry:
+	# todo: remove after autogen fix
+	sed -i -e 's/registry.test.pensando.io:5000.*$$/$(DOCKER_REGISTRY)\/$(IMAGE_NAME)/' -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" config/manager-base/kustomization.yaml config/manager/kustomization.yaml hack/values.yaml helm-charts/values.yaml
+
+manifests: controller-gen update-registry## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./internal/controllers" output:rbac:artifacts:config=config/rbac
 
