@@ -5,14 +5,14 @@ kind: CustomResourceDefinition
 metadata:
   name: preflightvalidations.kmm.sigs.x-k8s.io
   annotations:
-    cert-manager.io/inject-ca-from: 'default/release-name-kmm-serving-cert'
+    cert-manager.io/inject-ca-from: 'default/amd-gpu-kmm-serving-cert'
     controller-gen.kubebuilder.io/version: v0.15.0
   labels:
     app.kubernetes.io/component: kmm
     app.kubernetes.io/part-of: kmm
     helm.sh/chart: kmm-0.1.0
     app.kubernetes.io/name: kmm
-    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/instance: amd-gpu
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
 spec:
@@ -21,7 +21,7 @@ spec:
     webhook:
       clientConfig:
         service:
-          name: 'release-name-kmm-webhook-service'
+          name: 'amd-gpu-kmm-webhook-service'
           namespace: 'default'
           path: /convert
       conversionReviewVersions:

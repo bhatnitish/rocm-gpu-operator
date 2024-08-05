@@ -10,7 +10,7 @@ patches:
 images:
 - name: controller
   newName: registry.test.pensando.io:5000/amd-gpu-operator
-  newTag: latest
+  newTag: demo
 
 configurations:
 - kustomizeconfig.yaml

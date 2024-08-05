@@ -16,6 +16,7 @@ rules:
   - get
   - list
   - update
+{{- if eq .Values.platform "openshift" }}
 - apiGroups:
   - security.openshift.io
   resourceNames:
@@ -24,6 +25,7 @@ rules:
   - securitycontextconstraints
   verbs:
   - use
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

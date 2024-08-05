@@ -7,7 +7,7 @@ include dev.env
 # - use environment variables to overwrite this value (e.g export PROJECT_VERSION=0.0.2)
 PROJECT_VERSION ?= 0.0.1
 
-YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.io_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml config/default/kustomization.yaml
+YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml config/default/kustomization.yaml
 CRD_YAML_FILES = deviceconfig-crd.yaml
 KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfig-crd.yaml
 
@@ -281,7 +281,7 @@ helm: manifests kustomize clean-helm gen-kmm-charts
 	mkdir $(shell pwd)/helm-charts/crds
 	echo "moving crd yaml files to crds folder"
 	@for file in $(CRD_YAML_FILES); do \
-		helm template helm-charts -s templates/$$file > $(shell pwd)/helm-charts/crds/$$file; \
+		helm template amd-gpu helm-charts -s templates/$$file > $(shell pwd)/helm-charts/crds/$$file; \
 	done
 	rm $(shell pwd)/helm-charts/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
@@ -291,14 +291,17 @@ helm-install:
 	helm install -f helm-charts/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace
 
 helm-uninstall:
-	helm uninstall amd-gpu-operator -n amd-gpu-operator
+	echo "Deleting all device configs before uninstalling operator..."
+	${KUBECTL_CMD} delete deviceconfigs.amd.com -n kube-amd-gpu --all
+	echo "Uninstalling operator..."
+	helm uninstall amd-gpu-operator -n kube-amd-gpu
 
 gen-kmm-charts:
 	rm -rf /tmp/kmm && git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts/charts/kmm
 	mkdir helm-charts/charts/kmm/crds
 	@for file in $(KMM_CRD_YAML_FILES); do \
-		helm template helm-charts/charts/kmm -s templates/$$file > helm-charts/charts/kmm/crds/$$file; \
+		helm template amd-gpu helm-charts/charts/kmm -s templates/$$file > helm-charts/charts/kmm/crds/$$file; \
 	done
 	rm helm-charts/charts/kmm/templates/*crd.yaml
 	rm -rf /tmp/kmm

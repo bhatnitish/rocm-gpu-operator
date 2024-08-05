@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/part-of: kmm
     helm.sh/chart: kmm-0.1.0
     app.kubernetes.io/name: kmm
-    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/instance: amd-gpu
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
 spec:

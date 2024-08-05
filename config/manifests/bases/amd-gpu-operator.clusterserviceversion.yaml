@@ -15,7 +15,7 @@ spec:
     - description: DeviceConfig describes how to enable AMD GPU device
       displayName: DeviceConfig
       kind: DeviceConfig
-      name: deviceconfigs.amd.io
+      name: deviceconfigs.amd.com
       version: v1alpha1
   description: |-
     Operator responsible for deploying AMD GPU kernel drivers and device plugin

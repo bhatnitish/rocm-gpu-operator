@@ -1,12 +1,16 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: deviceconfigs.amd.io
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/name: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  name: deviceconfigs.amd.com
 spec:
-  group: amd.io
+  group: amd.com
   names:
     kind: DeviceConfig
     listKind: DeviceConfigList
@@ -115,3 +119,9 @@ spec:
     storage: true
     subresources:
       status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

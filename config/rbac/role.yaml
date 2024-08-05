@@ -5,7 +5,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - amd.io
+  - amd.com
   resources:
   - deviceconfigs
   verbs:
@@ -16,7 +16,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - amd.io
+  - amd.com
   resources:
   - deviceconfigs/finalizers
   verbs:

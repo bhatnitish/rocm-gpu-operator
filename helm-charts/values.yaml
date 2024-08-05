@@ -3,6 +3,7 @@ node-feature-discovery:
 kmm:
   enabled: true  # Set to false to disable kmm
 installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
+platform: k8s # platform could be k8s or openshift
 controllerManager:
   manager:
     args:
@@ -36,7 +37,7 @@ managerConfig:
     metricsBindAddress: 127.0.0.1:8080
     leaderElection:
       enabled: true
-      resourceID: gpue.openshift.io
+      resourceID: gpu.amd.com
 metricsService:
   ports:
   - name: https

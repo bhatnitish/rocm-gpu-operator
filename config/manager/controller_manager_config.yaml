@@ -2,4 +2,4 @@ healthProbeBindAddress: :8081
 metricsBindAddress: 127.0.0.1:8080
 leaderElection:
   enabled: true
-  resourceID: gpue.openshift.io
+  resourceID: gpu.amd.com

@@ -1,3 +1,4 @@
 /bin/
 /manager
 /helm-charts/*.lock
+/*gpu-operator*.tgz

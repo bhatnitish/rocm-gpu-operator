@@ -8,7 +8,7 @@ metadata:
   {{- include "helm-charts.labels" . | nindent 4 }}
 rules:
 - apiGroups:
-  - amd.io
+  - amd.com
   resources:
   - deviceconfigs
   verbs:
@@ -19,7 +19,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - amd.io
+  - amd.com
   resources:
   - deviceconfigs/finalizers
   verbs:

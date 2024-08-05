@@ -31,7 +31,12 @@ Run ```make helm``` to generate helm charts
   * Configure helm-charts/values.yaml to change default config
               (node-feature-discovery, kmm, controller image version etc)
   * Run ```make helm-install``` to depoly the operator
-  * When you need to uninstall, run ```make helm-uninstall``` then ```make cert-manager-uninstall```
+  * When you need to uninstall, make sure to uninstall in the following order:
+    * Delete all existing CRs: ```kubectl delete deviceconfigs.amd.com --all``` or ```oc delete deviceconfigs.amd.com --all```
+    * Uninstall operator: ```make helm-uninstall``` 
+    * Uninstall Cert Manager: ```make cert-manager-uninstall```
+    * Uninstall all the CRDs: ```kubectl delete crd deviceconfigs.amd.com modules.kmm.sigs.x-k8s.io nodefeaturegroups.nfd.k8s-sigs.io nodefeaturerules.nfd.k8s-sigs.io nodefeatures.nfd.k8s-sigs.io nodemodulesconfigs.kmm.sigs.x-k8s.io preflightvalidations.kmm.sigs.x-k8s.io ``` 
+    * ```kubectl delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io```
 
 * Method 2 - Build and install from source code:
   

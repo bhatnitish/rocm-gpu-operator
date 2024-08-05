@@ -9,6 +9,7 @@
 package kmmmodule
 
 import (
+	context "context"
 	reflect "reflect"
 
 	v1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
@@ -55,15 +56,15 @@ func (mr *MockKMMModuleAPIMockRecorder) SetBuildConfigMapAsDesired(buildCM, devC
 }
 
 // SetKMMModuleAsDesired mocks base method.
-func (m *MockKMMModuleAPI) SetKMMModuleAsDesired(mod *v1beta1.Module, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockKMMModuleAPI) SetKMMModuleAsDesired(ctx context.Context, mod *v1beta1.Module, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetKMMModuleAsDesired", mod, devConfig)
+	ret := m.ctrl.Call(m, "SetKMMModuleAsDesired", ctx, mod, devConfig)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetKMMModuleAsDesired indicates an expected call of SetKMMModuleAsDesired.
-func (mr *MockKMMModuleAPIMockRecorder) SetKMMModuleAsDesired(mod, devConfig any) *gomock.Call {
+func (mr *MockKMMModuleAPIMockRecorder) SetKMMModuleAsDesired(ctx, mod, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKMMModuleAsDesired", reflect.TypeOf((*MockKMMModuleAPI)(nil).SetKMMModuleAsDesired), mod, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKMMModuleAsDesired", reflect.TypeOf((*MockKMMModuleAPI)(nil).SetKMMModuleAsDesired), ctx, mod, devConfig)
 }
