@@ -104,7 +104,7 @@ help: ## Display this help.
 .PHONY: manifests update-registry
 update-registry:
 	# todo: remove after autogen fix
-	sed -i -e 's/registry.test.pensando.io:5000.*$$/$(DOCKER_REGISTRY)\/$(IMAGE_NAME)/' -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" config/manager-base/kustomization.yaml config/manager/kustomization.yaml hack/values.yaml helm-charts/values.yaml
+	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" -e 's/registry.test.pensando.io:5000/$(DOCKER_REGISTRY)/' config/manager-base/kustomization.yaml config/manager/kustomization.yaml hack/values.yaml helm-charts/values.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml
 
 manifests: controller-gen update-registry## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
