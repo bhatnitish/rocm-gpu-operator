@@ -32,7 +32,7 @@ Run ```make helm``` to generate helm charts
               (node-feature-discovery, kmm, controller image version etc)
   * Run ```make helm-install``` to depoly the operator
   * When you need to uninstall, make sure to uninstall in the following order:
-    * Delete all existing CRs: ```kubectl delete deviceconfigs.amd.com --all``` or ```oc delete deviceconfigs.amd.com --all```
+    * Delete all existing CRs: ```kubectl delete deviceconfigs.amd.com -n <CR's namespace> --all``` or ```oc delete deviceconfigs.amd.com -n <CR's namespace> --all```
     * Uninstall operator: ```make helm-uninstall``` 
     * Uninstall Cert Manager: ```make cert-manager-uninstall```
     * Uninstall all the CRDs: ```kubectl delete crd deviceconfigs.amd.com modules.kmm.sigs.x-k8s.io nodefeaturegroups.nfd.k8s-sigs.io nodefeaturerules.nfd.k8s-sigs.io nodefeatures.nfd.k8s-sigs.io nodemodulesconfigs.kmm.sigs.x-k8s.io preflightvalidations.kmm.sigs.x-k8s.io ``` 
@@ -63,7 +63,10 @@ Run ```make helm``` to generate helm charts
     wait for cert manager and kmm pods ready
   * Run ```make install``` to install the CRD
   * Run ```make deploy``` to deploy the AMD GPU Operator
-  * When you need to uninstall, run ```make undeploy``` then ```make uninstall```, finally run ```kubectl delete``` on the dependencies resource URL in the reverse order
+  * When you need to uninstall:
+    * run ```make undeploy``` then ```make uninstall```, finally run ```kubectl delete``` on the dependencies resource URL in the reverse order
+    * Uninstall all the CRDs: ```kubectl delete crd deviceconfigs.amd.com modules.kmm.sigs.x-k8s.io nodefeaturegroups.nfd.k8s-sigs.io nodefeaturerules.nfd.k8s-sigs.io nodefeatures.nfd.k8s-sigs.io nodemodulesconfigs.kmm.sigs.x-k8s.io preflightvalidations.kmm.sigs.x-k8s.io ``` 
+    * ```kubectl delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io```
 
 ## Test the AMD GPU Operator
 
