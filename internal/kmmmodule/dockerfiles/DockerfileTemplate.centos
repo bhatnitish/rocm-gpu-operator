@@ -1,4 +1,4 @@
-FROM ubuntu:$$VERSION as builder
+FROM centos:$$VERSION as builder
 
 ARG KERNEL_FULL_VERSION
 
@@ -16,8 +16,8 @@ RUN apt-get update && apt-get install -y bc \
     linux-headers-${KERNEL_FULL_VERSION} \
     linux-modules-extra-${KERNEL_FULL_VERSION}
 
-RUN INSTALLER=$(wget --spider -r -l1 -nd -nv  https://repo.radeon.com/amdgpu-install/${DRIVERS_VERSION}/ubuntu/jammy/ 2>&1 |  grep -oP '(?<=/)[^/]*\.deb') \
-    && wget https://repo.radeon.com/amdgpu-install/${DRIVERS_VERSION}/ubuntu/jammy/${INSTALLER} \
+RUN INSTALLER=$(wget --spider -r -l1 -nd -nv  https://repo.radeon.com/amdgpu-install/${DRIVERS_VERSION}/el/$OS_VERSION/ 2>&1 |  grep -oP '(?<=/)[^/]*\.deb') \
+    && wget https://repo.radeon.com/amdgpu-install/${DRIVERS_VERSION}/el/$OS_VERSION/${INSTALLER} \
     && apt install -y ./${INSTALLER} \
     && apt update -y \
     && amdgpu-install --usecase=dkms -y \

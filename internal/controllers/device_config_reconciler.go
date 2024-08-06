@@ -219,7 +219,10 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 
 	savedCMName := map[string]bool{}
 	for _, node := range nodes.Items {
-		cmName := kmmmodule.GetCMName(node)
+		cmName, err := kmmmodule.GetCMName(node)
+		if err != nil {
+			return fmt.Errorf("invalid node %s, err: %v", node.Name, err)
+		}
 		if savedCMName[cmName] {
 			// already saved a docker file for the OS-Version combo
 			continue

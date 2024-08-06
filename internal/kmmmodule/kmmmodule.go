@@ -19,11 +19,13 @@ package kmmmodule
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,14 +49,17 @@ const (
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION`"
 	defaultOcDriversVersion     = "el9-6.1.1"
-	defaultDriversVersion       = "6.1.3"
 )
 
 var (
-	//go:embed dockerfiles/amdDriversDockerfile.txt
-	buildDockerfile string
+	//go:embed dockerfiles/DockerfileTemplate.ubuntu
+	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/driversDockerfile.txt
 	buildOcDockerfile string
+	//go:embed dockerfiles/DockerfileTemplate.centos
+	dockerfileTemplateCentos string
+	//go:embed dockerfiles/DockerfileTemplate.rhel
+	dockerfileTemplateRHEL string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -106,6 +111,11 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 	return controllerutil.SetControllerReference(devConfig, buildCM, km.scheme)
 }
 
+var driverLabels = map[string]string{
+	"20.04": "focal",
+	"22.04": "jammy",
+}
+
 func resolveDockerfile(cmName string) (string, error) {
 	splits := strings.SplitN(cmName, "-", 2)
 	os := splits[0]
@@ -113,10 +123,19 @@ func resolveDockerfile(cmName string) (string, error) {
 	var dockerfileTemplate string
 	switch os {
 	case "ubuntu":
-		dockerfileTemplate = buildDockerfile
-	//TODO: add more mappings here
+		dockerfileTemplate = dockerfileTemplateUbuntu
+		driverLabel, present := driverLabels[version]
+		if !present {
+			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
+		}
+		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
+	//TODO: uncomment this once dockerfiles for the corresponding OSes are ready
+	//case "centos":
+	//	dockerfileTemplate = dockerfileTemplateCentos
+	//case "rhel":
+	//	dockerfileTemplate = dockerfileTemplateRHEL
 	default:
-		return "", fmt.Errorf("no dockerfile found for OS: %s", os)
+		return "", fmt.Errorf("not supported OS: %s", os)
 	}
 	resolvedDockerfile := strings.Replace(dockerfileTemplate, "$$VERSION", version, -1)
 	return resolvedDockerfile, nil
@@ -165,30 +184,22 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 }
 
 func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([]kmmv1beta1.KernelMapping, error) {
-	driversVersion := devConfig.Spec.DriversVersion
+
 	inTreeModuleToRemove := gpuDriverModuleName
-	if driversVersion == "" {
-		if isOpenshift {
-			driversVersion = defaultOcDriversVersion
-		} else {
-			driversVersion = defaultDriversVersion
-		}
-	}
-
-	driversImage := devConfig.Spec.DriversImage
-	if driversImage == "" {
-		if isOpenshift {
-			driversImage = fmt.Sprintf(defaultOcDriversImageTemplate, driversVersion)
-		} else {
-			driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
-		}
-	}
-
 	if devConfig.Spec.SkipDrivers {
 		inTreeModuleToRemove = ""
 	}
-
 	if isOpenshift {
+		driversVersion := devConfig.Spec.DriversVersion
+
+		if driversVersion == "" {
+			driversVersion = defaultOcDriversVersion
+		}
+		driversImage := devConfig.Spec.DriversImage
+		if driversImage == "" {
+			driversImage = fmt.Sprintf(defaultOcDriversImageTemplate, driversVersion)
+		}
+
 		return []kmmv1beta1.KernelMapping{
 			{
 				Regexp:               "^.+$",
@@ -220,7 +231,10 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 	kernelMappings := []kmmv1beta1.KernelMapping{}
 	kmSet := map[string]bool{}
 	for _, node := range nodes.Items {
-		km := getKM(driversImage, driversVersion, node, inTreeModuleToRemove)
+		km, err := getKM(devConfig, node, inTreeModuleToRemove)
+		if err != nil {
+			return nil, fmt.Errorf("error constructing a kernel mapping for node: %s, err: %v", node.Name, err)
+		}
 		if kmSet[km.Literal] {
 			continue
 		}
@@ -230,14 +244,30 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 	return kernelMappings, nil
 }
 
-func getKM(driversImage, driversVersion string, node v1.Node, inTreeModuleToRemove string) kmmv1beta1.KernelMapping {
+func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string) (kmmv1beta1.KernelMapping, error) {
+	driversVersion := devConfig.Spec.DriversVersion
+	var err error
+	if driversVersion == "" {
+		driversVersion, err = getDefaultDriversVersion(node)
+		if err != nil {
+			return kmmv1beta1.KernelMapping{}, err
+		}
+	}
+	driversImage := devConfig.Spec.DriversImage
+	if driversImage == "" {
+		driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
+	}
+	cmName, err := GetCMName(node)
+	if err != nil {
+		return kmmv1beta1.KernelMapping{}, err
+	}
 	return kmmv1beta1.KernelMapping{
 		Literal:              node.Status.NodeInfo.KernelVersion,
 		ContainerImage:       driversImage,
 		InTreeModuleToRemove: inTreeModuleToRemove,
 		Build: &kmmv1beta1.Build{
 			DockerfileConfigMap: &v1.LocalObjectReference{
-				Name: GetCMName(node),
+				Name: cmName,
 			},
 			BuildArgs: []kmmv1beta1.BuildArg{
 				{
@@ -246,12 +276,66 @@ func getKM(driversImage, driversVersion string, node v1.Node, inTreeModuleToRemo
 				},
 			},
 		},
-	}
+	}, nil
 }
 
-func GetCMName(node v1.Node) string {
-	osImage := strings.ToLower(node.Status.NodeInfo.OSImage)
-	splits := strings.Split(osImage, " ")
+func getDefaultDriversVersion(node v1.Node) (string, error) {
+	osImageStr := strings.ToLower(node.Status.NodeInfo.OSImage)
+	for os, mapper := range defaultDriverversionsMappers {
+		if strings.Contains(osImageStr, os) {
+			return mapper(osImageStr)
+		}
+	}
+	return "", fmt.Errorf("OS: %s not supported. Should be one of %v", osImageStr, maps.Keys(cmNameMappers))
+}
+
+func GetCMName(node v1.Node) (string, error) {
+	osImageStr := strings.ToLower(node.Status.NodeInfo.OSImage)
+	for os, mapper := range cmNameMappers {
+		if strings.Contains(osImageStr, os) {
+			return mapper(osImageStr), nil
+		}
+	}
+	return "", fmt.Errorf("OS: %s not supported. Should be one of %v", osImageStr, maps.Keys(cmNameMappers))
+}
+
+var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string, error){
+	"ubuntu": ubuntuDefaultDriverVersionsMapper,
+	"rhel": func(f string) (string, error) {
+		return "6.2", nil
+	},
+	"centos": func(f string) (string, error) {
+		return "6.2", nil
+	},
+}
+
+func ubuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
+	if strings.Contains(fullImageStr, "20.04") {
+		return "6.2", nil
+	}
+	if strings.Contains(fullImageStr, "22.04") {
+		return "6.1.3", nil
+	}
+	return "", errors.New("invalid ubuntu version, should be one of [20.04, 22.04]")
+}
+
+var cmNameMappers = map[string]func(fullImageStr string) string{
+	"ubuntu": ubuntuCMNameMapper,
+	"rhel":   rhelCMNameMapper,
+	"centos": centosCMNameMapper,
+}
+
+func rhelCMNameMapper(osImageStr string) string {
+	//TODO: implement this
+	return ""
+}
+func centosCMNameMapper(osImageStr string) string {
+	//TODO: implement this
+	return ""
+}
+
+func ubuntuCMNameMapper(osImageStr string) string {
+	splits := strings.Split(osImageStr, " ")
 	os := splits[0]
 	version := splits[1]
 	versionSplits := strings.Split(version, ".")
