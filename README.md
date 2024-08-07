@@ -182,3 +182,9 @@ Agent 3
 
 laptop ~ % kubectl delete -f rocminfo.yaml
 ```
++## default options
++
++| Name            | kubernetes      | OpenShift                                                                                     |
++|:----------------|:----------------|:----------------------------------------------------------------------------------------------|
++ | docker registry | image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION | image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:$KERNEL_FULL_VERSION |
++| driver version  |    6.1.3        | el9-6.1.1                                                                                     |
