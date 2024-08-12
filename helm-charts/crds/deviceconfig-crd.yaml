@@ -46,6 +46,9 @@ spec:
             description: DeviceConfigSpec describes how the AMD GPU operator should
               enable AMD GPU device for customer's use.
             properties:
+              blacklistDrivers:
+                description: blacklist amdgpu drivers on the host
+                type: boolean
               devicePluginImage:
                 description: device plugin image
                 type: string

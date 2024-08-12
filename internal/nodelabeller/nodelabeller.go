@@ -59,6 +59,13 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
+	initVolumeMounts := []v1.VolumeMount{
+		{
+			Name:      "etc-volume",
+			MountPath: "/host-etc",
+		},
+	}
+
 	hostPathDirectory := v1.HostPathDirectory
 
 	volumes := []v1.Volume{
@@ -82,6 +89,29 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
+	initContainers := []v1.Container{}
+	if devConfig.Spec.BlacklistDrivers {
+		volumes = append(volumes, v1.Volume{
+			Name: "etc-volume",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/etc",
+					Type: &hostPathDirectory,
+				},
+			},
+		})
+
+		initContainers = []v1.Container{
+			{
+				Name:            "blacklist-driver",
+				Image:           "busybox:1.36",
+				Command:         []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf"},
+				ImagePullPolicy: v1.PullAlways,
+				VolumeMounts:    initVolumeMounts,
+			},
+		}
+	}
+
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
 	nodeSelector := map[string]string{labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name): ""}
 	ds.Spec = appsv1.DaemonSetSpec{
@@ -92,6 +122,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				//Finalizers: []string{constants.NodeLabelerFinalizer},
 			},
 			Spec: v1.PodSpec{
+				InitContainers: initContainers,
 				Containers: []v1.Container{
 					{
 						Args:    []string{"-vram", "-cu-count", "-simd-count", "-device-id", "-family"},

@@ -33,6 +33,9 @@ type DeviceConfigSpec struct {
 	// skip driver install/uninstall
 	SkipDrivers bool `json:"skipDrivers,omitempty"`
 
+	// blacklist amdgpu drivers on the host
+	BlacklistDrivers bool `json:"blacklistDrivers,omitempty"`
+
 	// defines image that includes drivers and firmware blobs
 	// +optional
 	DriversImage string `json:"driversImage,omitempty"`

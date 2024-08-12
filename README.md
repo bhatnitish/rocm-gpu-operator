@@ -182,9 +182,19 @@ Agent 3
 
 laptop ~ % kubectl delete -f rocminfo.yaml
 ```
-+## default options
-+
-+| Name            | kubernetes      | OpenShift                                                                                     |
-+|:----------------|:----------------|:----------------------------------------------------------------------------------------------|
-+ | docker registry | image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION | image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:$KERNEL_FULL_VERSION |
-+| driver version  |    6.1.3        | el9-6.1.1                                                                                     |
+## Configurable parameters
+| Name            | Description     |
+|:----------------|:----------------|
+|  devicePluginImage |  Device plugin image name|
+|  driversImage | Defines image that includes drivers and firmware blobs |
+|  driversVersion | Version of the drivers source code, can be used as part of image of dockerfile source image |
+|  imageRepoSecret | Pull secrets used for pull/setting images used by operator |
+|  blacklistDrivers | Blacklist amdgpu drivers on the host |
+|  skipDrivers     |  Skip driver install/uninstall |
+
+## Default options
+
+| Name            | kubernetes      | OpenShift                                                                                     |
+|:----------------|:----------------|:----------------------------------------------------------------------------------------------|
+ | docker registry | image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION | image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:$KERNEL_FULL_VERSION |
+| driver version  |    6.1.3        | el9-6.1.1                                                                                     |
