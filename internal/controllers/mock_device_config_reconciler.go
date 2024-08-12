@@ -13,6 +13,7 @@ import (
 	reflect "reflect"
 
 	v1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	v1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	gomock "go.uber.org/mock/gomock"
 	types "k8s.io/apimachinery/pkg/types"
 )
@@ -52,6 +53,21 @@ func (m *MockdeviceConfigReconcilerHelperAPI) finalizeDeviceConfig(ctx context.C
 func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) finalizeDeviceConfig(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "finalizeDeviceConfig", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).finalizeDeviceConfig), ctx, devConfig)
+}
+
+// getDeviceConfigOwnedKMMModule mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (*v1beta1.Module, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getDeviceConfigOwnedKMMModule", ctx, devConfig)
+	ret0, _ := ret[0].(*v1beta1.Module)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// getDeviceConfigOwnedKMMModule indicates an expected call of getDeviceConfigOwnedKMMModule.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) getDeviceConfigOwnedKMMModule(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getDeviceConfigOwnedKMMModule", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).getDeviceConfigOwnedKMMModule), ctx, devConfig)
 }
 
 // getRequestedDeviceConfig mocks base method.
@@ -123,4 +139,18 @@ func (m *MockdeviceConfigReconcilerHelperAPI) setFinalizer(ctx context.Context, 
 func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) setFinalizer(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setFinalizer", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).setFinalizer), ctx, devConfig)
+}
+
+// updateDeviceConfigStatus mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) updateDeviceConfigStatus(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "updateDeviceConfigStatus", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// updateDeviceConfigStatus indicates an expected call of updateDeviceConfigStatus.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) updateDeviceConfigStatus(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateDeviceConfigStatus", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).updateDeviceConfigStatus), ctx, devConfig)
 }

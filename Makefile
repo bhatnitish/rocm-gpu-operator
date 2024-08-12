@@ -29,7 +29,7 @@ IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
 
 # This is the default tag of all images made by this Makefile.
-IMAGE_TAG ?= demo
+IMAGE_TAG ?= dev
 
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
