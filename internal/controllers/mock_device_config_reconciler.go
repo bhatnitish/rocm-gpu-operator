@@ -15,7 +15,10 @@ import (
 	v1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	v1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	gomock "go.uber.org/mock/gomock"
+	v1 "k8s.io/api/core/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
+	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // MockdeviceConfigReconcilerHelperAPI is a mock of deviceConfigReconcilerHelperAPI interface.
@@ -55,6 +58,20 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) finalizeDeviceConfig(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "finalizeDeviceConfig", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).finalizeDeviceConfig), ctx, devConfig)
 }
 
+// findDeviceConfigsForNMC mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "findDeviceConfigsForNMC", ctx, nmc)
+	ret0, _ := ret[0].([]reconcile.Request)
+	return ret0
+}
+
+// findDeviceConfigsForNMC indicates an expected call of findDeviceConfigsForNMC.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) findDeviceConfigsForNMC(ctx, nmc any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "findDeviceConfigsForNMC", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).findDeviceConfigsForNMC), ctx, nmc)
+}
+
 // getDeviceConfigOwnedKMMModule mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (*v1beta1.Module, error) {
 	m.ctrl.T.Helper()
@@ -86,17 +103,17 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) getRequestedDeviceCon
 }
 
 // handleBuildConfigMap mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) handleBuildConfigMap(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) handleBuildConfigMap(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "handleBuildConfigMap", ctx, devConfig)
+	ret := m.ctrl.Call(m, "handleBuildConfigMap", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // handleBuildConfigMap indicates an expected call of handleBuildConfigMap.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleBuildConfigMap(ctx, devConfig any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleBuildConfigMap(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleBuildConfigMap", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleBuildConfigMap), ctx, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleBuildConfigMap", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleBuildConfigMap), ctx, devConfig, nodes)
 }
 
 // handleKMMModule mocks base method.
@@ -142,15 +159,15 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) setFinalizer(ctx, dev
 }
 
 // updateDeviceConfigStatus mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) updateDeviceConfigStatus(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) updateDeviceConfigStatus(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "updateDeviceConfigStatus", ctx, devConfig)
+	ret := m.ctrl.Call(m, "updateDeviceConfigStatus", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // updateDeviceConfigStatus indicates an expected call of updateDeviceConfigStatus.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) updateDeviceConfigStatus(ctx, devConfig any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) updateDeviceConfigStatus(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateDeviceConfigStatus", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).updateDeviceConfigStatus), ctx, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateDeviceConfigStatus", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).updateDeviceConfigStatus), ctx, devConfig, nodes)
 }

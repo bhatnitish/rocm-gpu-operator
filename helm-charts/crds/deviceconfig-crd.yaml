@@ -82,7 +82,7 @@ spec:
                 type: boolean
             type: object
           status:
-            description: ModuleStatus defines the observed state of Module.
+            description: DeviceConfigStatus defines the observed state of Module.
             properties:
               devicePlugin:
                 description: DevicePlugin contains the status of the Device Plugin deployment
@@ -118,8 +118,21 @@ spec:
                     format: int32
                     type: integer
                 type: object
-            required:
-            - driver
+              nodeModuleStatus:
+                additionalProperties:
+                  description: ModuleStatus contains the status of driver module installed
+                    by operator on the node
+                  properties:
+                    containerImage:
+                      type: string
+                    kernelVersion:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                  type: object
+                description: NodeModuleStatus contains per node status of driver module
+                  installed by operator
+                type: object
             type: object
         type: object
     served: true

@@ -30,9 +30,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -56,14 +60,20 @@ func NewDeviceConfigReconciler(
 }
 
 // SetupWithManager sets up the controller with the Manager.
-// Owns() will tell the manager that if any Module or Daemonset object or their status got updated
-// the DeviceConfig object in their ref field need to be reconciled
+//  1. Owns() will tell the manager that if any Module or Daemonset object or their status got updated
+//     the DeviceConfig object in their ref field need to be reconciled
+//  2. findDeviceConfigsForNMC: when a NMC changed, only trigger reconcile for related DeviceConfig
 func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&amdv1alpha1.DeviceConfig{}).
 		Owns(&kmmv1beta1.Module{}).
 		Owns(&appsv1.DaemonSet{}).
 		Named(DeviceConfigReconcilerName).
+		Watches(
+			&kmmv1beta1.NodeModulesConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForNMC),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		Complete(r)
 }
 
@@ -72,6 +82,8 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;patch;update;delete
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs,verbs=get;list;watch
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/status,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
 //+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=create;delete;get;list;patch;watch
@@ -104,8 +116,13 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to set finalizer for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	nodes, err := kmmmodule.GetK8SNodes(devConfig)
+	if err != nil {
+		return res, fmt.Errorf("failed to list Node for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	logger.Info("start build configmap reconciliation")
-	err = r.helper.handleBuildConfigMap(ctx, devConfig)
+	err = r.helper.handleBuildConfigMap(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to handle build ConfigMap for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
@@ -122,33 +139,9 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle node labeller for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
-	// fetch DeviceConfig owned custom resource
-	// then retrieve its status and put it to DeviceConfig's status fields
-	kmmModuleObj, err := r.helper.getDeviceConfigOwnedKMMModule(ctx, devConfig)
+	err = r.helper.updateDeviceConfigStatus(ctx, devConfig, nodes)
 	if err != nil {
-		logger.Error(err, fmt.Sprintf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
-			types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err))
-		return res, nil
-	}
-	if kmmModuleObj != nil {
-		devConfig.Status = amdv1alpha1.DeviceConfigStatus{
-			DevicePlugin: amdv1alpha1.DeploymentStatus{
-				NodesMatchingSelectorNumber: kmmModuleObj.Status.DevicePlugin.NodesMatchingSelectorNumber,
-				DesiredNumber:               kmmModuleObj.Status.DevicePlugin.DesiredNumber,
-				AvailableNumber:             kmmModuleObj.Status.DevicePlugin.AvailableNumber,
-			},
-			Drivers: amdv1alpha1.DeploymentStatus{
-				NodesMatchingSelectorNumber: kmmModuleObj.Status.ModuleLoader.DesiredNumber,
-				DesiredNumber:               kmmModuleObj.Status.ModuleLoader.DesiredNumber,
-				AvailableNumber:             kmmModuleObj.Status.ModuleLoader.AvailableNumber,
-			},
-		}
-	}
-	err = r.helper.updateDeviceConfigStatus(ctx, devConfig)
-	if err != nil {
-		logger.Error(err, fmt.Sprintf("failed to update status for DeviceConfig %+v: %+v",
-			types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err))
-		return res, nil
+		return res, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 	return res, nil
 }
@@ -157,11 +150,12 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 type deviceConfigReconcilerHelperAPI interface {
 	getRequestedDeviceConfig(ctx context.Context, namespacedName types.NamespacedName) (*amdv1alpha1.DeviceConfig, error)
 	getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error)
-	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
-	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
@@ -190,8 +184,58 @@ func (dcrh *deviceConfigReconcilerHelper) getRequestedDeviceConfig(ctx context.C
 	return &devConfig, nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
-	// get the latest version of object before update
+// findDeviceConfigsForNMC when a NMC changed, only trigger reconcile for related DeviceConfig
+func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request {
+	reqs := []reconcile.Request{}
+	logger := log.FromContext(ctx)
+	nmcObj, ok := nmc.(*kmmv1beta1.NodeModulesConfig)
+	if !ok {
+		logger.Error(fmt.Errorf("failed to convert object %+v to NodeModulesConfig", nmc), "")
+		return reqs
+	}
+	if nmcObj.Status.Modules != nil && len(nmcObj.Status.Modules) > 0 {
+		for _, module := range nmcObj.Status.Modules {
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: module.Namespace,
+					Name:      module.Name,
+				},
+			})
+		}
+	}
+	return reqs
+}
+
+func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	// fetch DeviceConfig-owned custom resource
+	// then retrieve its status and put it to DeviceConfig's status fields
+	kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
+	if err != nil {
+		return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
+			types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
+	}
+	if kmmModuleObj != nil {
+		devConfig.Status = amdv1alpha1.DeviceConfigStatus{
+			DevicePlugin: amdv1alpha1.DeploymentStatus{
+				NodesMatchingSelectorNumber: kmmModuleObj.Status.DevicePlugin.NodesMatchingSelectorNumber,
+				DesiredNumber:               kmmModuleObj.Status.DevicePlugin.DesiredNumber,
+				AvailableNumber:             kmmModuleObj.Status.DevicePlugin.AvailableNumber,
+			},
+			Drivers: amdv1alpha1.DeploymentStatus{
+				NodesMatchingSelectorNumber: kmmModuleObj.Status.ModuleLoader.DesiredNumber,
+				DesiredNumber:               kmmModuleObj.Status.ModuleLoader.DesiredNumber,
+				AvailableNumber:             kmmModuleObj.Status.ModuleLoader.AvailableNumber,
+			},
+		}
+	}
+
+	// fetch latest node modules config, push their status back to DeviceConfig's status fields
+	err = dcrh.updateDeviceConfigNodeStatus(ctx, devConfig, nodes)
+	if err != nil {
+		return err
+	}
+
+	// get the latest version of object right before update
 	// to avoid issue "the object has been modified; please apply your changes to the latest version and try again"
 	latestObj, err := dcrh.getRequestedDeviceConfig(ctx, types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
 	if err != nil {
@@ -211,6 +255,42 @@ func (dcrh *deviceConfigReconcilerHelper) getDeviceConfigOwnedKMMModule(ctx cont
 		return nil, fmt.Errorf("failed to get KMM Module %s: %v", namespacedName, err)
 	}
 	return &module, nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	logger := log.FromContext(ctx)
+	devConfig.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{}
+
+	// for each node, fetch its status of modules configured by given DeviceConfig
+	for _, node := range nodes.Items {
+		// if there is no module configured for given node
+		// the info under that node name will be empty
+		// then it will be clear to see which node didn't get module configured
+		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{}
+
+		nmc := kmmv1beta1.NodeModulesConfig{}
+		err := dcrh.client.Get(ctx, types.NamespacedName{Name: node.Name}, &nmc)
+		if err != nil {
+			logger.Error(err, fmt.Sprintf("failed to fetch NMC for node %+v", node.Name))
+			continue
+		}
+		if nmc.Status.Modules != nil {
+			for _, module := range nmc.Status.Modules {
+				// if there is any module was configured by given DeviceConfig
+				// push their status back to DeviceConfig
+				if module.Namespace == devConfig.Namespace &&
+					module.Name == devConfig.Name {
+					devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{
+						ContainerImage:     module.Config.ContainerImage,
+						KernelVersion:      module.Config.KernelVersion,
+						LastTransitionTime: module.LastTransitionTime.String(),
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -261,12 +341,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	return dcrh.client.Delete(ctx, &mod)
 }
 
-func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
-	nodes, err := kmmmodule.GetK8SNodes(devConfig)
-	if err != nil {
-		return err
-	}
-
+func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	if nodes == nil || len(nodes.Items) == 0 {
 		return fmt.Errorf("No nodes found for the label selector %s", kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
 	}
@@ -300,7 +375,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 		savedCMName[cmName] = true
 	}
 
-	return err
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {

@@ -57,7 +57,7 @@ type DeviceConfigSpec struct {
 	Selector map[string]string `json:"selector,omitempty"`
 }
 
-// DaemonSetStatus contains the status for a daemonset deployed during
+// DeploymentStatus contains the status for a daemonset deployed during
 // reconciliation loop
 type DeploymentStatus struct {
 	// number of nodes that are targeted by the DeviceConfig selector
@@ -68,12 +68,21 @@ type DeploymentStatus struct {
 	AvailableNumber int32 `json:"availableNumber,omitempty"`
 }
 
-// ModuleStatus defines the observed state of Module.
+// ModuleStatus contains the status of driver module installed by operator on the node
+type ModuleStatus struct {
+	ContainerImage     string `json:"containerImage,omitempty"`
+	KernelVersion      string `json:"kernelVersion,omitempty"`
+	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
+}
+
+// DeviceConfigStatus defines the observed state of Module.
 type DeviceConfigStatus struct {
 	// DevicePlugin contains the status of the Device Plugin deployment
 	DevicePlugin DeploymentStatus `json:"devicePlugin,omitempty"`
 	// Driver contains the status of the Drivers deployment
-	Drivers DeploymentStatus `json:"driver"`
+	Drivers DeploymentStatus `json:"driver,omitempty"`
+	// NodeModuleStatus contains per node status of driver module installed by operator
+	NodeModuleStatus map[string]ModuleStatus `json:"nodeModuleStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
