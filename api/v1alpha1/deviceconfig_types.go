@@ -36,6 +36,10 @@ type DeviceConfigSpec struct {
 	// blacklist amdgpu drivers on the host
 	BlacklistDrivers bool `json:"blacklistDrivers,omitempty"`
 
+	// repo URL, https://repo.radeon.com/amdgpu-install by default
+	// +optional
+	RepoURL string `json:"repoURL,omitempty"`
+
 	// defines image that includes drivers and firmware blobs
 	// +optional
 	DriversImage string `json:"driversImage,omitempty"`

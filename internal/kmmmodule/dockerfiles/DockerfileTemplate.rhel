@@ -4,6 +4,8 @@ ARG KERNEL_FULL_VERSION
 
 ARG DRIVERS_VERSION
 
+ARG REPO_URL
+
 RUN apt-get update && apt-get install -y bc \
     bison \
     flex \
@@ -16,8 +18,8 @@ RUN apt-get update && apt-get install -y bc \
     linux-headers-${KERNEL_FULL_VERSION} \
     linux-modules-extra-${KERNEL_FULL_VERSION}
 
-RUN INSTALLER=$(wget --spider -r -l1 -nd -nv  https://repo.radeon.com/amdgpu-install/${DRIVERS_VERSION}/rhel/$OS_VERSION/ 2>&1 |  grep -oP '(?<=/)[^/]*\.deb') \
-    && wget https://repo.radeon.com/amdgpu-install/${DRIVERS_VERSION}/ubuntu/rhel/$OS_VERSION/${INSTALLER} \
+RUN INSTALLER=$(wget --spider -r -l1 -nd -nv  ${REPO_URL}/${DRIVERS_VERSION}/rhel/$OS_VERSION/ 2>&1 |  grep -oP '(?<=/)[^/]*\.deb') \
+    && wget ${REPO_URL}/${DRIVERS_VERSION}/ubuntu/rhel/$OS_VERSION/${INSTALLER} \
     && apt install -y ./${INSTALLER} \
     && apt update -y \
     && amdgpu-install --usecase=dkms -y \

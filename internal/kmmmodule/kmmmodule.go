@@ -45,10 +45,11 @@ const (
 	gpuDriverModuleName            = "amdgpu"
 	imageFirmwarePath              = "firmwareDir/updates"
 	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
-	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s"
+	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_VERSION"
 	// start local registry image-registry:5000 in k8s
-	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION`"
+	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION"
 	defaultOcDriversVersion     = "el9-6.1.1"
+	defaultRepo                 = "https://repo.radeon.com/amdgpu-install"
 )
 
 var (
@@ -261,6 +262,12 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	if err != nil {
 		return kmmv1beta1.KernelMapping{}, err
 	}
+
+	repoURL := defaultRepo
+	if devConfig.Spec.RepoURL != "" {
+		repoURL = devConfig.Spec.RepoURL
+	}
+
 	return kmmv1beta1.KernelMapping{
 		Literal:              node.Status.NodeInfo.KernelVersion,
 		ContainerImage:       driversImage,
@@ -273,6 +280,10 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 				{
 					Name:  "DRIVERS_VERSION",
 					Value: driversVersion,
+				},
+				{
+					Name:  "REPO_URL",
+					Value: repoURL,
 				},
 			},
 		},

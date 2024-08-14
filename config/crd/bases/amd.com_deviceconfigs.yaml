@@ -59,6 +59,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              repoURL:
+                description: repo URL, https://repo.radeon.com/amdgpu-install by default
+                type: string
               selector:
                 additionalProperties:
                   type: string
