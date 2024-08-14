@@ -14,11 +14,20 @@ KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfi
 ifdef OPENSHIFT
 $(info selected openshift)
 KUBECTL_CMD=oc
+HELM_OC_CMD=--set platform=openshift
 else
 $(info selected k8s)
 KUBECTL_CMD=kubectl
 endif
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+
+ifdef SKIP_NFD
+SKIP_NFD_CMD=--set node-feature-discovery.enabled=false
+endif
+
+ifdef SKIP_KMM
+SKIP_KMM_CMD=--set kmm.enabled=false
+endif
 
 # IMAGE_NAME defines the docker.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
@@ -27,7 +36,6 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= registry.test.pensando.io:5000
 IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
-
 # This is the default tag of all images made by this Makefile.
 IMAGE_TAG ?= dev
 
@@ -289,7 +297,7 @@ helm: manifests kustomize clean-helm gen-kmm-charts
 	cd $(shell pwd)/helm-charts; helm dependency update; helm lint; cd ..; helm package helm-charts/
 
 helm-install:
-	helm install -f helm-charts/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace
+	helm install -f helm-charts/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
 
 helm-uninstall:
 	echo "Deleting all device configs before uninstalling operator..."

@@ -19,19 +19,38 @@ Download the relased binary from [Helmify GitHub repo release page](https://gith
 4. Compile the project:
 Run ```make``` to generate the basic yaml files for CRD and build controller images
 
-5. Prepare the helm charts:
-Run ```make helm``` to generate helm charts
+5. Get an overview of the repository's [project layout](docs/project_layout.md)
+
+(Optional) If you did any customized change on the AMD GPU Operator, use the following steps to apply your modification and prepare a new image + helm charts:
+* Modify the registry related variables in ```Makefile```, use your own registry: 
+    * ```DOCKER_REGISTRY```
+    * ```IMAGE_NAME```
+    * ```IMAGE_TAG```
+*  Build and push AMD GPU operator's image:
+    * ```make docker-build```
+    * ```make docker-push```
+* Prepare the helm charts:
+    * Run ```make helm``` to generate new helm charts
 
 ## Installation (for developers):
 * Method 1 - Build and install from Helm Charts (Preferred):
-  * Must have a k8s or openshift cluster up and running
+  * Must have a k8s or openshift cluster up and running, if you're using OpenShift, please set ```OPENSHIFT=1```
   * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred)
+  * Modify the registry related variables in ```Makefile```, use your own registry: 
+    * ```DOCKER_REGISTRY```
+    * ```IMAGE_NAME```
+    * ```IMAGE_TAG```
+  * (Optional) If you made any customized changes on AMD GPU Operator, recompile then build + push AMD GPU operator's image:
+    * ```make```
+    * ```make docker-build```
+    * ```make docker-push```
   * Run ```make helm``` to generate helm charts, the helm charts will be packed into ```gpu-operator-x.x.x.tgz``` 
-  * Run ```make cert-manager-install``` to install cert-manager, one dependency operator
-  * Configure helm-charts/values.yaml to change default config
-              (node-feature-discovery, kmm, controller image version etc)
-  * Run ```make helm-install``` to depoly the operator
-  * When you need to uninstall, make sure to uninstall in the following order:
+  * Run ```make cert-manager-install``` to install cert-manager if there is no cert-manager running within your cluster
+  * Install helm chart:
+    * If your clsuter already have Node Feature Discovery running: ```SKIP_NFD=1 make helm-install```
+    * If your clsuter already have Kernel Module Management running: ```SKIP_KMM=1 make helm-install```
+    * If you want to install both NFD and KMM dependencies together with AMD GPU Operator: ```make helm-install```
+  * Uninstallation (make sure to uninstall in the following order):
     * Delete all existing CRs: ```kubectl delete deviceconfigs.amd.com -n <CR's namespace> --all``` or ```oc delete deviceconfigs.amd.com -n <CR's namespace> --all```
     * Uninstall operator: ```make helm-uninstall``` 
     * Uninstall Cert Manager: ```make cert-manager-uninstall```
@@ -40,7 +59,7 @@ Run ```make helm``` to generate helm charts
 
 * Method 2 - Build and install from source code:
   
-  * Must have a k8s or openshift cluster up and running
+  * Must have a k8s or openshift cluster up and running, if you're using OpenShift, please set ```OPENSHIFT=1```
   * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred)
   * Install dependencies:
     * Install Node Feature Discovery (NFD) Operator: 
@@ -61,14 +80,107 @@ Run ```make helm``` to generate helm charts
     ```
 
     wait for cert manager and kmm pods ready
+  * (Optional) If you made any customized changes on AMD GPU Operator, recompile then build + push AMD GPU operator's image:
+    * ```make```
+    * ```make docker-build```
+    * ```make docker-push```
   * Run ```make install``` to install the CRD
   * Run ```make deploy``` to deploy the AMD GPU Operator
-  * When you need to uninstall:
-    * run ```make undeploy``` then ```make uninstall```, finally run ```kubectl delete``` on the dependencies resource URL in the reverse order
+  * Uninstallation (make sure to uninstall in the following order):
+    * run ```make undeploy``` then ```make uninstall```, finally run ```kubectl delete``` on the dependencies resource URLs in the reverse order
     * Uninstall all the CRDs: ```kubectl delete crd deviceconfigs.amd.com modules.kmm.sigs.x-k8s.io nodefeaturegroups.nfd.k8s-sigs.io nodefeaturerules.nfd.k8s-sigs.io nodefeatures.nfd.k8s-sigs.io nodemodulesconfigs.kmm.sigs.x-k8s.io preflightvalidations.kmm.sigs.x-k8s.io ``` 
     * ```kubectl delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io```
 
 ## Test the AMD GPU Operator
+
+### Create an example Custom Resource (CR)
+```
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig  # The CR is named as DeviceConfig
+metadata:
+  name: test-device-config
+  namespace: kube-amd-gpu # the same namespace used for installation
+spec:
+  # driversImage must be a valid image URL, registry must be reachable and repo:tag should be valid
+  # if the registry needs credential to login, please configure it by:
+  # kubectl create secret docker-registry docker-auth -n kube-amd-gpu --docker-server=xxx --docker-username=xxx --docker-password=xxx
+  # and specify the secret name at imageRepoSecret
+  # if the tag exists, driver image will be directly pulled and directly used
+  # if the tag doesn't exist, driver image will be built on the fly and pushed back to the given image URL
+  driversImage: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3
+  # devicePluginImage is the ROCM official device plugin image
+  devicePluginImage: rocm/k8s-device-plugin
+  # driversVersion specifies the ROCM driver version that will be used during build on the fly
+  driversVersion: 6.1.3
+  # imageRepoSecret specifies the secret to get access to private registry
+  # remove this if your registry doesn't require credential to pull/push images
+  imageRepoSecret:
+    name: docker-auth
+  # selector specifies which node the CR will be applied
+  # by default feature.node.kubernetes.io/amd-gpu: "true" will apply the CR to all worker nodes where AMD GPU was detected by AMD PCI vendor ID 1002
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"
+```
+
+### Check Custom Resource status
+Once the driver installation was successful, the status will be pushed back to CR status fields.
+```
+kubectl get deviceconfigs -n <CR's namespace> test-device-config -oyaml
+```
+For example: 
+```
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  creationTimestamp: "2024-08-12T12:36:39Z"
+  finalizers:
+  - amd.node.kubernetes.io/deviceconfig-finalizer
+  generation: 1
+  name: test-device-config
+  namespace: kube-amd-gpu
+  resourceVersion: "1851082"
+  uid: 7b3100e5-4038-42fc-8077-b11e41451dcd
+spec:
+  devicePluginImage: rocm/k8s-device-plugin
+  driversImage: yan1996/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
+  driversVersion: 6.1.3
+  imageRepoSecret:
+    name: docker-auth
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"
+status:
+  devicePlugin:
+    availableNumber: 1             # number of nodes that has ROCM device plugin brought up successfully
+    desiredNumber: 1               # number of nodes that is expected to deploy new ROCM device plugin
+    nodesMatchingSelectorNumber: 1 # number of nodes selected by node selector
+  driver:
+    availableNumber: 1             # number of nodes that has amdgpu dirver installed successfully and managed by operator
+    desiredNumber: 1               # number of nodes that is expected to deploy new amdgpu driver
+    nodesMatchingSelectorNumber: 1 # number of nodes selected by node selector
+  nodeModuleStatus:                # per node status of installing driver, once appeared here it means the driver kmod was successfully installed
+    leto:                          # cluster's Node resource name
+      containerImage: yan1996/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
+      kernelVersion: 6.5.0-44-generic
+      lastTransitionTime: 2024-08-12 12:37:03 +0000 UTC
+```
+
+### TroubleShooting
+1. If the Custom Resource didn't went through the opeartor's controller and no worker pod was brought up. please try to get logs to check the error:
+
+* list all the pods by ```kubectl get pods -A```
+* describe the AMD GPU Operator controller pod ```kubectl describe pod -n <namespace> <gpu operator controller pod name>```
+* check the logs of AMD GPU Operator controller pod ```kubectl logs -n <namespace> <gpu operator controller pod name>``` 
+* describe the KMM webhook pod ```kubectl describe pod -n <kmm namespace> <kmm webhook pod name>```
+* check the logs of KMM webhook pod ```kubectl logs -n <kmm namespace> <kmm webhook pod name>```
+* describe the KMM controller pod ```kubectl describe pod -n <kmm namespace> <kmm controller pod name>```
+* check the logs of KMM controller pod ```kubectl logs -n <kmm namespace> <kmm controller pod name>``` 
+
+2. If the kaniko builder pod / kmm worker pod was up but it failed to install:
+* list all the pods by ```kubectl get pods -A```
+* describe the KMM kaniko builder pod ```kubectl describe pod -n <kmm namespace> <kmm kaniko builder pod name>```
+* check the logs of kaniko builder pod ```kubectl logs -n <kmm namespace> <kmm kaniko builder pod name>``` 
+* describe the KMM worker pod ```kubectl describe pod -n <kmm namespace> <kmm worker pod name>```
+* check the logs of KMM worker pod ```kubectl logs -n <kmm namespace> <kmm worker pod name>``` 
 
 ### Test rocm-smi
 
