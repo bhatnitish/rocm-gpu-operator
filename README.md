@@ -91,6 +91,42 @@ Run ```make``` to generate the basic yaml files for CRD and build controller ima
     * Uninstall all the CRDs: ```kubectl delete crd deviceconfigs.amd.com modules.kmm.sigs.x-k8s.io nodefeaturegroups.nfd.k8s-sigs.io nodefeaturerules.nfd.k8s-sigs.io nodefeatures.nfd.k8s-sigs.io nodemodulesconfigs.kmm.sigs.x-k8s.io preflightvalidations.kmm.sigs.x-k8s.io ``` 
     * ```kubectl delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io```
 
+### Adding insecure registries
+Following are the instructions to set container image registries as insecure. This allows for faster dev environment setup avoiding the hassle of adding/creating secrets for registry access.  
+* crio container runtime
+  * Edit the `registries.conf` file:
+    * Open the `/etc/containers/registries.conf` file.
+    * Add your insecure registry under the `[[registry]]` section. For example:
+      ```
+      [[registry]]
+      location = "registry.test.pensando.io:5000"
+      insecure = true
+      ```
+  * After making the changes, restart the CRI-O service to apply the new configuration:
+    ```
+    sudo systemctl restart crio
+    ```
+* containerd 
+  * Edit the `config.toml` file:
+    * Locate the `config.toml` file, typically found at `/etc/containerd/config.toml`
+    * Set `insecure_skip_verify` under config `[plugins."io.containerd.grpc.v1.cri".registry.configs]` section
+      ```
+      [plugins."io.containerd.grpc.v1.cri".registry.configs]
+      [plugins."io.containerd.grpc.v1.cri".registry.configs."my.insecure.registry.com:8888".tls]
+       insecure_skip_verify = true
+      ```
+    * Add your insecure registry under the `[plugins."io.containerd.grpc.v1.cri".registry.mirrors]` section. For example:
+      ```
+      [`plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+      [plugins`."io.containerd.grpc.v1.cri".registry.mirrors."my.insecure.registry.com:8888"]
+      endpoint = ["http://my.insecure.registry.com:8888"]
+      ```
+  * Restart containerd:
+    * After making the changes, restart the containerd service to apply the new configuration:
+      ```
+      sudo systemctl restart containerd
+      ```
+
 ## Test the AMD GPU Operator
 
 ### Create an example Custom Resource (CR)
