@@ -18,12 +18,15 @@ RUN apt-get update && apt-get install -y bc \
     linux-headers-${KERNEL_FULL_VERSION} \
     linux-modules-extra-${KERNEL_FULL_VERSION}
 
-RUN INSTALLER=$(wget --spider -r -l1 -nd -nv ${REPO_URL}/${DRIVERS_VERSION}/ubuntu/$$DRIVER_LABEL/ 2>&1 |  grep -oP '(?<=/)[^/]*\.deb') \
-    && wget ${REPO_URL}/${DRIVERS_VERSION}/ubuntu/$$DRIVER_LABEL/${INSTALLER} \
-    && apt install -y ./${INSTALLER} \
-    && apt update -y \
-    && amdgpu-install --usecase=dkms -y \
-    && rm ./${INSTALLER}
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+
+RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
+
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main" \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+RUN apt-get update
+RUN apt-get install -y amdgpu-dkms
 
 RUN depmod ${KERNEL_FULL_VERSION}
 

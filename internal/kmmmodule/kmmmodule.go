@@ -49,7 +49,7 @@ const (
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION"
 	defaultOcDriversVersion     = "el9-6.1.1"
-	defaultRepo                 = "https://repo.radeon.com/amdgpu-install"
+	defaultRepo                 = "https://repo.radeon.com"
 )
 
 var (
