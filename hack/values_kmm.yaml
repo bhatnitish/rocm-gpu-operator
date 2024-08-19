@@ -71,3 +71,9 @@ webhookService:
     protocol: TCP
     targetPort: 9443
   type: ClusterIP
+devicePlugin:
+  serviceAccount:
+    annotations: {}
+moduleLoader:
+  serviceAccount:
+    annotations: {}

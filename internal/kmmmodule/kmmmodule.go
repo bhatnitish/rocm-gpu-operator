@@ -21,6 +21,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
@@ -57,8 +58,6 @@ var (
 	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/driversDockerfile.txt
 	buildOcDockerfile string
-	//go:embed dockerfiles/DockerfileTemplate.centos
-	dockerfileTemplateCentos string
 	//go:embed dockerfiles/DockerfileTemplate.rhel
 	dockerfileTemplateRHEL string
 )
@@ -130,11 +129,8 @@ func resolveDockerfile(cmName string) (string, error) {
 			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
 		}
 		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
-	//TODO: uncomment this once dockerfiles for the corresponding OSes are ready
-	//case "centos":
-	//	dockerfileTemplate = dockerfileTemplateCentos
-	//case "rhel":
-	//	dockerfileTemplate = dockerfileTemplateRHEL
+	case "rhel":
+		dockerfileTemplate = dockerfileTemplateRHEL
 	default:
 		return "", fmt.Errorf("not supported OS: %s", os)
 	}
@@ -190,6 +186,7 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 	if devConfig.Spec.SkipDrivers {
 		inTreeModuleToRemove = ""
 	}
+	isOpenshift = true
 	if isOpenshift {
 		driversVersion := devConfig.Spec.DriversVersion
 
@@ -313,10 +310,7 @@ func GetCMName(node v1.Node) (string, error) {
 var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string, error){
 	"ubuntu": ubuntuDefaultDriverVersionsMapper,
 	"rhel": func(f string) (string, error) {
-		return "6.2", nil
-	},
-	"centos": func(f string) (string, error) {
-		return "6.2", nil
+		return "6.1.3", nil
 	},
 }
 
@@ -331,18 +325,21 @@ func ubuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 }
 
 var cmNameMappers = map[string]func(fullImageStr string) string{
-	"ubuntu": ubuntuCMNameMapper,
-	"rhel":   rhelCMNameMapper,
-	"centos": centosCMNameMapper,
+	"ubuntu":  ubuntuCMNameMapper,
+	"rhel":    rhelCMNameMapper,
+	"red hat": rhelCMNameMapper,
+	"redhat":  rhelCMNameMapper,
 }
 
 func rhelCMNameMapper(osImageStr string) string {
-	//TODO: implement this
-	return ""
-}
-func centosCMNameMapper(osImageStr string) string {
-	//TODO: implement this
-	return ""
+	// Check if the input contains "Red Hat Enterprise Linux"
+	// Use regex to find the release version
+	re := regexp.MustCompile(`(\d+\.\d+)`)
+	matches := re.FindStringSubmatch(osImageStr)
+	if len(matches) > 1 {
+		return fmt.Sprintf("%s-%s", "rhel", matches[1])
+	}
+	return "rhel-" + osImageStr
 }
 
 func ubuntuCMNameMapper(osImageStr string) string {

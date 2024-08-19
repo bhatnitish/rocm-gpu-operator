@@ -14,4 +14,22 @@ spec:
         vendor:
           op: In
           value: ["1002"] # AMD vendor ID
+{{- if eq .Values.platform "openshift" }}
+---
+apiVersion: nfd.openshift.io/v1alpha1
+kind: NodeFeatureRule
+metadata:
+  name: amd-gpu-label-nfd-rule-openshift
+spec:
+  rules:
+  - name: amd-gpu
+    labels:
+      "feature.node.kubernetes.io/amd-gpu": "true"
+    matchFeatures:
+    - feature: pci.device
+      matchExpressions:
+        vendor:
+          op: In
+          value: ["1002"] # AMD vendor ID
+{{- end }}
 {{- end }}

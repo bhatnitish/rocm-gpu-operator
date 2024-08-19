@@ -15,13 +15,13 @@ keywords:
   - gpu
   - amd
 
-kubeVersion: ">= 1.30.0-0"
+kubeVersion: ">= 1.21.0-0"
 version: 0.0.1
 appVersion: "0.0.1"
 
 dependencies:
 - name: node-feature-discovery
-  version: ">= 0.8.1-0"
+  version: v0.16.1
   repository: "https://kubernetes-sigs.github.io/node-feature-discovery/charts"
   condition: node-feature-discovery.enabled
 - name: kmm

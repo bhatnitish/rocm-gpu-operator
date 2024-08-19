@@ -79,14 +79,18 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/status,verbs=get;patch;update
-//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;patch;update;delete
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;patch;update;delete
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/finalizers,verbs=get;update;watch
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/status,verbs=get;list;watch
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/finalizers,verbs=get;update;watch
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
 //+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=apps,resources=daemonsets/status,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=apps,resources=daemonsets/finalizers,verbs=create;get;update;watch
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
@@ -372,6 +376,23 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 		if err == nil {
 			logger.Info("Reconciled KMM build dockerfile ConfigMap", "name", buildDockerfileCM.Name, "result", opRes)
 		}
+
+		buildDockerfileCM = &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: devConfig.Namespace,
+				Name:      getDockerfileCMName(devConfig),
+			},
+		}
+
+		logger = log.FromContext(ctx)
+		opRes, err = controllerutil.CreateOrPatch(ctx, dcrh.client, buildDockerfileCM, func() error {
+			return dcrh.kmmHandler.SetBuildConfigMapAsDesired(buildDockerfileCM, devConfig)
+		})
+
+		if err == nil {
+			logger.Info("Reconciled KMM build dockerfile ConfigMap", "name", buildDockerfileCM.Name, "result", opRes)
+		}
+
 		savedCMName[cmName] = true
 	}
 

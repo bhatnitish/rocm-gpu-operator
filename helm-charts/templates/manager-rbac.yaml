@@ -44,6 +44,26 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - apps
+  resources:
+  - daemonsets/finalizers
+  verbs:
+  - create
+  - get
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
   - ""
   resources:
   - configmaps
@@ -77,6 +97,14 @@ rules:
 - apiGroups:
   - kmm.sigs.x-k8s.io
   resources:
+  - modules/finalizers
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
   - modules/status
   verbs:
   - get
@@ -89,6 +117,14 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs/finalizers
+  verbs:
+  - get
+  - update
   - watch
 - apiGroups:
   - kmm.sigs.x-k8s.io

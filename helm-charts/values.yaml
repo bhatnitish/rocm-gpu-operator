@@ -4,6 +4,15 @@ kmm:
   enabled: true  # Set to false to disable kmm
 installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
 platform: k8s # platform could be k8s or openshift
+openshift:
+  # if platform is openshift, nfd is already installed and user skipped install nfd with helm
+  # they need to provide nfd worker's service account name to configure security context constraint
+  # default service account name is nfd-worker if user install by nfd official repo
+  nfd-worker-sa: nfd-worker
+  # if platform is openshift, nfd is already installed and user skipped install nfd with helm
+  # they need to provide nfd namespace to configure security context constraint
+  # default namespace is node-feature-discovery if user install by nfd official repo
+  nfd-namespace: node-feature-discovery
 controllerManager:
   manager:
     args:
@@ -11,7 +20,7 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
-      repository: registry.test.pensando.io:5000/amd-gpu-operator
+      repository: yan1996/amd-gpu-operator
       tag: dev
     imagePullPolicy: Always
     resources:
