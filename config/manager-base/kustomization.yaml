@@ -9,7 +9,7 @@ patches:
 
 images:
 - name: controller
-  newName: yan1996/amd-gpu-operator
+  newName: registry.test.pensando.io:5000/amd-gpu-operator
   newTag: dev
 
 configurations:

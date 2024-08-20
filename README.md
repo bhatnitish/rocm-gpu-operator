@@ -26,11 +26,13 @@ Run ```make``` to generate the basic yaml files for CRD and build controller ima
     * ```DOCKER_REGISTRY```
     * ```IMAGE_NAME```
     * ```IMAGE_TAG```
+* If your registry requires auth to push image, please use ```docker login``` on your dev environment to configure login credentials to your registry
 *  Build and push AMD GPU operator's image:
     * ```make docker-build```
     * ```make docker-push```
 * Prepare the helm charts:
-    * Run ```make helm``` to generate new helm charts
+    * For vanilla k8s cluster: Run ```make helm``` to generate new helm charts
+    * For openshift cluster: Run ```OPENSHIFT=1 make helm``` to generate new helm charts
 
 ## Installation (for developers):
 * Method 1 - Build and install from Helm Charts (Preferred):
@@ -40,13 +42,16 @@ Run ```make``` to generate the basic yaml files for CRD and build controller ima
     * ```DOCKER_REGISTRY```
     * ```IMAGE_NAME```
     * ```IMAGE_TAG```
+  * If your registry requires auth to push image, please use ```docker login``` on your dev environment to configure login credentials to your registry
   * (Optional) If you made any customized changes on AMD GPU Operator, recompile then build + push AMD GPU operator's image:
     * ```make```
     * ```make docker-build```
     * ```make docker-push```
-  * Run ```make helm``` to generate helm charts, the helm charts will be packed into ```gpu-operator-x.x.x.tgz``` 
+  * For vanilla k8s cluster: Run ```make helm``` to generate helm charts, the helm charts will be packed into ```gpu-operator-x.x.x.tgz```
+  * For openshift cluster: Run ```OPENSHIFT=1 make helm``` to generate helm charts, the helm charts will be packed into ```gpu-operator-x.x.x.tgz```
   * Run ```make cert-manager-install``` to install cert-manager if there is no cert-manager running within your cluster
   * Install helm chart:
+    * Remember if you are installing on openshift cluster, pls run make commands with ```OPENSHIFT=1```
     * If your clsuter already have Node Feature Discovery running: ```SKIP_NFD=1 make helm-install```
     * If your clsuter already have Kernel Module Management running: ```SKIP_KMM=1 make helm-install```
     * If you want to install both NFD and KMM dependencies together with AMD GPU Operator: ```make helm-install```
@@ -178,7 +183,7 @@ metadata:
   uid: 7b3100e5-4038-42fc-8077-b11e41451dcd
 spec:
   devicePluginImage: rocm/k8s-device-plugin
-  driversImage: yan1996/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
+  driversImage: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
   driversVersion: 6.1.3
   imageRepoSecret:
     name: docker-auth
@@ -195,7 +200,7 @@ status:
     nodesMatchingSelectorNumber: 1 # number of nodes selected by node selector
   nodeModuleStatus:                # per node status of installing driver, once appeared here it means the driver kmod was successfully installed
     leto:                          # cluster's Node resource name
-      containerImage: yan1996/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
+      containerImage: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
       kernelVersion: 6.5.0-44-generic
       lastTransitionTime: 2024-08-12 12:37:03 +0000 UTC
 ```

@@ -14,7 +14,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-08-12T12:21:25Z"
+    createdAt: "2024-08-19T20:29:00Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -85,6 +85,26 @@ spec:
           - patch
           - watch
         - apiGroups:
+          - apps
+          resources:
+          - daemonsets/finalizers
+          verbs:
+          - create
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets/status
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
           - ""
           resources:
           - configmaps
@@ -118,6 +138,14 @@ spec:
         - apiGroups:
           - kmm.sigs.x-k8s.io
           resources:
+          - modules/finalizers
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
           - modules/status
           verbs:
           - get
@@ -130,6 +158,14 @@ spec:
           verbs:
           - get
           - list
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - nodemodulesconfigs/finalizers
+          verbs:
+          - get
+          - update
           - watch
         - apiGroups:
           - kmm.sigs.x-k8s.io
@@ -184,7 +220,7 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                image: yan1996/amd-gpu-operator:dev
+                image: registry.test.pensando.io:5000/amd-gpu-operator:dev
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

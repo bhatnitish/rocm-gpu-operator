@@ -1,4 +1,7 @@
 /bin/
 /manager
-/helm-charts/*.lock
+/helm-charts-k8s/Chart.lock
+/helm-charts-openshift/Chart.lock
 /*gpu-operator*.tgz
+/helm-charts-k8s/charts/*.tgz
+/helm-charts-openshift/charts/*.tgz

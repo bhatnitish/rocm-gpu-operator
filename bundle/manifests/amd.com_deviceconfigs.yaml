@@ -41,6 +41,9 @@ spec:
             description: DeviceConfigSpec describes how the AMD GPU operator should
               enable AMD GPU device for customer's use.
             properties:
+              blacklistDrivers:
+                description: blacklist amdgpu drivers on the host
+                type: boolean
               devicePluginImage:
                 description: device plugin image
                 type: string
@@ -60,6 +63,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              repoURL:
+                description: repo URL, https://repo.radeon.com/amdgpu-install by default
+                type: string
               selector:
                 additionalProperties:
                   type: string

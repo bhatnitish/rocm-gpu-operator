@@ -9,9 +9,9 @@ PROJECT_VERSION ?= 0.0.1
 
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml config/default/kustomization.yaml
 CRD_YAML_FILES = deviceconfig-crd.yaml
-KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml preflightvalidationocp-crd.yaml nodemodulesconfig-crd.yaml
-CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
-NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
+K8S_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfig-crd.yaml
+OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml preflightvalidationocp-crd.yaml nodemodulesconfig-crd.yaml
+OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
 
 ifdef OPENSHIFT
 $(info selected openshift)
@@ -24,7 +24,11 @@ endif
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 
 ifdef SKIP_NFD
+ifdef OPENSHIFT
+SKIP_NFD_CMD=--set nfd.enabled=false
+else
 SKIP_NFD_CMD=--set node-feature-discovery.enabled=false
+endif
 endif
 
 ifdef SKIP_KMM
@@ -35,7 +39,7 @@ endif
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-DOCKER_REGISTRY ?= yan1996
+DOCKER_REGISTRY ?= registry.test.pensando.io:5000
 IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
 # This is the default tag of all images made by this Makefile.
@@ -114,9 +118,14 @@ help: ## Display this help.
 .PHONY: manifests update-registry
 update-registry:
 	# todo: remove after autogen fix
-	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" -e 's/registry.test.pensando.io:5000/$(DOCKER_REGISTRY)/' config/manager-base/kustomization.yaml config/manager/kustomization.yaml hack/values.yaml helm-charts/values.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml
+	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" -e 's/registry.test.pensando.io:5000/$(DOCKER_REGISTRY)/' \
+	config/manager-base/kustomization.yaml config/manager/kustomization.yaml \
+	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
+	hack/openshift-patch/metadata-patch/values.yaml helm-charts-openshift/values.yaml \
+	bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml \
+	example/test_device_config.yaml
 
-manifests: controller-gen update-registry## Generate ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen update-registry ## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./internal/controllers" output:rbac:artifacts:config=config/rbac
 
@@ -281,32 +290,44 @@ index: opm
 HELMIFY = helmify
 
 .PHONY: helm
-helm: manifests kustomize clean-helm gen-kmm-charts
-	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts
-	cp $(shell pwd)/hack/Chart.yaml $(shell pwd)/helm-charts/
-	cp $(shell pwd)/hack/values.yaml $(shell pwd)/helm-charts/
-	cp $(shell pwd)/hack/Chart_kmm.yaml $(shell pwd)/helm-charts/charts/kmm/Chart.yaml
-	cp $(shell pwd)/hack/values_kmm.yaml $(shell pwd)/helm-charts/charts/kmm/values.yaml
-	cp $(shell pwd)/hack/templates/* $(shell pwd)/helm-charts/templates/
-	cd $(shell pwd)/helm-charts; helm dependency update; helm lint; cd ..;
-	mkdir $(shell pwd)/helm-charts/crds
+helm:
+	if [ -z ${OPENSHIFT} ]; then \
+		$(MAKE) helm-k8s; \
+	else \
+		$(MAKE) helm-openshift; \
+	fi
+
+.PHONY: helm-k8s
+helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
+	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-k8s
+	# Patching k8s helm chart metadata
+	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/
+	# Patching k8s helm chart template
+	cp $(shell pwd)/hack/k8s-patch/template-patch/* $(shell pwd)/helm-charts-k8s/templates/
+	# Patching k8s helm chart kmm subchart
+	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
+	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..;
+	mkdir $(shell pwd)/helm-charts-k8s/crds
 	echo "moving crd yaml files to crds folder"
 	@for file in $(CRD_YAML_FILES); do \
-		helm template amd-gpu helm-charts -s templates/$$file > $(shell pwd)/helm-charts/crds/$$file; \
+		helm template amd-gpu helm-charts-k8s -s templates/$$file > $(shell pwd)/helm-charts-k8s/crds/$$file; \
 	done
-	rm $(shell pwd)/helm-charts/templates/*crd.yaml
+	rm $(shell pwd)/helm-charts-k8s/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
-	cd $(shell pwd)/helm-charts; helm dependency update; helm lint; cd ..; helm package helm-charts/
+	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/
 
+.PHONY: helm-openshift
 helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-openshift
-	cp $(shell pwd)/hack/Chart-openshift.yaml $(shell pwd)/helm-charts-openshift/Chart.yaml
-	cp $(shell pwd)/hack/values-openshift.yaml $(shell pwd)/helm-charts-openshift/values.yaml
-	cp $(shell pwd)/hack/openshift-kmm-patch/* $(shell pwd)/helm-charts-openshift/charts/kmm/templates/
-	cp $(shell pwd)/hack/openshift-nfd-patch/crds/* $(shell pwd)/helm-charts-openshift/charts/nfd/crds/
-	cp $(shell pwd)/hack/openshift-patch/* $(shell pwd)/helm-charts-openshift/templates/
-	cp $(shell pwd)/hack/Chart-openshift-kmm.yaml $(shell pwd)/helm-charts-openshift/charts/kmm/Chart.yaml
-	cp $(shell pwd)/hack/values-openshift-kmm.yaml $(shell pwd)/helm-charts-openshift/charts/kmm/values.yaml
+	# Patching openshift helm chart metadata
+	cp $(shell pwd)/hack/openshift-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-openshift/
+	# Patching openshift helm chart template
+	cp $(shell pwd)/hack/openshift-patch/template-patch/*.yaml $(shell pwd)/helm-charts-openshift/templates/
+	# Patching openshift helm chart nfd subchart
+	cp $(shell pwd)/hack/openshift-patch/openshift-nfd-patch/crds/* $(shell pwd)/helm-charts-openshift/charts/nfd/crds/
+	# Patching openshift helm chart kmm subchart
+	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/template-patch/* $(shell pwd)/helm-charts-openshift/charts/kmm/templates/
+	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-openshift/charts/kmm/
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..;
 	mkdir $(shell pwd)/helm-charts-openshift/crds
 	echo "moving crd yaml files to crds folder"
@@ -317,10 +338,36 @@ helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshif
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/
 
+.PHONY: helm-install
 helm-install:
-	helm install -f helm-charts/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+	if [ -z ${OPENSHIFT} ]; then \
+		$(MAKE) helm-install-k8s; \
+	else \
+		$(MAKE) helm-install-openshift; \
+	fi
 
+.PHONY: helm-uninstall
 helm-uninstall:
+	if [ -z ${OPENSHIFT} ]; then \
+		$(MAKE) helm-uninstall-k8s; \
+	else \
+		$(MAKE) helm-uninstall-openshift; \
+	fi
+
+helm-install-openshift:
+	helm install -f helm-charts-openshift/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+
+helm-uninstall-openshift:
+	echo "Deleting all CRs before uninstalling operator..."
+	${KUBECTL_CMD} delete deviceconfigs.amd.com -n kube-amd-gpu --all
+	${KUBECTL_CMD} delete nodefeaturediscoveries.nfd.openshift.io -n kube-amd-gpu --all
+	echo "Uninstalling operator..."
+	helm uninstall amd-gpu-operator -n kube-amd-gpu
+
+helm-install-k8s:
+	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+
+helm-uninstall-k8s:
 	echo "Deleting all device configs before uninstalling operator..."
 	${KUBECTL_CMD} delete deviceconfigs.amd.com -n kube-amd-gpu --all
 	echo "Uninstalling operator..."
@@ -330,7 +377,7 @@ gen-nfd-charts-openshift:
 	rm -rf /tmp/nfd && git clone https://github.com/openshift/cluster-nfd-operator /tmp/nfd; cd /tmp/nfd; git checkout release-4.16
 	$(KUSTOMIZE) build /tmp/nfd/config/default | $(HELMIFY) helm-charts-openshift/charts/nfd
 	mkdir helm-charts-openshift/charts/nfd/crds
-	@for file in $(CLUSTER_NFD_CRD_YAML_FILES); do \
+	@for file in $(OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-openshift/charts/nfd -s templates/$$file > helm-charts-openshift/charts/nfd/crds/$$file; \
 	done
 	rm helm-charts-openshift/charts/nfd/templates/*crd.yaml
@@ -340,20 +387,20 @@ gen-kmm-charts-openshift:
 	rm -rf /tmp/kmm && git clone https://github.com/rh-ecosystem-edge/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout release-2.1
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-openshift/charts/kmm
 	mkdir helm-charts-openshift/charts/kmm/crds
-	@for file in $(KMM_CRD_YAML_FILES); do \
+	@for file in $(OPENSHIFT_KMM_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-openshift/charts/kmm -s templates/$$file > helm-charts-openshift/charts/kmm/crds/$$file; \
 	done
 	rm helm-charts-openshift/charts/kmm/templates/*crd.yaml
 	rm -rf /tmp/kmm
 
-gen-kmm-charts:
+gen-kmm-charts-k8s:
 	rm -rf /tmp/kmm && git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
-	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts/charts/kmm
-	mkdir helm-charts/charts/kmm/crds
-	@for file in $(KMM_CRD_YAML_FILES); do \
-		helm template amd-gpu helm-charts/charts/kmm -s templates/$$file > helm-charts/charts/kmm/crds/$$file; \
+	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
+	mkdir helm-charts-k8s/charts/kmm/crds
+	@for file in $(K8S_KMM_CRD_YAML_FILES); do \
+		helm template amd-gpu helm-charts-k8s/charts/kmm -s templates/$$file > helm-charts-k8s/charts/kmm/crds/$$file; \
 	done
-	rm helm-charts/charts/kmm/templates/*crd.yaml
+	rm helm-charts-k8s/charts/kmm/templates/*crd.yaml
 	rm -rf /tmp/kmm
 
 cert-manager-install:
@@ -367,5 +414,5 @@ cert-manager-uninstall:
 clean-helm-openshift:
 	rm -rf $(shell pwd)/helm-charts-openshift
 
-clean-helm:
-	rm -rf $(shell pwd)/helm-charts
+clean-helm-k8s:
+	rm -rf $(shell pwd)/helm-charts-k8s

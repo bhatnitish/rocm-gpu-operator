@@ -20,10 +20,10 @@ version: 0.0.1
 appVersion: "0.0.1"
 
 dependencies:
-- name: nfd
-  version: v0.1.0
-  repository: "file://./charts/nfd"
-  condition: nfd.enabled
+- name: node-feature-discovery
+  version: v0.16.1
+  repository: "https://kubernetes-sigs.github.io/node-feature-discovery/charts"
+  condition: node-feature-discovery.enabled
 - name: kmm
   version: v0.0.1
   repository: "file://./charts/kmm"

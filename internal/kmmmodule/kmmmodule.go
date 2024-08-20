@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
@@ -65,7 +66,7 @@ var (
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
 type KMMModuleAPI interface {
 	SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error
-	SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error
+	SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 }
 
 type kmmModule struct {
@@ -138,8 +139,8 @@ func resolveDockerfile(cmName string) (string, error) {
 	return resolvedDockerfile, nil
 }
 
-func (km *kmmModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) error {
-	err := setKMMModuleLoader(ctx, mod, devConfig, km.isOpenShift)
+func (km *kmmModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	err := setKMMModuleLoader(ctx, mod, devConfig, km.isOpenShift, nodes)
 	if err != nil {
 		return fmt.Errorf("failed to set KMM Module: %v", err)
 	}
@@ -147,8 +148,9 @@ func (km *kmmModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.
 	return controllerutil.SetControllerReference(devConfig, mod, km.scheme)
 }
 
-func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) error {
+func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) error {
 	kmlog := log.FromContext(ctx)
+	kmlog.Info(fmt.Sprintf("isOpenshift %+v", isOpenshift))
 
 	args := &kmmv1beta1.ModprobeArgs{}
 	firmwarePath := imageFirmwarePath
@@ -162,7 +164,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		kmlog.Info("skip driver install/uninstall")
 	}
 
-	kernelMappings, err := getKernelMappings(devConfig, isOpenshift)
+	kernelMappings, err := getKernelMappings(devConfig, isOpenshift, nodes)
 	if err != nil {
 		return err
 	}
@@ -180,56 +182,20 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	return nil
 }
 
-func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([]kmmv1beta1.KernelMapping, error) {
+func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) ([]kmmv1beta1.KernelMapping, error) {
 
 	inTreeModuleToRemove := gpuDriverModuleName
 	if devConfig.Spec.SkipDrivers {
 		inTreeModuleToRemove = ""
 	}
-	isOpenshift = true
-	if isOpenshift {
-		driversVersion := devConfig.Spec.DriversVersion
 
-		if driversVersion == "" {
-			driversVersion = defaultOcDriversVersion
-		}
-		driversImage := devConfig.Spec.DriversImage
-		if driversImage == "" {
-			driversImage = fmt.Sprintf(defaultOcDriversImageTemplate, driversVersion)
-		}
-
-		return []kmmv1beta1.KernelMapping{
-			{
-				Regexp:               "^.+$",
-				ContainerImage:       driversImage,
-				InTreeModuleToRemove: inTreeModuleToRemove,
-				Build: &kmmv1beta1.Build{
-					DockerfileConfigMap: &v1.LocalObjectReference{
-						Name: getDockerfileCMName(devConfig),
-					},
-					BuildArgs: []kmmv1beta1.BuildArg{
-						{
-							Name:  "DRIVERS_VERSION",
-							Value: driversVersion,
-						},
-					},
-				},
-			},
-		}, nil
-	}
-
-	nodes, err := GetK8SNodes(devConfig)
-	if err != nil {
-		// unable to fetch nodes
-		return nil, err
-	}
 	if nodes == nil || len(nodes.Items) == 0 {
 		return nil, fmt.Errorf("No nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
 	}
 	kernelMappings := []kmmv1beta1.KernelMapping{}
 	kmSet := map[string]bool{}
 	for _, node := range nodes.Items {
-		km, err := getKM(devConfig, node, inTreeModuleToRemove)
+		km, err := getKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
 		if err != nil {
 			return nil, fmt.Errorf("error constructing a kernel mapping for node: %s, err: %v", node.Name, err)
 		}
@@ -242,18 +208,27 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool) ([
 	return kernelMappings, nil
 }
 
-func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string) (kmmv1beta1.KernelMapping, error) {
+func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, error) {
 	driversVersion := devConfig.Spec.DriversVersion
-	var err error
-	if driversVersion == "" {
-		driversVersion, err = getDefaultDriversVersion(node)
-		if err != nil {
-			return kmmv1beta1.KernelMapping{}, err
-		}
-	}
 	driversImage := devConfig.Spec.DriversImage
-	if driversImage == "" {
-		driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
+	var err error
+	if isOpenShift {
+		if driversVersion == "" {
+			driversVersion = defaultOcDriversVersion
+		}
+		if driversImage == "" {
+			driversImage = fmt.Sprintf(defaultOcDriversImageTemplate, driversVersion)
+		}
+	} else {
+		if driversVersion == "" {
+			driversVersion, err = getDefaultDriversVersion(node)
+			if err != nil {
+				return kmmv1beta1.KernelMapping{}, err
+			}
+		}
+		if driversImage == "" {
+			driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
+		}
 	}
 	cmName, err := GetCMName(node)
 	if err != nil {
@@ -299,33 +274,44 @@ func getDefaultDriversVersion(node v1.Node) (string, error) {
 
 func GetCMName(node v1.Node) (string, error) {
 	osImageStr := strings.ToLower(node.Status.NodeInfo.OSImage)
-	for os, mapper := range cmNameMappers {
+
+	// sort the key of cmNameMappers
+	// make sure in the given OS string, coreos was checked before all other types of RHEL string
+	keys := make([]string, 0, len(cmNameMappers))
+	for key := range cmNameMappers {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, os := range keys {
 		if strings.Contains(osImageStr, os) {
-			return mapper(osImageStr), nil
+			return cmNameMappers[os](osImageStr), nil
 		}
 	}
+
 	return "", fmt.Errorf("OS: %s not supported. Should be one of %v", osImageStr, maps.Keys(cmNameMappers))
 }
 
 var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string, error){
 	"ubuntu": ubuntuDefaultDriverVersionsMapper,
 	"rhel": func(f string) (string, error) {
-		return "6.1.3", nil
+		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
 	},
 }
 
 func ubuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	if strings.Contains(fullImageStr, "20.04") {
-		return "6.2", nil
+		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
 	}
 	if strings.Contains(fullImageStr, "22.04") {
-		return "6.1.3", nil
+		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
 	}
 	return "", errors.New("invalid ubuntu version, should be one of [20.04, 22.04]")
 }
 
 var cmNameMappers = map[string]func(fullImageStr string) string{
 	"ubuntu":  ubuntuCMNameMapper,
+	"coreos":  rhelCoreOSNameMapper,
 	"rhel":    rhelCMNameMapper,
 	"red hat": rhelCMNameMapper,
 	"redhat":  rhelCMNameMapper,
@@ -340,6 +326,17 @@ func rhelCMNameMapper(osImageStr string) string {
 		return fmt.Sprintf("%s-%s", "rhel", matches[1])
 	}
 	return "rhel-" + osImageStr
+}
+
+func rhelCoreOSNameMapper(osImageStr string) string {
+	// Check if the input contains "Red Hat Enterprise Linux"
+	// Use regex to find the release version
+	re := regexp.MustCompile(`(\d+\.\d+)`)
+	matches := re.FindStringSubmatch(osImageStr)
+	if len(matches) > 1 {
+		return fmt.Sprintf("%s-%s", "rhel-coreos", matches[1])
+	}
+	return "rhel-coreos-" + osImageStr
 }
 
 func ubuntuCMNameMapper(osImageStr string) string {

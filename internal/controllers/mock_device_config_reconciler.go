@@ -117,17 +117,17 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleBuildConfigMap(
 }
 
 // handleKMMModule mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) handleKMMModule(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) handleKMMModule(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "handleKMMModule", ctx, devConfig)
+	ret := m.ctrl.Call(m, "handleKMMModule", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // handleKMMModule indicates an expected call of handleKMMModule.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleKMMModule(ctx, devConfig any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleKMMModule(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleKMMModule", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleKMMModule), ctx, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleKMMModule", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleKMMModule), ctx, devConfig, nodes)
 }
 
 // handleNodeLabeller mocks base method.

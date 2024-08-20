@@ -132,7 +132,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("start KMM reconciliation")
-	err = r.helper.handleKMMModule(ctx, devConfig)
+	err = r.helper.handleKMMModule(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
@@ -158,7 +158,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
-	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
@@ -377,29 +377,13 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 			logger.Info("Reconciled KMM build dockerfile ConfigMap", "name", buildDockerfileCM.Name, "result", opRes)
 		}
 
-		buildDockerfileCM = &v1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: devConfig.Namespace,
-				Name:      getDockerfileCMName(devConfig),
-			},
-		}
-
-		logger = log.FromContext(ctx)
-		opRes, err = controllerutil.CreateOrPatch(ctx, dcrh.client, buildDockerfileCM, func() error {
-			return dcrh.kmmHandler.SetBuildConfigMapAsDesired(buildDockerfileCM, devConfig)
-		})
-
-		if err == nil {
-			logger.Info("Reconciled KMM build dockerfile ConfigMap", "name", buildDockerfileCM.Name, "result", opRes)
-		}
-
 		savedCMName[cmName] = true
 	}
 
 	return nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// the newly created KMM Module will always has the same namespace and name as its parent DeviceConfig
 	kmmMod := &kmmv1beta1.Module{
 		ObjectMeta: metav1.ObjectMeta{
@@ -409,7 +393,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 	}
 	logger := log.FromContext(ctx)
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
-		return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig)
+		return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig, nodes)
 	})
 
 	if err == nil {
@@ -434,8 +418,4 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	}
 
 	return err
-}
-
-func getDockerfileCMName(devConfig *amdv1alpha1.DeviceConfig) string {
-	return "dockerfile-" + devConfig.Name
 }
