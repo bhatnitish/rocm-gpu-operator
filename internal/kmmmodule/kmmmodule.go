@@ -384,7 +384,9 @@ func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 	mod.Spec.DevicePlugin = &kmmv1beta1.DevicePluginSpec{
 		ServiceAccountName: "amd-gpu-operator-kmm-device-plugin",
 		Container: kmmv1beta1.DevicePluginContainerSpec{
-			Image: devicePluginImage,
+			Command: []string{"sh"},
+			Args:    []string{"-c", "while [ ! -d /sys/class/kfd ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done; ./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5"},
+			Image:   devicePluginImage,
 			VolumeMounts: []v1.VolumeMount{
 				{
 					Name:      "sys",
