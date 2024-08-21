@@ -25,8 +25,7 @@ RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
 
 RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main" \
     | tee /etc/apt/sources.list.d/amdgpu.list
-RUN apt-get update
-RUN apt-get install -y amdgpu-dkms
+RUN apt-get update && apt-get install -y amdgpu-dkms
 
 RUN depmod ${KERNEL_FULL_VERSION}
 

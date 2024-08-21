@@ -45,6 +45,8 @@ const (
 	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
 	nodeVarLibFirmwarePath         = "/var/lib/firmware"
 	gpuDriverModuleName            = "amdgpu"
+	ttmModuleName                  = "amdttm"
+	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
 	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
 	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_VERSION"
@@ -168,11 +170,25 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	if err != nil {
 		return err
 	}
+
+	var modLoadingOrder []string
+	if !isOpenshift {
+		// specify this order fror k8s in order to make sure amdttm and amdkcl was properly cleaned up after deletion of CR
+		// module will be loaded in this order: amdkcl, amdttm, amdgpu
+		// module will be unloaded in this order: amdgpu, amdttm, amdkcl
+		modLoadingOrder = []string{
+			gpuDriverModuleName,
+			ttmModuleName,
+			kclModuleName,
+		}
+	}
+
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
 		Modprobe: kmmv1beta1.ModprobeSpec{
-			ModuleName:   gpuDriverModuleName,
-			FirmwarePath: firmwarePath,
-			Args:         args,
+			ModuleName:          gpuDriverModuleName,
+			FirmwarePath:        firmwarePath,
+			Args:                args,
+			ModulesLoadingOrder: modLoadingOrder,
 		},
 		KernelMappings: kernelMappings,
 	}
