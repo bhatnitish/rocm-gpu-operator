@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pre-uninstall-check
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # hook will be executed before helm uninstall
+    "helm.sh/hook": pre-delete
+    # remove the resource created by the hook whether it succeeded or failed
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+spec:
+  template:
+    spec:
+      ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
+      serviceAccountName: {{ include "helm-charts-openshift.fullname" . }}-controller-manager
+      containers:
+        - name: pre-uninstall-check
+          image: registry.test.pensando.io:5000/amd-gpu-operator:dev
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if kubectl get deviceconfigs -n {{ .Release.Namespace }} --no-headers | grep -q .; then
+                echo "DeviceConfigs resources exist. Stop uninstallation."
+                exit 1
+              else
+                echo "No DeviceConfigs resources found. Proceeding with uninstallation."
+                exit 0
+              fi
+      restartPolicy: Never
