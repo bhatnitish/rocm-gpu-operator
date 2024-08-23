@@ -346,3 +346,10 @@ laptop ~ % kubectl delete -f rocminfo.yaml
 |  skipDrivers     |  Skip driver install/uninstall | False | False |
 |  repoURL         |  Driver repo | repo.radeon.com/amdgpu-install | - | 
 
+## e2e tests
+Requires access to kubernetes setup (~/.kube/config configured)
+```
+make e2e # deploy gpu operator (default ./gpu-operator-0.0.1.tgz) and run tests
+make e2e GPU_OPERATOR_CHART="path to helm chart" # deploy the given chart and run tests
+make -C tests/e2e # run e2e tests only
+```

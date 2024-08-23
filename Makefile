@@ -12,6 +12,8 @@ CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml preflightvalidationocp-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
+GPU_OPERATOR_CHART ?= ./gpu-operator-0.0.1.tgz
+GPU_OPERATOR_RELEASE ?= $(shell helm list --deployed -n kube-amd-gpu -q)
 
 ifdef OPENSHIFT
 $(info selected openshift)
@@ -150,9 +152,19 @@ vet: ## Run go vet against code.
 
 TEST ?= ./...
 
-.PHONY: unit-test
+.PHONY: unit-test e2e
 unit-test: vet ## Run tests.
 	go test $(TEST) -coverprofile cover.out
+
+e2e:
+ifeq ($(GPU_OPERATOR_RELEASE),)
+	$(info deploying ${GPU_OPERATOR_CHART})
+	${MAKE} helm-install
+else
+	$(info ${GPU_OPERATOR_RELEASE} available, skip deploy)
+endif
+	${MAKE} -C tests/e2e
+	${MAKE} helm-uninstall
 
 GOFILES_NO_VENDOR = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
 .PHONY: lint
@@ -355,7 +367,7 @@ helm-uninstall:
 	fi
 
 helm-install-openshift:
-	helm install -f helm-charts-openshift/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+	helm install -f helm-charts-openshift/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
 
 helm-uninstall-openshift:
 	echo "Deleting all CRs before uninstalling operator..."
@@ -365,7 +377,7 @@ helm-uninstall-openshift:
 	helm uninstall amd-gpu-operator -n kube-amd-gpu
 
 helm-install-k8s:
-	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ./gpu-operator-0.0.1.tgz -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
 
 helm-uninstall-k8s:
 	echo "Deleting all device configs before uninstalling operator..."
