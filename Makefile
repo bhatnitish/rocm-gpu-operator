@@ -119,12 +119,17 @@ help: ## Display this help.
 
 .PHONY: manifests update-registry
 update-registry:
-	# todo: remove after autogen fix
-	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" -e 's/registry.test.pensando.io:5000/$(DOCKER_REGISTRY)/' \
+	# updating registry information in yaml files
+	sed -i -e 's|image:.*$$|image: ${IMG}|' bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml
+	sed -i -e 's|repository:.*$$|repository: ${IMAGE_TAG_BASE}|' \
+	hack/k8s-patch/metadata-patch/values.yaml \
+	hack/openshift-patch/metadata-patch/values.yaml
+	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" \
+	-e 's/registry.test.pensando.io:5000/$(DOCKER_REGISTRY)/' \
+	-e 's|newName:.*$$|newName: ${IMAGE_TAG_BASE}|' \
 	config/manager-base/kustomization.yaml config/manager/kustomization.yaml \
 	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
 	hack/openshift-patch/metadata-patch/values.yaml helm-charts-openshift/values.yaml \
-	bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml \
 	example/test_device_config.yaml
 
 manifests: controller-gen update-registry ## Generate ClusterRole and CustomResourceDefinition objects.

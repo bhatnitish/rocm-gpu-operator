@@ -20,7 +20,7 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
-      repository: yan1996/amd-gpu-operator
+      repository: registry.test.pensando.io:5000/amd-gpu-operator
       tag: dev
     imagePullPolicy: Always
     resources:
