@@ -9,9 +9,9 @@ metadata:
     # remove the resource created by the hook whether it succeeded or failed
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
 spec:
+  ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
   template:
     spec:
-      ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
       serviceAccountName: {{ include "helm-charts-openshift.fullname" . }}-controller-manager
       containers:
         - name: pre-uninstall-check
@@ -28,3 +28,4 @@ spec:
                 exit 0
               fi
       restartPolicy: Never
+# Run helm uninstall with --no-hooks to bypass the pre-delete hook 

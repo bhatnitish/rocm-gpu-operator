@@ -131,7 +131,9 @@ update-registry:
 	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
 	hack/openshift-patch/metadata-patch/values.yaml helm-charts-openshift/values.yaml \
 	example/test_device_config.yaml
-	sed -i -e 's|image:.*$$|image: ${IMAGE_TAG_BASE}:${IMAGE_TAG}|' hack/k8s-patch/template-patch/pre-delete-hook.yaml
+	sed -i -e 's|image:.*$$|image: ${IMAGE_TAG_BASE}:${IMAGE_TAG}|' \
+	hack/k8s-patch/template-patch/pre-delete-hook.yaml \
+	hack/openshift-patch/template-patch/pre-delete-hook.yaml
 
 manifests: controller-gen update-registry ## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
