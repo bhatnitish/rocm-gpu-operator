@@ -49,9 +49,9 @@ const (
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
 	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
-	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_VERSION"
+	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
-	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amd_gpu_kmm_modules:%s-$KERNEL_FULL_VERSION"
+	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	defaultOcDriversVersion     = "el9-6.1.1"
 	defaultRepo                 = "https://repo.radeon.com"
 )
@@ -235,13 +235,19 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	driversVersion := devConfig.Spec.DriversVersion
 	driversImage := devConfig.Spec.DriversImage
 	var err error
+	cmName, err := GetCMName(node)
+	if err != nil {
+		return kmmv1beta1.KernelMapping{}, err
+	}
+
 	if isOpenShift {
 		if driversVersion == "" {
 			driversVersion = defaultOcDriversVersion
 		}
 		if driversImage == "" {
-			driversImage = fmt.Sprintf(defaultOcDriversImageTemplate, driversVersion)
+			driversImage = defaultOcDriversImageTemplate
 		}
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, cmName, driversVersion)
 	} else {
 		if driversVersion == "" {
 			driversVersion, err = getDefaultDriversVersion(node)
@@ -250,12 +256,9 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 			}
 		}
 		if driversImage == "" {
-			driversImage = fmt.Sprintf(defaultDriversImageTemplate, driversVersion)
+			driversImage = defaultDriversImageTemplate
 		}
-	}
-	cmName, err := GetCMName(node)
-	if err != nil {
-		return kmmv1beta1.KernelMapping{}, err
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, cmName, driversVersion)
 	}
 
 	repoURL := defaultRepo
@@ -283,6 +286,16 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 			},
 		},
 	}, nil
+}
+
+func addNodeInfoSuffixToImageTag(imgStr string, cmName, driversVersion string) string {
+	// KMM will render and fulfill the value of ${KERNEL_FULL_VERSION}
+	tag := cmName + "-${KERNEL_FULL_VERSION}-" + driversVersion
+	// tag cannot be more than 128 chars
+	if len(tag) > 128 {
+		tag = tag[len(tag)-128:]
+	}
+	return imgStr + ":" + tag
 }
 
 func getDefaultDriversVersion(node v1.Node) (string, error) {
@@ -363,9 +376,9 @@ func rhelCoreOSNameMapper(osImageStr string) string {
 	re := regexp.MustCompile(`(\d+\.\d+)`)
 	matches := re.FindStringSubmatch(osImageStr)
 	if len(matches) > 1 {
-		return fmt.Sprintf("%s-%s", "rhel-coreos", matches[1])
+		return fmt.Sprintf("%s-%s", "coreos", matches[1])
 	}
-	return "rhel-coreos-" + osImageStr
+	return "coreos-" + osImageStr
 }
 
 func ubuntuCMNameMapper(osImageStr string) string {
