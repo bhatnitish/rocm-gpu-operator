@@ -59,6 +59,14 @@ type DeviceConfigSpec struct {
 	// Selector describes on which nodes the GPU Operator should enable the GPU device.
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`
+
+	// RedhatSubscriptionUsername is the username for redhat subscription manager.
+	// +optional
+	RedhatSubscriptionUsername string `json:"redhatSubscriptionUsername",omitempty"`
+
+	// RedhatSubscriptionPassword is the password for redhat subscription manager.
+	// +optional
+	RedhatSubscriptionPassword string `json:"redhatSubscriptionPassword",omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during

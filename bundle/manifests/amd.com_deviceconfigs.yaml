@@ -66,6 +66,12 @@ spec:
               repoURL:
                 description: repo URL, https://repo.radeon.com/amdgpu-install by default
                 type: string
+              redhatSubscriptionUsername:
+                description: username for redhat subscription
+                type: string
+              redhatSubscriptionPassword:
+                description: password for redhat subscription
+                type: string
               selector:
                 additionalProperties:
                   type: string

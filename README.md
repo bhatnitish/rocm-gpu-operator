@@ -345,6 +345,8 @@ laptop ~ % kubectl delete -f rocminfo.yaml
 |  blacklistDrivers | Blacklist amdgpu drivers on the host | False | False |
 |  skipDrivers     |  Skip driver install/uninstall | False | False |
 |  repoURL         |  Driver repo | repo.radeon.com/amdgpu-install | - | 
+|  redhatSubscriptionUsername |  UserName for redhat subscription on RHEL machines | None | None
+|  redhatSubscriptionPassword  |  Password for redhat subscription on RHEL machines | None | None
 
 ## e2e tests
 Requires access to kubernetes setup (~/.kube/config configured)

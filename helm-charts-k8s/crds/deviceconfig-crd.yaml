@@ -68,6 +68,14 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              redhatSubscriptionPassword:
+                description: RedhatSubscriptionPassword is the password for redhat subscription
+                  manager.
+                type: string
+              redhatSubscriptionUsername:
+                description: RedhatSubscriptionUsername is the username for redhat subscription
+                  manager.
+                type: string
               repoURL:
                 description: repo URL, https://repo.radeon.com/amdgpu-install by default
                 type: string

@@ -105,7 +105,7 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 	if km.isOpenShift {
 		buildCM.Data["dockerfile"] = buildOcDockerfile
 	} else {
-		dockerfile, err := resolveDockerfile(buildCM.Name)
+		dockerfile, err := resolveDockerfile(buildCM.Name, devConfig)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ var driverLabels = map[string]string{
 	"22.04": "jammy",
 }
 
-func resolveDockerfile(cmName string) (string, error) {
+func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
 	splits := strings.SplitN(cmName, "-", 2)
 	os := splits[0]
 	version := splits[1]
@@ -134,6 +134,13 @@ func resolveDockerfile(cmName string) (string, error) {
 		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
 	case "rhel":
 		dockerfileTemplate = dockerfileTemplateRHEL
+		versionSplits := strings.Split(version, ".")
+		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$MAJOR_VERSION", versionSplits[0], -1)
+		if devConfig.Spec.RedhatSubscriptionUsername == "" || devConfig.Spec.RedhatSubscriptionPassword == "" {
+			return "", fmt.Errorf("Redhat subscription RedhatSubscriptionUsername and RedhatSubscriptionPassword required")
+		}
+		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_USERNAME", devConfig.Spec.RedhatSubscriptionUsername, -1)
+		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_PASSWORD", devConfig.Spec.RedhatSubscriptionPassword, -1)
 	default:
 		return "", fmt.Errorf("not supported OS: %s", os)
 	}
@@ -311,6 +318,12 @@ func GetCMName(node v1.Node) (string, error) {
 var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string, error){
 	"ubuntu": ubuntuDefaultDriverVersionsMapper,
 	"rhel": func(f string) (string, error) {
+		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
+	},
+	"redhat": func(f string) (string, error) {
+		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
+	},
+	"red hat": func(f string) (string, error) {
 		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
 	},
 }
