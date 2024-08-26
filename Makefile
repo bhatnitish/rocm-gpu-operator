@@ -13,7 +13,6 @@ K8S_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesc
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml preflightvalidationocp-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
 GPU_OPERATOR_CHART ?= ./gpu-operator-0.0.1.tgz
-GPU_OPERATOR_RELEASE ?= $(shell helm list --deployed -n kube-amd-gpu -q)
 
 ifdef OPENSHIFT
 $(info selected openshift)
@@ -165,6 +164,7 @@ unit-test: vet ## Run tests.
 	go test $(TEST) -coverprofile cover.out
 
 e2e:
+	GPU_OPERATOR_RELEASE=$(shell helm version > /dev/null 2>&1 && helm list --deployed -n kube-amd-gpu -q)
 ifeq ($(GPU_OPERATOR_RELEASE),)
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
