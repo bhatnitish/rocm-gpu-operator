@@ -78,6 +78,23 @@ rules:
   verbs:
   - get
   - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/finalizers
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/status
+  verbs:
+  - get
+  - update
   - watch
 - apiGroups:
   - kmm.sigs.x-k8s.io

@@ -19,6 +19,7 @@ package kmmmodule
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -31,6 +32,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -48,6 +50,7 @@ const (
 	ttmModuleName                  = "amdttm"
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
+	kmmNodeVersionLabelTemplate    = "kmm.node.kubernetes.io/version-module.%s.%s"
 	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
 	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
@@ -67,6 +70,7 @@ var (
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
 type KMMModuleAPI interface {
+	SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error
 	SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 }
@@ -96,6 +100,35 @@ func isOpenshift() bool {
 		}
 	}
 	return false
+}
+
+func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	// for each selected node
+	// put the KMM version label given by CR's driver version
+	// KMM operator will watch on the version label and manage the kmod upgrade
+	versionLabelKey := fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name)
+	for _, node := range nodes.Items {
+		if version, ok := node.Labels[versionLabelKey]; ok && version == devConfig.Spec.DriversVersion {
+			// no need to patch the label when it already has the desired value
+			continue
+		}
+		patch := map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"labels": map[string]string{
+					versionLabelKey: devConfig.Spec.DriversVersion,
+				},
+			},
+		}
+		patchBytes, err := json.Marshal(patch)
+		if err != nil {
+			return fmt.Errorf("failed to marshal node label patch: %+v", err)
+		}
+		rawPatch := client.RawPatch(types.StrategicMergePatchType, patchBytes)
+		if err := km.client.Patch(ctx, &node, rawPatch); err != nil {
+			return fmt.Errorf("failed to patch node label: %+v", err)
+		}
+	}
+	return nil
 }
 
 func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -197,6 +230,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			Args:                args,
 			ModulesLoadingOrder: modLoadingOrder,
 		},
+		Version:        devConfig.Spec.DriversVersion,
 		KernelMappings: kernelMappings,
 	}
 	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"

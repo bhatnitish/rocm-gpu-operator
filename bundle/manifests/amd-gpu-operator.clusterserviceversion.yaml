@@ -14,7 +14,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-08-19T20:29:00Z"
+    createdAt: "2024-08-26T09:06:26Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -122,6 +122,23 @@ spec:
           verbs:
           - get
           - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/finalizers
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/status
+          verbs:
+          - get
+          - update
           - watch
         - apiGroups:
           - kmm.sigs.x-k8s.io

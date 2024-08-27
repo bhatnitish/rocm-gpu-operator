@@ -130,6 +130,20 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleKMMModule(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleKMMModule", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleKMMModule), ctx, devConfig, nodes)
 }
 
+// handleKMMVersionLabel mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleKMMVersionLabel(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleKMMVersionLabel", ctx, devConfig, nodes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// handleKMMVersionLabel indicates an expected call of handleKMMVersionLabel.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleKMMVersionLabel(ctx, devConfig, nodes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleKMMVersionLabel", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleKMMVersionLabel), ctx, devConfig, nodes)
+}
+
 // handleNodeLabeller mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) handleNodeLabeller(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()

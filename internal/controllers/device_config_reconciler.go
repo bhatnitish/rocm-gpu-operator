@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
@@ -87,7 +88,9 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/status,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/finalizers,verbs=get;update;watch
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
-//+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;patch;list;watch
+//+kubebuilder:rbac:groups=core,resources=nodes/status,verbs=get;update;watch
+//+kubebuilder:rbac:groups=core,resources=nodes/finalizers,verbs=get;update;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets/status,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets/finalizers,verbs=create;get;update;watch
@@ -99,8 +102,8 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	devConfig, err := r.helper.getRequestedDeviceConfig(ctx, req.NamespacedName)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			logger.Info("Module deleted")
+		if k8serrors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
+			logger.Info("DeviceConfig CR deleted")
 			return ctrl.Result{}, nil
 		}
 		return res, fmt.Errorf("failed to get the requested %s CR: %v", req.NamespacedName, err)
@@ -137,6 +140,12 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	logger.Info("start kmm mod version label reconciliation")
+	err = r.helper.handleKMMVersionLabel(ctx, devConfig, nodes)
+	if err != nil {
+		return res, fmt.Errorf("failed to handle kmm mod version label for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	logger.Info("start node labeller reconciliation")
 	err = r.helper.handleNodeLabeller(ctx, devConfig)
 	if err != nil {
@@ -159,6 +168,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
@@ -399,9 +409,17 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 	if err == nil {
 		logger.Info("Reconciled KMM Module", "name", kmmMod.Name, "result", opRes)
 	}
-
 	return err
+}
 
+func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	// label corresponding node with given kmod version
+	// so that KMM could manage the upgrade by watching the node's version label change
+	err := dcrh.kmmHandler.SetNodeVersionLabelAsDesired(ctx, devConfig, nodes)
+	if err != nil {
+		return fmt.Errorf("failed to update node version label for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
+	}
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {

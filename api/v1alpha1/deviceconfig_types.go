@@ -62,11 +62,11 @@ type DeviceConfigSpec struct {
 
 	// RedhatSubscriptionUsername is the username for redhat subscription manager.
 	// +optional
-	RedhatSubscriptionUsername string `json:"redhatSubscriptionUsername",omitempty"`
+	RedhatSubscriptionUsername string `json:"redhatSubscriptionUsername,omitempty"`
 
 	// RedhatSubscriptionPassword is the password for redhat subscription manager.
 	// +optional
-	RedhatSubscriptionPassword string `json:"redhatSubscriptionPassword",omitempty"`
+	RedhatSubscriptionPassword string `json:"redhatSubscriptionPassword,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during
