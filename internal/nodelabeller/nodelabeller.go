@@ -106,7 +106,6 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				Name:            "blacklist-driver",
 				Image:           "busybox:1.36",
 				Command:         []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf"},
-				ImagePullPolicy: v1.PullAlways,
 				VolumeMounts:    initVolumeMounts,
 			},
 		}
