@@ -79,57 +79,46 @@ spec:
             - "03"
             - "12"
           deviceLabelFields:
-      #      - "class"
             - "vendor"
-      #      - "device"
-      #      - "subsystem_vendor"
-      #      - "subsystem_device"
-      #  usb:
-      #    deviceClassWhitelist:
-      #      - "0e"
-      #      - "ef"
-      #      - "fe"
-      #      - "ff"
-      #    deviceLabelFields:
-      #      - "class"
-      #      - "vendor"
-      #      - "device"
-      #  custom:
-      #    - name: "my.kernel.feature"
-      #      matchOn:
-      #        - loadedKMod: ["example_kmod1", "example_kmod2"]
-      #    - name: "my.pci.feature"
-      #      matchOn:
-      #        - pciId:
-      #            class: ["0200"]
-      #            vendor: ["15b3"]
-      #            device: ["1014", "1017"]
-      #        - pciId :
-      #            vendor: ["8086"]
-      #            device: ["1000", "1100"]
-      #    - name: "my.usb.feature"
-      #      matchOn:
-      #        - usbId:
-      #          class: ["ff"]
-      #          vendor: ["03e7"]
-      #          device: ["2485"]
-      #        - usbId:
-      #          class: ["fe"]
-      #          vendor: ["1a6e"]
-      #          device: ["089a"]
-      #    - name: "my.combined.feature"
-      #      matchOn:
-      #        - pciId:
-      #            vendor: ["15b3"]
-      #            device: ["1014", "1017"]
-      #          loadedKMod : ["vendor_kmod1", "vendor_kmod2"]
-  customConfig:
-    configData: |
-      #    - name: "more.kernel.features"
-      #      matchOn:
-      #      - loadedKMod: ["example_kmod3"]
-      #    - name: "more.features.by.nodename"
-      #      value: customValue
-      #      matchOn:
-      #      - nodename: ["special-.*-node-.*"]
+            - "device"
+        custom:
+        - name: amd-gpu
+          labels:
+            feature.node.kubernetes.io/amd-gpu: "true"
+          matchAny:
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["74a0"]} # MI300A
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["74a1"]} # MI300X
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["740f"]} # MI210
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["7408"]} # MI250X
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["740c"]} # MI250/MI250X
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["738c"]} # MI100
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: ["738e"]} # MI100
 {{- end }}
