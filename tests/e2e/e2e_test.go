@@ -2,8 +2,11 @@ package e2e
 
 import (
 	"flag"
+	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"github.com/stretchr/testify/assert"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pensando/gpu-operator/tests/e2e/client"
 	log "github.com/sirupsen/logrus"
@@ -53,6 +56,14 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 		c.Fatalf(err.Error())
 	}
 	s.clientSet = cs
+
+	assert.Eventually(c, func() bool {
+		if err := utils.CheckHelmDeployment(cs, s.ns); err != nil {
+			log.Warnf("%v", err)
+			return false
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second)
 }
 func (s *E2ESuite) SetUpTest(c *C) {
 	log.Info("setupTest:")

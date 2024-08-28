@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"github.com/pensando/gpu-operator/tests/e2e/utils"
 	"strings"
 	"time"
 
@@ -33,7 +34,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	assert.NoError(c, err, "failed to create %v", s.cfgName)
 
 	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), "amd-gpu-operator-node-feature-discovery-worker", metav1.GetOptions{})
+		ds, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), utils.NFDWorkerName(), metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("failed to get node-feature-discovery %v", err)
 			return false
@@ -45,7 +46,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	}, 5*time.Minute, 5*time.Second)
 
 	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), s.cfgName+"-node-labeller", metav1.GetOptions{})
+		ds, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), utils.NodeLabellerName(s.cfgName), metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("failed to get node-labeller %v", err)
 			return false
@@ -88,15 +89,8 @@ func (s *E2ESuite) TestDeployment(c *C) {
 			return false
 		}
 		for _, node := range nodes.Items {
-			s, ok := node.Status.Capacity["amd.com/gpu"]
-			if !ok {
-				log.Warnf("gpu label not found in %v ", node.Name)
-				return false
-			}
-
-			log.Infof("%v gpu capacity %+v", node.Name, s.String())
-			if s.String() == "0" {
-				log.Warnf("gpu not found in %v", node.Name)
+			if !utils.CheckGpuLabel(node.Status.Capacity) {
+				log.Warnf("gpu not found in %v, %+v ", node.Name, node.Status.Capacity)
 				return false
 			}
 		}
