@@ -18,6 +18,7 @@ package nodelabeller
 
 import (
 	"fmt"
+	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
@@ -27,6 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+const (
+	rocmDevicePluginRepo     = "rocm/k8s-device-plugin"
+	defaultNodeLabellerImage = "rocm/k8s-device-plugin:labeller-latest"
 )
 
 //go:generate mockgen -source=nodelabeller.go -package=nodelabeller -destination=mock_nodelabeller.go NodeLabeller
@@ -112,13 +118,15 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 	}
 
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
-	nodeSelector := map[string]string{labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name): ""}
+	nodeSelector := map[string]string{
+		// node labeller should be deployed on the node where module is ready + device plugin is ready
+		labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name): "",
+	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: matchLabels,
-				//Finalizers: []string{constants.NodeLabelerFinalizer},
 			},
 			Spec: v1.PodSpec{
 				InitContainers: initContainers,
@@ -138,8 +146,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 						},
 						Name:            "node-labeller-container",
 						WorkingDir:      "/root",
-						Image:           "rocm/k8s-device-plugin:labeller-latest",
-						ImagePullPolicy: v1.PullAlways,
+						Image:           getNodeLabellerImage(devConfig),
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts:    containerVolumeMounts,
 					},
@@ -154,4 +161,22 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
+}
+
+func getNodeLabellerImage(devConfig *amdv1alpha1.DeviceConfig) string {
+	if devConfig.Spec.NodeLabellerImage != "" {
+		// if the node labeller image is clearly specified, directly use the user provided image
+		return devConfig.Spec.NodeLabellerImage
+	} else if version := getDevicePluginVersion(devConfig); version != "" {
+		return rocmDevicePluginRepo + ":labeller-" + version
+	}
+	return defaultNodeLabellerImage
+}
+
+func getDevicePluginVersion(devConfig *amdv1alpha1.DeviceConfig) string {
+	if strings.Contains(devConfig.Spec.DevicePluginImage, rocmDevicePluginRepo) {
+		imgInfo := strings.Split(devConfig.Spec.DevicePluginImage, rocmDevicePluginRepo)
+		return strings.Replace(imgInfo[len(imgInfo)-1], ":", "", -1)
+	}
+	return ""
 }

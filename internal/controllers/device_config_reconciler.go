@@ -19,8 +19,9 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	"strings"
+
+	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
@@ -31,6 +32,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -110,9 +112,14 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to get the requested %s CR: %v", req.NamespacedName, err)
 	}
 
+	nodes, err := kmmmodule.GetK8SNodes(kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
+	if err != nil {
+		return res, fmt.Errorf("failed to list Node for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	if devConfig.GetDeletionTimestamp() != nil {
 		// DeviceConfig is being deleted
-		err = r.helper.finalizeDeviceConfig(ctx, devConfig)
+		err = r.helper.finalizeDeviceConfig(ctx, devConfig, nodes)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to finalize DeviceConfig %s: %v", req.NamespacedName, err)
 		}
@@ -122,11 +129,6 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	err = r.helper.setFinalizer(ctx, devConfig)
 	if err != nil {
 		return res, fmt.Errorf("failed to set finalizer for DeviceConfig %s: %v", req.NamespacedName, err)
-	}
-
-	nodes, err := kmmmodule.GetK8SNodes(kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
-	if err != nil {
-		return res, fmt.Errorf("failed to list Node for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
 	logger.Info("start build configmap reconciliation")
@@ -165,7 +167,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	getRequestedDeviceConfig(ctx context.Context, namespacedName types.NamespacedName) (*amdv1alpha1.DeviceConfig, error)
 	getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error)
 	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
-	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
@@ -318,7 +320,7 @@ func (dcrh *deviceConfigReconcilerHelper) setFinalizer(ctx context.Context, devC
 	return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
 }
 
-func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
 	nlDS := appsv1.DaemonSet{}
@@ -353,7 +355,35 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		return fmt.Errorf("failed to get the requested Module %s: %v", namespacedName, err)
 	}
 	logger.Info("deleting KMM Module", "module", namespacedName)
-	return dcrh.client.Delete(ctx, &mod)
+	err = dcrh.client.Delete(ctx, &mod)
+	if err != nil {
+		return fmt.Errorf("failed to delete the requested Module: %s: %v", namespacedName, err)
+	}
+
+	labelKey, _ := kmmmodule.GetVersionLabelKV(devConfig)
+	for _, node := range nodes.Items {
+		// add retry logic here
+		// in case Node resource is being updated by multiple clients concurrently
+		if retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			nodeObj := &v1.Node{}
+			if err := dcrh.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
+				return err
+			}
+			// if the version label doesn't exist in the Node resource
+			// no need to remove it
+			if _, ok := nodeObj.Labels[labelKey]; !ok {
+				return nil
+			}
+			// 1. use PATCH instead of UPDATE
+			//    to minimize the resource usage, compared to update the whole Node resource
+			// 2. in the label, the character "/" needs to be escaped for json patch by using "~1"
+			patch := []byte(`[{"op": "remove", "path": "/metadata/labels/` + strings.Replace(labelKey, "/", "~1", -1) + `"}]`)
+			return dcrh.client.Patch(ctx, nodeObj, client.RawPatch(types.JSONPatchType, patch))
+		}); retryErr != nil {
+			logger.Error(retryErr, fmt.Sprintf("failed to remove version label for node %+v", node.Name))
+		}
+	}
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {

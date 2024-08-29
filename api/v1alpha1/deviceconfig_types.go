@@ -52,6 +52,10 @@ type DeviceConfigSpec struct {
 	// +optional
 	DevicePluginImage string `json:"devicePluginImage,omitempty"`
 
+	// node labeller image
+	// +optional
+	NodeLabellerImage string `json:"nodeLabellerImage,omitempty"`
+
 	// pull secrets used for pull/setting images used by operator
 	// +optional
 	ImageRepoSecret *v1.LocalObjectReference `json:"imageRepoSecret,omitempty"`

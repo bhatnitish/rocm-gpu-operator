@@ -51,7 +51,7 @@ const (
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
 	kmmNodeVersionLabelTemplate    = "kmm.node.kubernetes.io/version-module.%s.%s"
-	defaultDevicePluginImage       = "rocm/k8s-device-plugin"
+	defaultDevicePluginImage       = "rocm/k8s-device-plugin:latest"
 	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
@@ -106,16 +106,19 @@ func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig
 	// for each selected node
 	// put the KMM version label given by CR's driver version
 	// KMM operator will watch on the version label and manage the kmod upgrade
-	versionLabelKey := fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name)
+	labelKey, labelVal := GetVersionLabelKV(devConfig)
 	for _, node := range nodes.Items {
-		if version, ok := node.Labels[versionLabelKey]; ok && version == devConfig.Spec.DriversVersion {
-			// no need to patch the label when it already has the desired value
+		if _, ok := node.Labels[labelKey]; ok {
+			// version label was already put on the node object
+			// our operator should only upload the version label for 0->1 installation
+			// for 1->2 upgrade, we expect users to manually update the version label on Node resource to trigger ordered upgrade
+			// so if thee label was already there, controller won't update it
 			continue
 		}
 		patch := map[string]interface{}{
 			"metadata": map[string]interface{}{
 				"labels": map[string]string{
-					versionLabelKey: devConfig.Spec.DriversVersion,
+					labelKey: labelVal,
 				},
 			},
 		}
@@ -446,6 +449,10 @@ func MapToLabelSelector(selector map[string]string) string {
 		selectorSlice = append(selectorSlice, fmt.Sprintf("%s=%s", k, v))
 	}
 	return strings.Join(selectorSlice, ",")
+}
+
+func GetVersionLabelKV(devConfig *amdv1alpha1.DeviceConfig) (string, string) {
+	return fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name), devConfig.Spec.DriversVersion
 }
 
 func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) {

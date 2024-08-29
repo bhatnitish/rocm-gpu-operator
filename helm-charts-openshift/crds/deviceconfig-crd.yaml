@@ -68,6 +68,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              nodeLabellerImage:
+                description: node labeller image
+                type: string
               redhatSubscriptionPassword:
                 description: RedhatSubscriptionPassword is the password for redhat subscription
                   manager.

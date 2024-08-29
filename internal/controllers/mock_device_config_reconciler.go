@@ -45,17 +45,17 @@ func (m *MockdeviceConfigReconcilerHelperAPI) EXPECT() *MockdeviceConfigReconcil
 }
 
 // finalizeDeviceConfig mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) finalizeDeviceConfig(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) finalizeDeviceConfig(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "finalizeDeviceConfig", ctx, devConfig)
+	ret := m.ctrl.Call(m, "finalizeDeviceConfig", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // finalizeDeviceConfig indicates an expected call of finalizeDeviceConfig.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) finalizeDeviceConfig(ctx, devConfig any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) finalizeDeviceConfig(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "finalizeDeviceConfig", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).finalizeDeviceConfig), ctx, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "finalizeDeviceConfig", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).finalizeDeviceConfig), ctx, devConfig, nodes)
 }
 
 // findDeviceConfigsForNMC mocks base method.
