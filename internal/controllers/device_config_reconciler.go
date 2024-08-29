@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
@@ -123,7 +124,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to set finalizer for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
-	nodes, err := kmmmodule.GetK8SNodes(devConfig)
+	nodes, err := kmmmodule.GetK8SNodes(kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
 	if err != nil {
 		return res, fmt.Errorf("failed to list Node for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
@@ -431,9 +432,35 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		return dcrh.nlHandler.SetNodeLabellerAsDesired(ds, devConfig)
 	})
 
-	if err == nil {
-		logger.Info("Reconciled node labeller", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+	if err != nil {
+		return err
 	}
 
-	return err
+	logger.Info("Reconciled node labeller", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+
+	// todo: temp. cleanup labels set by node-labeller
+	// not required once label cleanup is added in node-labeller
+	its, err := kmmmodule.GetK8SNodes("! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name))
+	if err != nil {
+		logger.Info("failed to get node list ", err)
+		return nil
+	}
+
+	for i := range its.Items {
+		node := &v1.Node{
+			ObjectMeta: its.Items[i].ObjectMeta,
+		}
+		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, node, func() error {
+			for k := range node.Labels {
+				if strings.HasPrefix(k, "beta.amd.com") ||
+					strings.HasPrefix(k, "amd.com") {
+					delete(node.Labels, k)
+				}
+			}
+			return nil
+		})
+		logger.Info("update node labels", "node", node.Name, "error", err, "response", opRes)
+	}
+
+	return nil
 }

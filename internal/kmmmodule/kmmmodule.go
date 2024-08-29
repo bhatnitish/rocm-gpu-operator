@@ -424,7 +424,7 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
 }
 
-func GetK8SNodes(devConfig *amdv1alpha1.DeviceConfig) (*v1.NodeList, error) {
+func GetK8SNodes(ls string) (*v1.NodeList, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -435,7 +435,7 @@ func GetK8SNodes(devConfig *amdv1alpha1.DeviceConfig) (*v1.NodeList, error) {
 		return nil, err
 	}
 	options := metav1.ListOptions{
-		LabelSelector: MapToLabelSelector(devConfig.Spec.Selector),
+		LabelSelector: ls,
 	}
 	return clientset.CoreV1().Nodes().List(context.TODO(), options)
 }
