@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -90,6 +91,9 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/status,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=nodemodulesconfigs/finalizers,verbs=get;update;watch
+//+kubebuilder:rbac:groups=nfd.openshift.io,resources=nodefeaturediscoveries,verbs=list;get;delete
+//+kubebuilder:rbac:groups=nfd.openshift.io,resources=nodefeaturediscoveries/status,verbs=get;update
+//+kubebuilder:rbac:groups=nfd.openshift.io,resources=nodefeaturediscoveries/finalizers,verbs=get;update
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
 //+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;patch;list;watch
 //+kubebuilder:rbac:groups=core,resources=nodes/status,verbs=get;update;watch
@@ -392,6 +396,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 	}
 
 	savedCMName := map[string]bool{}
+	buildOK := true
 	for _, node := range nodes.Items {
 		cmName, err := kmmmodule.GetCMName(node)
 		if err != nil {
@@ -416,11 +421,17 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 
 		if err == nil {
 			logger.Info("Reconciled KMM build dockerfile ConfigMap", "name", buildDockerfileCM.Name, "result", opRes)
+		} else {
+			buildOK = false
+			logger.Error(err, "error reconciling KMM build dockerfile ConfigMap", "name", buildDockerfileCM.Name, "result", opRes)
 		}
 
 		savedCMName[cmName] = true
 	}
 
+	if !buildOK {
+		return errors.New("error reconciling KMM build dockerfile ConfigMap")
+	}
 	return nil
 }
 

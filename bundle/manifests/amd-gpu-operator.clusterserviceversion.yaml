@@ -14,7 +14,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-08-26T09:06:26Z"
+    createdAt: "2024-08-30T07:33:09Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -192,6 +192,28 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - nfd.openshift.io
+          resources:
+          - nodefeaturediscoveries
+          verbs:
+          - delete
+          - get
+          - list
+        - apiGroups:
+          - nfd.openshift.io
+          resources:
+          - nodefeaturediscoveries/finalizers
+          verbs:
+          - get
+          - update
+        - apiGroups:
+          - nfd.openshift.io
+          resources:
+          - nodefeaturediscoveries/status
+          verbs:
+          - get
+          - update
         serviceAccountName: amd-gpu-operator-controller-manager
       deployments:
       - label:
