@@ -25,9 +25,10 @@ func (s *E2ESuite) TestDeployment(c *C) {
 			Name: s.cfgName,
 		},
 		Spec: v1alpha1.DeviceConfigSpec{
-			DriversImage:   "10.11.18.9:5000/ubuntu:amdgpu-6.1.3",
+			DriversImage:   "10.11.18.9:5000/e2e", //todo: update repo
 			DriversVersion: "6.1.3",
-			Selector:       map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
+			//SkipDrivers:    true,
+			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 		},
 	}
 	_, err = s.dClient.DeviceConfigs(s.ns).Create(devCfg)
@@ -64,7 +65,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 		}
 		log.Infof("driver status %+v",
 			devCfg.Status.Drivers)
-		log.Infof("devplugin status %+v",
+		log.Infof("device-plugin status %+v",
 			devCfg.Status.DevicePlugin)
 
 		return devCfg.Status.DevicePlugin.NodesMatchingSelectorNumber > 0 &&
@@ -88,15 +89,38 @@ func (s *E2ESuite) TestDeployment(c *C) {
 			log.Errorf("failed to get nodes %v", err)
 			return false
 		}
+
 		for _, node := range nodes.Items {
 			if !utils.CheckGpuLabel(node.Status.Capacity) {
-				log.Warnf("gpu not found in %v, %+v ", node.Name, node.Status.Capacity)
+				log.Infof("gpu not found in %v, %v ", node.Name, node.Status.Capacity)
+				return false
+			}
+		}
+		for _, node := range nodes.Items {
+			if !utils.CheckGpuLabel(node.Status.Allocatable) {
+				log.Infof("allocatable gpu not found in %v, %v ", node.Name, node.Status.Allocatable)
 				return false
 			}
 		}
 		return true
 
 	}, 5*time.Minute, 5*time.Second)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	pods, err := utils.ListRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	for _, p := range pods {
+		v, err := utils.GetRocmInfo(p)
+		assert.NoError(c, err, "rocm-smi failed on", p, v)
+		log.Infof("rocm-smi %v  \n %v", p, v)
+		v, err = utils.ListGpuDrivers(p)
+		assert.NoError(c, err, "list drivers failed on", p, v)
+		log.Infof("gpudrivers %v \n%v ", p, v)
+		v, err = utils.GetGpuDriverVersion(p)
+		assert.NoError(c, err, "drivers version failed on", p, v)
+		log.Infof("gpudrivers %v \n%v ", p, v)
+	}
 
 	// delete
 	_, err = s.dClient.DeviceConfigs(s.ns).Delete(s.cfgName)
@@ -119,4 +143,21 @@ func (s *E2ESuite) TestDeployment(c *C) {
 		}
 		return true
 	}, 5*time.Minute, 5*time.Second)
+
+	pods, err = utils.ListRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	for _, p := range pods {
+		v, err := utils.GetRocmInfo(p)
+		assert.Errorf(c, err, "rocm-smi available oni %v %v", p, v)
+		log.Infof("rocm-smi %v \n %v", p, v)
+		v, err = utils.ListGpuDrivers(p)
+		assert.Errorf(c, err, "drivers available on %v %v", p, v)
+		log.Infof("gpudrivers %v \n%v ", p, v)
+		v, err = utils.GetGpuDriverVersion(p)
+		assert.Errorf(c, err, "driver version available on %v %v", p, v)
+		log.Infof("driver version %v \n%v ", p, v)
+	}
+
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
 }

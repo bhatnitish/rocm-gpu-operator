@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-var kubeconfig = flag.String("kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "absolute path to the kubeconfig file")
+var kubeConfig = flag.String("kubeConfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "absolute path to the kubeconfig file")
 var helmChart = flag.String("helmchart", "", "helmchart")
 var operatorNS = flag.String("namespace", "kube-amd-gpu", "namespace")
 var cfgName = flag.String("deviceConfigName", "test-device-config", "deviceConfig name")
@@ -33,7 +33,7 @@ var _ = Suite(&E2ESuite{})
 func (s *E2ESuite) SetUpSuite(c *C) {
 	log.Infof("setupSuite:")
 	s.helmChart = *helmChart
-	s.kubeconfig = *kubeconfig
+	s.kubeconfig = *kubeConfig
 	s.ns = *operatorNS
 	s.cfgName = *cfgName
 	s.registry = *registry
@@ -59,7 +59,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 
 	assert.Eventually(c, func() bool {
 		if err := utils.CheckHelmDeployment(cs, s.ns); err != nil {
-			log.Warnf("%v", err)
+			log.Infof("%v", err)
 			return false
 		}
 		return true
