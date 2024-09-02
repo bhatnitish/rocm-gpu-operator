@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"os/user"
 	"strings"
 	"time"
 
@@ -20,12 +21,14 @@ func (s *E2ESuite) TestDeployment(c *C) {
 
 	log.Infof("create %v", s.cfgName)
 
+	userInfo, err := user.Current()
+	assert.Errorf(c, err, "failed to get user")
 	devCfg := &v1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: s.cfgName,
 		},
 		Spec: v1alpha1.DeviceConfigSpec{
-			DriversImage:   "10.11.18.9:5000/e2e", //todo: update repo
+			DriversImage:   fmt.Sprintf("registry.test.pensando.io:5000/e2e/%v", userInfo.Username),
 			DriversVersion: "6.1.3",
 			//SkipDrivers:    true,
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
