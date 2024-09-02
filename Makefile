@@ -164,7 +164,8 @@ unit-test: vet ## Run tests.
 	go test $(TEST) -coverprofile cover.out
 
 e2e:
-ifeq ($(shell helm version > /dev/null 2>&1 && helm list --deployed -n kube-amd-gpu -q),)
+	GPU_OPERATOR_RELEASE=$(shell helm version > /dev/null 2>&1 && helm list --deployed -n kube-amd-gpu -q)
+ifeq ($(GPU_OPERATOR_RELEASE),)
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
 else
@@ -347,6 +348,10 @@ helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshif
 	# Patching openshift helm chart kmm subchart
 	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/template-patch/* $(shell pwd)/helm-charts-openshift/charts/kmm/templates/
 	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-openshift/charts/kmm/
+	# opeartor already has device-plugin rbac yaml, removing the redundant rbac yaml from subchart
+	rm $(shell pwd)/helm-charts-openshift/charts/kmm/templates/device-plugin-rbac.yaml
+	# opeartor already has module-loader rbac yaml, removing the redundant rbac yaml from subchart
+	rm $(shell pwd)/helm-charts-openshift/charts/kmm/templates/module-loader-rbac.yaml
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..;
 	mkdir $(shell pwd)/helm-charts-openshift/crds
 	echo "moving crd yaml files to crds folder"

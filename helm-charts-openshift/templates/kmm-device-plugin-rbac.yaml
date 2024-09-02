@@ -30,5 +30,5 @@ roleRef:
   name: '{{ include "helm-charts-openshift.fullname" . }}-kmm-device-plugin'
 subjects:
 - kind: ServiceAccount
-  name: '{{ include "helm-charts-openshift.fullname" . }}-kmm-device-plugin'
+  name: amd-gpu-operator-kmm-device-plugin
   namespace: '{{ .Release.Namespace }}'

@@ -1,3 +1,4 @@
+{{- if eq .Values.platform "openshift" }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -30,5 +31,6 @@ roleRef:
   name: '{{ include "helm-charts-k8s.fullname" . }}-kmm-device-plugin'
 subjects:
 - kind: ServiceAccount
-  name: '{{ include "helm-charts-k8s.fullname" . }}-kmm-device-plugin'
+  name: amd-gpu-operator-kmm-device-plugin
   namespace: '{{ .Release.Namespace }}'
+{{- end }}
