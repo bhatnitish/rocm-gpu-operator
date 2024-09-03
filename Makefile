@@ -40,6 +40,9 @@ endif
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
+# Specify DOCKER_REGISTRY as registryURL/username
+# Note: when using images from DockerHub, please make sure to input the full DockerHub registry URL (docker.io) into DOCKER_REGISTRY
+# user's container runtime may not set DockerHub as default registry and auto-search on DockerHub
 DOCKER_REGISTRY ?= registry.test.pensando.io:5000
 IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
@@ -124,7 +127,7 @@ update-registry:
 	hack/k8s-patch/metadata-patch/values.yaml \
 	hack/openshift-patch/metadata-patch/values.yaml
 	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" \
-	-e 's/registry.test.pensando.io:5000/$(DOCKER_REGISTRY)/' \
+	-e 's|registry.test.pensando.io:5000|$(DOCKER_REGISTRY)|' \
 	-e 's|newName:.*$$|newName: ${IMAGE_TAG_BASE}|' \
 	config/manager-base/kustomization.yaml config/manager/kustomization.yaml \
 	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
