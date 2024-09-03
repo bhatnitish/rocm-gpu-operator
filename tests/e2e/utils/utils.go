@@ -8,10 +8,15 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"os/exec"
 	"time"
 )
+
+const ClusterTypeOpenShift = "openshift"
+const ClusterTypeK8s = "kubernetes"
 
 func CheckGpuLabel(rl v1.ResourceList) bool {
 	s, ok := rl["amd.com/gpu"]
@@ -252,4 +257,17 @@ func Retry(f func() error, timeout time.Duration, period time.Duration) error {
 			}
 		}
 	}
+}
+
+func GetClusterType(cfg *rest.Config) string {
+	if dc, err := discovery.NewDiscoveryClientForConfig(cfg); err == nil {
+		if gplist, err := dc.ServerGroups(); err == nil {
+			for _, gp := range gplist.Groups {
+				if gp.Name == "route.openshift.io" {
+					return ClusterTypeOpenShift
+				}
+			}
+		}
+	}
+	return ClusterTypeK8s
 }

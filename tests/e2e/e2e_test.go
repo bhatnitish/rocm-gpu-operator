@@ -58,6 +58,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 		c.Fatalf(err.Error())
 	}
 	s.clientSet = cs
+	s.clusterType = utils.GetClusterType(config)
 
 	if s.openshift == false {
 		assert.Eventually(c, func() bool {
