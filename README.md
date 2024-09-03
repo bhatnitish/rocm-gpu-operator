@@ -348,8 +348,22 @@ laptop ~ % kubectl delete -f rocminfo.yaml
 |  redhatSubscriptionUsername |  UserName for redhat subscription on RHEL machines | None | None
 |  redhatSubscriptionPassword  |  Password for redhat subscription on RHEL machines | None | None
 
+## Techsupport-dump
+
+Use techsupport-dump tool to collect system state/logs to debug.
+* Can run from external machines or from nodes in the cluster
+* Requires ```kubectl``` and access to kubernetes cluster (~/.kube/config configured)
+```
+gpu-operator$./tools/techsupport_dump.sh -n <node-name/all>
+```
+```
+gpu-operator$ ./tools/techsupport_dump.sh all
+....
+[2024-09-03_18:52:53 techsupport]techsupport-2024-09-03_18-52-43.tgz is ready
+```
+
 ## e2e tests
-Requires access to kubernetes setup (~/.kube/config configured)
+Requires access to kubernetes cluster (~/.kube/config configured)
 ```
 make e2e # deploy gpu operator (default ./gpu-operator-0.0.1.tgz) and run tests
 make e2e GPU_OPERATOR_CHART="path to helm chart" # deploy the given chart and run tests
