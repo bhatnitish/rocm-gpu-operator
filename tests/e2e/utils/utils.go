@@ -25,6 +25,41 @@ func CheckGpuLabel(rl v1.ResourceList) bool {
 	return true
 }
 
+func CheckHelmOCDeployment(cl *kubernetes.Clientset, ns string) error {
+	for _, d := range []struct {
+		ns, name string
+	}{
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-kmm-controller"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-kmm-webhook-server"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-nfd-controller-manager"},
+		{ns: "kube-amd-gpu", name: "nfd-master"},
+	} {
+		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+		}
+		if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
+			return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+		}
+	}
+
+	for _, d := range []struct {
+		ns, name string
+	}{
+		{ns: "kube-amd-gpu", name: "nfd-worker"},
+	} {
+		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+		}
+		if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
+			return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+		}
+	}
+	return nil
+}
+
 func CheckHelmDeployment(cl *kubernetes.Clientset, ns string) error {
 	for _, d := range []struct {
 		ns, name string
@@ -191,7 +226,10 @@ func DelDaemonset(cl *kubernetes.Clientset, ns string, name string) error {
 func NodeLabellerName(cfgName string) string {
 	return cfgName + "-node-labeller"
 }
-func NFDWorkerName() string {
+func NFDWorkerName(isOpenshift bool) string {
+	if isOpenshift {
+		return "nfd-worker"
+	}
 	return "amd-gpu-operator-node-feature-discovery-worker"
 }
 

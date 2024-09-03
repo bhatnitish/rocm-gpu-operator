@@ -14,4 +14,5 @@ type E2ESuite struct {
 	helmChart  string
 	ns         string
 	kubeconfig string
+	openshift  bool
 }

@@ -34,11 +34,14 @@ func (s *E2ESuite) TestDeployment(c *C) {
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 		},
 	}
+	if s.openshift {
+		devCfg.Spec.DriversVersion = "el9-6.1.1"
+	}
 	_, err = s.dClient.DeviceConfigs(s.ns).Create(devCfg)
 	assert.NoError(c, err, "failed to create %v", s.cfgName)
 
 	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), utils.NFDWorkerName(), metav1.GetOptions{})
+		ds, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), utils.NFDWorkerName(s.openshift), metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("failed to get node-feature-discovery %v", err)
 			return false

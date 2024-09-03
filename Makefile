@@ -171,6 +171,7 @@ ifeq ($(GPU_OPERATOR_RELEASE),)
 else
 	$(info skip deploy)
 endif
+	export OPENSHIFT
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
 
@@ -379,7 +380,7 @@ helm-uninstall:
 	fi
 
 helm-install-openshift:
-	helm install -f helm-charts-openshift/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+	helm install amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
 
 helm-uninstall-openshift:
 	echo "Deleting all CRs before uninstalling operator..."

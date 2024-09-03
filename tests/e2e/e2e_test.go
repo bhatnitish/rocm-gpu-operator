@@ -22,6 +22,7 @@ var helmChart = flag.String("helmchart", "", "helmchart")
 var operatorNS = flag.String("namespace", "kube-amd-gpu", "namespace")
 var cfgName = flag.String("deviceConfigName", "test-device-config", "deviceConfig name")
 var registry = flag.String("registry", "10.11.18.9:5000/ubuntu:amdgpu-6.1.3", "driver container registry")
+var openshift = flag.Bool("openshift", false, "openshift deployment")
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
@@ -37,6 +38,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	s.ns = *operatorNS
 	s.cfgName = *cfgName
 	s.registry = *registry
+	s.openshift = *openshift
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", s.kubeconfig)
@@ -57,13 +59,23 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	}
 	s.clientSet = cs
 
-	assert.Eventually(c, func() bool {
-		if err := utils.CheckHelmDeployment(cs, s.ns); err != nil {
-			log.Infof("%v", err)
-			return false
-		}
-		return true
-	}, 5*time.Minute, 5*time.Second)
+	if s.openshift == false {
+		assert.Eventually(c, func() bool {
+			if err := utils.CheckHelmDeployment(cs, s.ns); err != nil {
+				log.Infof("%v", err)
+				return false
+			}
+			return true
+		}, 5*time.Minute, 5*time.Second)
+	} else {
+		assert.Eventually(c, func() bool {
+			if err := utils.CheckHelmOCDeployment(cs, s.ns); err != nil {
+				log.Infof("%v", err)
+				return false
+			}
+			return true
+		}, 5*time.Minute, 5*time.Second)
+	}
 }
 func (s *E2ESuite) SetUpTest(c *C) {
 	log.Info("setupTest:")
