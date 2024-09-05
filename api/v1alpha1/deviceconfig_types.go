@@ -60,6 +60,12 @@ type DeviceConfigSpec struct {
 	// +optional
 	ImageRepoSecret *v1.LocalObjectReference `json:"imageRepoSecret,omitempty"`
 
+	// ImageSignKeySecret the private key used to sign kernel modules for secureboot
+	ImageSignKeySecret *v1.LocalObjectReference `json:"imageSignKeySecret,omitempty"`
+
+	// ImageSignCertSecret the public key used to sign kernel modules for secureboot
+	ImageSignCertSecret *v1.LocalObjectReference `json:"imageSignCertSecret,omitempty"`
+
 	// Selector describes on which nodes the GPU Operator should enable the GPU device.
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`

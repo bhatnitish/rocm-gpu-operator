@@ -68,6 +68,26 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              imageSignCertSecret:
+                description: ImageSignCertSecret the public key used to sign kernel
+                  modules for secureboot
+                properties:
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              imageSignKeySecret:
+                description: ImageSignKeySecret the private key used to sign kernel
+                  modules for secureboot
+                properties:
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               nodeLabellerImage:
                 description: node labeller image
                 type: string

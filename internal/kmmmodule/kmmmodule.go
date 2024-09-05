@@ -303,6 +303,16 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		repoURL = devConfig.Spec.RepoURL
 	}
 
+	var kmmSign *kmmv1beta1.Sign
+	if devConfig.Spec.ImageSignKeySecret != nil &&
+		devConfig.Spec.ImageSignCertSecret != nil {
+		kmmSign = &kmmv1beta1.Sign{
+			KeySecret:   devConfig.Spec.ImageSignKeySecret,
+			CertSecret:  devConfig.Spec.ImageSignCertSecret,
+			FilesToSign: getKmodsToSign(isOpenShift, node.Status.NodeInfo.KernelVersion),
+		}
+	}
+
 	return kmmv1beta1.KernelMapping{
 		Literal:              node.Status.NodeInfo.KernelVersion,
 		ContainerImage:       driversImage,
@@ -322,6 +332,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 				},
 			},
 		},
+		Sign: kmmSign,
 	}, nil
 }
 
@@ -500,4 +511,27 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	ns := make(map[string]string, 0)
 	ns["feature.node.kubernetes.io/amd-gpu"] = "true"
 	return ns
+}
+
+func getKmodsToSign(isOpenShift bool, kernelVersion string) []string {
+	if isOpenShift {
+		return []string{
+			"/opt/lib/modules/" + kernelVersion + "/amd/amdgpu/amdgpu.ko",
+			"/opt/lib/modules/" + kernelVersion + "/amd/amdkcl/amdkcl.ko",
+			"/opt/lib/modules/" + kernelVersion + "/amd/amdxcp/amdxcp.ko",
+			"/opt/lib/modules/" + kernelVersion + "/scheduler/amd-sched.ko",
+			"/opt/lib/modules/" + kernelVersion + "/ttm/amdttm.ko",
+			"/opt/lib/modules/" + kernelVersion + "/amddrm_buddy.ko",
+			"/opt/lib/modules/" + kernelVersion + "/amddrm_ttm_helper.ko",
+		}
+	}
+	return []string{
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdkcl.ko",
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdttm.ko",
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdgpu.ko",
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdxcp.ko",
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amd-sched.ko",
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amddrm_buddy.ko",
+		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amddrm_ttm_helper.ko",
+	}
 }

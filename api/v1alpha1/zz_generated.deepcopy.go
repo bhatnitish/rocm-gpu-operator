@@ -108,6 +108,16 @@ func (in *DeviceConfigSpec) DeepCopyInto(out *DeviceConfigSpec) {
 		*out = new(v1.LocalObjectReference)
 		**out = **in
 	}
+	if in.ImageSignKeySecret != nil {
+		in, out := &in.ImageSignKeySecret, &out.ImageSignKeySecret
+		*out = new(v1.LocalObjectReference)
+		**out = **in
+	}
+	if in.ImageSignCertSecret != nil {
+		in, out := &in.ImageSignCertSecret, &out.ImageSignCertSecret
+		*out = new(v1.LocalObjectReference)
+		**out = **in
+	}
 	if in.Selector != nil {
 		in, out := &in.Selector, &out.Selector
 		*out = make(map[string]string, len(*in))
