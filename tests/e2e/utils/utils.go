@@ -11,12 +11,22 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"log"
 	"os/exec"
 	"time"
 )
 
 const ClusterTypeOpenShift = "openshift"
 const ClusterTypeK8s = "kubernetes"
+var kubectl = "kubectl"
+
+func init() {
+	c, err := exec.LookPath("kubectl")
+	if err != nil {
+		log.Fatalf("failed to find kubectl %v", err)
+	}
+	kubectl = c
+}
 
 func CheckGpuLabel(rl v1.ResourceList) bool {
 	s, ok := rl["amd.com/gpu"]
@@ -239,7 +249,7 @@ func NFDWorkerName(isOpenshift bool) string {
 }
 
 func ExecPodCmd(command string, ns string, name string) (string, error) {
-	cmd := exec.Command("kubectl", "exec", "-n", ns, name, "--", "sh", "-c", command)
+	cmd := exec.Command(kubectl, "exec", "-n", ns, name, "--", "sh", "-c", command)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

@@ -166,14 +166,10 @@ TEST ?= ./...
 unit-test: vet ## Run tests.
 	go test $(TEST) -coverprofile cover.out
 
+#GPU_OPERATOR_RELEASE=$(shell helm version > /dev/null && helm list --deployed -n kube-amd-gpu -q)
 e2e:
-	GPU_OPERATOR_RELEASE=$(shell helm version > /dev/null 2>&1 && helm list --deployed -n kube-amd-gpu -q)
-ifeq ($(GPU_OPERATOR_RELEASE),)
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
-else
-	$(info skip deploy)
-endif
 	export OPENSHIFT
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
