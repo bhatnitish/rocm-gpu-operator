@@ -354,7 +354,11 @@ Use techsupport-dump tool to collect system state/logs to debug.
 * Can run from external machines or from nodes in the cluster
 * Requires ```kubectl``` and access to kubernetes cluster (~/.kube/config configured)
 ```
-gpu-operator$./tools/techsupport_dump.sh -n <node-name/all>
+gpu-operator$ ./tools/techsupport_dump.sh -h
+./tools/techsupport_dump.sh [-w] [-o yaml/json] [-k kubeconfig] <node-name/all>
+   [-w] wide option
+   [-o yaml/json] output format, yaml/json(default)
+   [-k kubeconfig] path to kubeconfig(default ~/.kube/config)
 ```
 ```
 gpu-operator$ ./tools/techsupport_dump.sh all
