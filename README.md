@@ -369,3 +369,40 @@ make e2e # deploy gpu operator (default ./gpu-operator-0.0.1.tgz) and run tests
 make e2e GPU_OPERATOR_CHART="path to helm chart" # deploy the given chart and run tests
 make -C tests/e2e # run e2e tests only
 ```
+
+## Debug driver build
+if the amdgpu driver build fails, the build pod will be in error state
+```
+gpu-operator$ kubectl get pods -n kube-amd-gpu
+NAME                                                             READY   STATUS    RESTARTS   AGE
+amd-gpu-operator-controller-manager-7d99f945fd-jcclc             1/1     Running   0          11h
+test-device-config-build-8jqdm                                   0/1     Error     0          3m11s
+
+```
+pod logs contain more details
+```
+gpu-operator$ kubectl logs -n kube-amd-gpu test-device-config-build-8jqdm
+INFO[0000] Resolved base name ubuntu:22.04 to builder
+INFO[0000] Retrieving image manifest ubuntu:22.04
+INFO[0000] Retrieving image ubuntu:22.04 from registry index.docker.io
+error building image: unable to complete operation after 0 attempts, last error: GET https://index.docker.io/v2/library/ubuntu/manifests/22.04: TOOMANYREQUESTS: You have reached your pull rate limit. You may increase the limit by authenticating and upgrading: https://www.docker.com/increase-rate-limit
+
+```
+build error will be in events also
+```
+gpu-operator$ kubectl events -n kube-amd-gpu
+LAST SEEN   TYPE      REASON         OBJECT                                             MESSAGE
+7m33s       Normal    Pulled         Pod/kmm-worker-genoa4-test-device-config           Container image "gcr.io/k8s-staging-kmm/kernel-module-management-worker:v20240618-v2.1.1" already present on machine
+7m33s       Normal    Created        Pod/kmm-worker-genoa4-test-device-config           Created container worker
+7m33s       Normal    Started        Pod/kmm-worker-genoa4-test-device-config           Started container worker
+7m33s       Normal    Killing        Pod/test-device-config-device-plugin-rgfsj-jqblb   Stopping container device-plugin
+7m33s       Normal    Killing        Pod/test-device-config-node-labeller-4bs8f         Stopping container node-labeller-container
+6m53s       Normal    Scheduled      Pod/test-device-config-build-8jqdm                 Successfully assigned kube-amd-gpu/test-device-config-build-8jqdm to genoa4
+6m53s       Normal    BuildCreated   Module/test-device-config                          Build created for kernel 6.8.0-40-generic
+6m52s       Normal    Pulled         Pod/test-device-config-build-8jqdm                 Container image "gcr.io/kaniko-project/executor:v1.23.2" already present on machine
+6m52s       Normal    Created        Pod/test-device-config-build-8jqdm                 Created container kaniko
+6m52s       Normal    Started        Pod/test-device-config-build-8jqdm                 Started container kaniko
+6m50s       Warning   BuildFailed    Module/test-device-config                          Build job failed for kernel 6.8.0-40-generic
+
+
+```
