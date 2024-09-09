@@ -55,9 +55,8 @@ IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(PROJECT_VERSION)
-
 INDEX_IMG := $(IMAGE_TAG_BASE)-index:v$(PROJECT_VERSION)
-
+BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -270,24 +269,39 @@ operator-sdk:
 		chmod +x ${OPERATOR_SDK}; \
 	fi
 
-.PHONY: bundle
-bundle: operator-sdk manifests kustomize
+.PHONY: bundle-build
+bundle-build: operator-sdk manifests kustomize
 	rm -fr ./bundle
-	${OPERATOR_SDK} generate kustomize manifests --apis-dir api
+	VERSION=$(PROJECT_VERSION) ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
 	OPERATOR_SDK="${OPERATOR_SDK}" \
-		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader" \
+		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller" \
 		     PKG=amd-gpu-operator \
 		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
-
 	${OPERATOR_SDK} bundle validate ./bundle
-
-.PHONY: bundle-build
-bundle-build: ## Build the bundle image.
 	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
+.PHONY: bundle-push
+bundle-push:
+	docker push $(BUNDLE_IMG)
+
+.PHONY: bundle-scorecard-test
+bundle-scorecard-test:
+	${OPERATOR_SDK} scorecard --config bundle/tests/scorecard/config.yaml --kubeconfig ~/.kube/config $(BUNDLE_IMG)
+
+.PHONY: bundle-deploy
+bundle-deploy:
+	${OPERATOR_SDK} run bundle $(BUNDLE_IMG) --namespace=${BUNDLE_NAMESPACE}
+
+.PHONY: bundle-deploy-upgrade
+bundle-deploy-upgrade:
+	${OPERATOR_SDK} run bundle-upgrade $(BUNDLE_IMG)
+
+.PHONY: bundle-cleanup
+bundle-cleanup:
+	${OPERATOR_SDK} cleanup amd-gpu-operator --namespace=${BUNDLE_NAMESPACE}
 
 .PHONY: opm
 OPM = ./bin/opm

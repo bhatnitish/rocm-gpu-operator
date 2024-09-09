@@ -62,7 +62,26 @@ Run ```make``` to generate the basic yaml files for CRD and build controller ima
     * Uninstall all the CRDs: ```kubectl delete crd deviceconfigs.amd.com modules.kmm.sigs.x-k8s.io nodefeaturegroups.nfd.k8s-sigs.io nodefeaturerules.nfd.k8s-sigs.io nodefeatures.nfd.k8s-sigs.io nodemodulesconfigs.kmm.sigs.x-k8s.io preflightvalidations.kmm.sigs.x-k8s.io ``` 
     * ```kubectl delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io```
 
-* Method 2 - Build and install from source code:
+* Method 2 - Build and install from Operator Lifecycle Manager (OLM):
+  * Must have a k8s or openshift cluster up and running, and make sure OLM is running in the cluster
+  * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred), kubeconfig file should be saved at ```~/.kube/config```
+  * Modify the registry related variables in ```Makefile```, use your own registry: 
+    * ```DOCKER_REGISTRY```
+    * ```IMAGE_NAME```
+    * ```IMAGE_TAG```
+  * If your registry requires auth to push image, please use ```docker login``` on your dev environment to configure login credentials to your registry
+  * (Optional) If you made any customized changes on AMD GPU Operator controller, recompile then build + push AMD GPU operator's image:
+    * ```make```
+    * ```make docker-build```
+    * ```make docker-push```
+  * Build the OLM bundle by running ```make bundle-build```
+  * Running the scorecard test of the bundle by running ```make bundle-scorecard-test```, you can modify ```bundle/tests/scorecard/config.yaml``` to configure the scorecard test cases. Remember to save kubeconfig file at ```~/.kube/config``` to run the test on your cluster. All test cases are expected to pass
+  * After the validation, push the bundle image to registry by running ```make bundle-push```
+  * Deploy the OLM bundle by running ```BUNDLE_NAMESPACE=test-olm-ns make bundle-deploy```
+  * Uninstallation: run ```BUNDLE_NAMESPACE=test-olm-ns make bundle-cleanup``` to remove the bundle deployment from your cluster
+
+
+* Method 3 - Build and install from source code:
   
   * Must have a k8s or openshift cluster up and running, if you're using OpenShift, please set ```OPENSHIFT=1```
   * Must build and install from a node that ```kubectl``` or ```oc``` has been configured properly for access to the cluster (control plane node preferred)

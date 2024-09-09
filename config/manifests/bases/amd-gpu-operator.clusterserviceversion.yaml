@@ -16,6 +16,134 @@ spec:
       displayName: DeviceConfig
       kind: DeviceConfig
       name: deviceconfigs.amd.com
+      resources:
+      - kind: Daemonset
+        name: apps
+        version: v1
+      - kind: Module
+        name: modules.kmm.sigs.x-k8s.io
+        version: v1beta1
+      specDescriptors:
+      - description: blacklist amdgpu drivers on the host
+        displayName: BlacklistDrivers
+        path: blacklistDrivers
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers
+      - description: device plugin image
+        displayName: DevicePluginImage
+        path: devicePluginImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: defines image that includes drivers and firmware blobs, don't
+          include tag since it will be fully managed by operator for vanilla k8s the
+          default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod for OpenShift
+          the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
+          image tag will be in the format of <linux distro>-<release version>-<kernel
+          version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1
+          and ubuntu-22.04-5.15.0-94-generic-6.1.3
+        displayName: DriversImage
+        path: driversImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driversImage
+      - description: 'version of the drivers source code, can be used as part of image
+          of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
+          coreOS: el9-6.1.1'
+        displayName: DriversVersion
+        path: driversVersion
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driversVersion
+      - description: pull secrets used for pull/push images from/to private registry
+          specified in driversImage
+        displayName: ImageRepoSecret
+        path: imageRepoSecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRepoSecret
+      - description: ImageSignCertSecret the public key used to sign kernel modules
+          within image necessary for secire boot enabled system
+        displayName: ImageSignCertSecret
+        path: imageSignCertSecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageSignCertSecret
+      - description: ImageSignKeySecret the private key used to sign kernel modules
+          within image necessary for secire boot enabled system
+        displayName: ImageSignKeySecret
+        path: imageSignKeySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: node labeller image
+        displayName: NodeLabellerImage
+        path: nodeLabellerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage
+      - description: RedhatSubscriptionPassword is the password for redhat subscription
+          manager.
+        displayName: RedhatSubscriptionPassword
+        path: redhatSubscriptionPassword
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:redhatSubscriptionPassword
+      - description: RedhatSubscriptionUsername is the username for redhat subscription
+          manager.
+        displayName: RedhatSubscriptionUsername
+        path: redhatSubscriptionUsername
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:redhatSubscriptionUsername
+      - description: repo URL, https://repo.radeon.com/amdgpu-install by default
+        displayName: RepoURL
+        path: repoURL
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:repoURL
+      - description: Selector describes on which nodes the GPU Operator should enable
+          the GPU device.
+        displayName: Selector
+        path: selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: skip driver install/uninstall
+        displayName: SkipDrivers
+        path: skipDrivers
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:skipDrivers
+      - description: if the in-tree driver should be used instead of OOT drivers
+        displayName: UseInTreeDrivers
+        path: useInTreeDrivers
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:useInTreeDrivers
+      statusDescriptors:
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: devicePlugin.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: devicePlugin.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: devicePlugin.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: driver.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: driver.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: driver.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: NodeModuleStatus contains per node status of driver module installation
+        displayName: NodeModuleStatus
+        path: nodeModuleStatus
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus
       version: v1alpha1
   description: |-
     Operator responsible for deploying AMD GPU kernel drivers and device plugin
