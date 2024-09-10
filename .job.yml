@@ -1,0 +1,43 @@
+---
+version: 2.0
+builds:
+  build-gpu-operator:
+    commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
+               IMAGE_TAG=latest make docker-build && \
+               IMAGE_TAG=latest make docker-save"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/amd-gpu-operator-latest.tar.gz
+
+  build-gpu-operator-k8s:
+    commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
+               IMAGE_TAG=latest make helm"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/helm-charts-k8s/gpu-operator-0.0.1.tgz
+
+  build-gpu-operator-openshift:
+    commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
+               IMAGE_TAG=latest OPENSHIFT=1 make helm"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/helm-charts-openshift/gpu-operator-0.0.1.tgz
+
+targets:
+  test:
+    commands: [ "/bin/sh", "-c", "echo hello world && exit 0" ]
+    owners: ["email:mharkara@amd.com"]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-gpu-operator-openshift
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+jobs:
+  gpu-operator:
+    labels: ["CI-Gpu-operator-nightly"]

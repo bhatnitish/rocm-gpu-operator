@@ -52,6 +52,9 @@ IMAGE_TAG ?= dev
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 
+# name used for saving the container images as tar.gz
+DOCKER_CONTAINER_IMG = $(IMAGE_NAME)-$(IMAGE_TAG)
+
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(PROJECT_VERSION)
@@ -195,6 +198,10 @@ docker-build: ## Build docker image with the manager.
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	docker push $(IMG)
+
+.PHONY: docker-save
+docker-save: ## save the container image with the manager.
+	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
 
 ##@ Deployment
 
@@ -348,7 +355,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	done
 	rm $(shell pwd)/helm-charts-k8s/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
-	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/
+	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
 
 .PHONY: helm-openshift
 helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
@@ -374,7 +381,7 @@ helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshif
 	done
 	rm $(shell pwd)/helm-charts-openshift/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
-	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/
+	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/ --destination ./helm-charts-openshift
 
 .PHONY: helm-install
 helm-install:

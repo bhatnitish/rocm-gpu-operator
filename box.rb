@@ -1,0 +1,79 @@
+from "registry.test.pensando.io:5000/pensando/nic:1.76"
+
+user = getenv("USER")
+group = getenv("GROUP_NAME")
+uid = getenv("USER_UID")
+gid = getenv("USER_GID")
+
+# remove old version of go
+run "rm -rf /usr/local/go"
+
+# download go1.20
+run "wget https://go.dev/dl/go1.20.linux-amd64.tar.gz"
+run "tar -C /usr/local/ -xzf go1.20.linux-amd64.tar.gz"
+
+# download and install helm
+run "curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3"
+run "chmod 700 get_helm.sh"
+run "./get_helm.sh"
+
+# download and install helmify
+run "wget https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz"
+run "tar -C /usr/local/bin/ -xzf helmify_Linux_x86_64.tar.gz"
+
+if user == "root"
+  # remove the games group as it conflicts with staff group for mac users
+  run "groupdel games"
+
+  # update user .bash_profile
+  run "echo 'export GOPATH=/usr' >> /root/.bash_profile"
+  run "echo 'export GOFLAGS=-mod=vendor' >> /root/.bash_profile"
+  run "echo 'export PATH=/usr/local/go/bin:$PATH' >> /root/.bash_profile"
+
+  run "localedef -i en_US -f UTF-8 en_US.UTF-8"
+else
+if user != ""
+  # remove the games group as it conflicts with staff group for mac users
+  run "groupdel games"
+
+  # add user
+  run "groupadd -g #{gid} #{group}"
+  run "useradd -l -u #{uid} -g #{gid} #{user} -G docker"
+
+  # go installs in /usr, make it world writeable
+  run "chmod 777 /usr/bin"
+
+  # update user .bash_profile
+  run "echo 'export GOPATH=/usr' >> /home/#{user}/.bash_profile"
+  run "echo 'export PATH=/usr/local/go/bin:$PATH' >> /home/#{user}/.bash_profile"
+  run "echo 'export GOFLAGS=-mod=vendor' >> /home/#{user}/.bash_profile"
+  run "echo 'sudo chown -R #{user} /sw/' >> /home/#{user}/.bash_profile"
+  run "echo 'sudo chgrp -R #{user} /sw/' >> /home/#{user}/.bash_profile"
+  run "echo 'Defaults secure_path = /usr/local/go/bin:$PATH:/bin:/usr/sbin/' >> /etc/sudoers"
+
+  run "echo '#{user} ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/#{user} && chmod 0440 /etc/sudoers.d/#{user}"
+
+  run "localedef -i en_US -f UTF-8 en_US.UTF-8"
+end
+end
+
+env GOPATH: "/usr"
+env GOFLAGS: "-mod=vendor"
+run "git config --global --add safe.directory ${GOPATH}/src/github.com/pensando/gpu-operator"
+
+# A scratch pad file for exporting some host/workspace particulars into container, to be used for
+# recording them into build packaging.
+run "echo 'HOST_HOSTNAME=#{getenv("HOST_HOSTNAME")}' >> /usr/build_host_meta_data"
+run "echo 'HOST_WORKSPACE=#{getenv("HOST_WORKSPACE")}' >> /usr/build_host_meta_data"
+
+inside "/etc" do
+  run "rm localtime"
+  run "ln -s /usr/share/zoneinfo/US/Pacific localtime"
+end
+
+workdir "/gpu-operator"
+
+copy "entrypoint.sh", "/entrypoint.sh"
+run "chmod +x /entrypoint.sh"
+
+entrypoint "/entrypoint.sh"
