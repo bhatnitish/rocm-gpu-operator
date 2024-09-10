@@ -19,6 +19,7 @@ import (
 
 const ClusterTypeOpenShift = "openshift"
 const ClusterTypeK8s = "kubernetes"
+
 var kubectl = "kubectl"
 
 func init() {
@@ -219,7 +220,22 @@ func ListRocmPods(ctx context.Context, cl *kubernetes.Clientset) ([]string, erro
 }
 
 func DelRocmPods(ctx context.Context, cl *kubernetes.Clientset) error {
-	return DelDaemonset(cl, v1.NamespaceDefault, rocmDs)
+	if err := DelDaemonset(cl, v1.NamespaceDefault, rocmDs); err != nil {
+		return fmt.Errorf("failed to delete %v, %v", rocmDs, err)
+	}
+	if err := Retry(func() error {
+		its, err := cl.CoreV1().Pods("").List(ctx, metav1.ListOptions{LabelSelector: kmmmodule.MapToLabelSelector(rocmLabel)})
+		if err != nil {
+			return fmt.Errorf("failed to list pods %v", err)
+		}
+		if len(its.Items) > 0 {
+			return fmt.Errorf("pod %v exists", len(its.Items))
+		}
+		return nil
+	}, time.Minute*5, time.Second*5); err != nil {
+		return fmt.Errorf("pod(s) exist, %v", err)
+	}
+	return nil
 }
 
 func GetRocmInfo(name string) (string, error) {
