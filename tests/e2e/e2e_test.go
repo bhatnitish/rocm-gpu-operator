@@ -70,13 +70,14 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 		}, 5*time.Minute, 5*time.Second)
 	} else {
 		assert.Eventually(c, func() bool {
-			if err := utils.CheckHelmOCDeployment(cs, s.ns); err != nil {
+			if err := utils.CheckHelmOCDeployment(cs, true); err != nil {
 				log.Infof("%v", err)
 				return false
 			}
 			return true
 		}, 5*time.Minute, 5*time.Second)
 	}
+
 }
 func (s *E2ESuite) SetUpTest(c *C) {
 	log.Info("setupTest:")

@@ -1,17 +1,18 @@
 package utils
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"log"
 	"os/exec"
 	"time"
 )
@@ -40,7 +41,56 @@ func CheckGpuLabel(rl v1.ResourceList) bool {
 	return true
 }
 
-func CheckHelmOCDeployment(cl *kubernetes.Clientset, ns string) error {
+
+func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) error {
+	for _, d := range []struct {
+		ns, name string
+	}{
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "openshift-kmm", name: "kmm-operator-controller"},
+		{ns: "openshift-kmm", name: "kmm-operator-webhook-server"},
+		{ns: "openshift-nfd", name: "nfd-controller-manager"},
+		{ns: "openshift-nfd", name: "nfd-master"},
+	} {
+		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
+		}
+	}
+
+	for _, d := range []struct {
+		ns, name string
+	}{
+		{ns: "openshift-nfd", name: "nfd-worker"},
+	} {
+		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
+		}
+	}
+	return nil
+}
+
+func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
+
 	for _, d := range []struct {
 		ns, name string
 	}{
@@ -51,11 +101,17 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, ns string) error {
 		{ns: "kube-amd-gpu", name: "nfd-master"},
 	} {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
-		}
-		if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
-			return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
 		}
 	}
 
@@ -65,11 +121,17 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, ns string) error {
 		{ns: "kube-amd-gpu", name: "nfd-worker"},
 	} {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
-		}
-		if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
-			return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
 		}
 	}
 	return nil
@@ -281,3 +343,18 @@ func GetClusterType(cfg *rest.Config) string {
 	}
 	return ClusterTypeK8s
 }
+
+func RunCommand(command string) {
+	log.Infof("  %v", command)
+	cmd := exec.Command("bash", "-c", command)
+	output, _ := cmd.StdoutPipe()
+	cmd.Start()
+
+	scanner := bufio.NewScanner(output)
+	for scanner.Scan() {
+		m := scanner.Text()
+		log.Infof("    %v", m)
+	}
+	cmd.Wait()
+}
+
