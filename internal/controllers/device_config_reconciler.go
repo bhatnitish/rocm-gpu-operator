@@ -496,6 +496,8 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 				if strings.HasPrefix(k, "beta.amd.com") ||
 					strings.HasPrefix(k, "amd.com") {
 					delete(node.Labels, k)
+					//todo: remove after debug
+					logger.Info("deleted amd.com labels", node.Labels)
 				}
 			}
 			return nil
