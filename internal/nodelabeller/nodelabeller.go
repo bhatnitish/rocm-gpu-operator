@@ -109,10 +109,11 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 
 		initContainers = []v1.Container{
 			{
-				Name:         "blacklist-driver",
-				Image:        "busybox:1.36",
-				Command:      []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf"},
-				VolumeMounts: initVolumeMounts,
+				Name:            "blacklist-driver",
+				Image:           "busybox:1.36",
+				Command:         []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf"},
+				SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+				VolumeMounts:    initVolumeMounts,
 			},
 		}
 	}
