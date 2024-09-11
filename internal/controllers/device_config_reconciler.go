@@ -496,10 +496,10 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 				if strings.HasPrefix(k, "beta.amd.com") ||
 					strings.HasPrefix(k, "amd.com") {
 					delete(node.Labels, k)
-					//todo: remove after debug
-					logger.Info("deleted amd.com labels", node.Labels)
 				}
 			}
+			//todo: remove after debug
+                        logger.Info("deleted amd.com labels", kmmmodule.MapToLabelSelector(node.Labels))
 			return nil
 		})
 		logger.Info("update node labels", "node", node.Name, "error", err, "response", opRes)
