@@ -25,19 +25,17 @@ builds:
 
 targets:
   test:
-    commands: [ "/bin/sh", "-c", "echo hello world && exit 0" ]
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && \
+                                    make generate && \
+                                    make fmt"]
     owners: ["email:mharkara@amd.com"]
     area:
     sub-area:
-    build-dependencies:
-      - build-gpu-operator
-      - build-gpu-operator-k8s
-      - build-gpu-operator-openshift
 
 image:
   bind_dir: "/gpu-operator"
   work_dir: "/gpu-operator"
   
 jobs:
-  gpu-operator:
-    labels: ["CI-Gpu-operator-nightly"]
+  api:
+    labels: ["CI-Sanity-Build"]

@@ -1,0 +1,17 @@
+---
+version: 2.0
+
+targets:
+  api-test:
+    commands: [ "/bin/sh", "-c", "echo hello world && exit 0" ]
+    owners: ["email:mharkara@amd.com"]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-gpu-operator-openshift
+
+image:
+  bind_dir: "/go/src/github.com/pensando/gpu-operator"
+  work_dir: "/go/src/github.com/pensando/gpu-operator"
