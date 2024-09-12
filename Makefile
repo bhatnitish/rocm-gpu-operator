@@ -12,13 +12,14 @@ CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml preflightvalidationocp-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
-GPU_OPERATOR_CHART ?= ./helm-charts-k8s/gpu-operator-0.0.1.tgz
 
 ifdef OPENSHIFT
 $(info selected openshift)
+GPU_OPERATOR_CHART ?= ./helm-charts-openshift/gpu-operator-0.0.1.tgz
 KUBECTL_CMD=oc
 HELM_OC_CMD=--set platform=openshift
 else
+GPU_OPERATOR_CHART ?= ./helm-charts-k8s/gpu-operator-0.0.1.tgz
 $(info selected k8s)
 KUBECTL_CMD=kubectl
 endif
