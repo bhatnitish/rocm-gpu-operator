@@ -295,6 +295,10 @@ bundle-build: operator-sdk manifests kustomize
 bundle-push:
 	docker push $(BUNDLE_IMG)
 
+.PHONY: bundle-save
+bundle-save:
+	docker save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-bundle.tar.gz
+
 .PHONY: bundle-scorecard-test
 bundle-scorecard-test:
 	${OPERATOR_SDK} scorecard --config bundle/tests/scorecard/config.yaml --kubeconfig ~/.kube/config $(BUNDLE_IMG)

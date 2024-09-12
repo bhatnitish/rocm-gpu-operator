@@ -21,6 +21,18 @@ run "./get_helm.sh"
 run "wget https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz"
 run "tar -C /usr/local/bin/ -xzf helmify_Linux_x86_64.tar.gz"
 
+# download and install kubectl 
+run "curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+run "chmod +x kubectl"
+run "sudo mv kubectl /usr/local/bin"
+
+run "curl -o /usr/bin/asset-pull http://pm.test.pensando.io/tools/asset-pull"
+run "chmod +x /usr/bin/asset-pull"
+run "curl -o /usr/bin/asset-push http://pm.test.pensando.io/tools/asset-push"
+run "chmod +x /usr/bin/asset-push"
+copy "asset-build/gpuoperator-asset-push.sh", "/gpuoperator-asset-push.sh"
+run "chmod +x /gpuoperator-asset-push.sh"
+
 if user == "root"
   # remove the games group as it conflicts with staff group for mac users
   run "groupdel games"

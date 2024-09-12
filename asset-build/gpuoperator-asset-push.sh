@@ -21,6 +21,8 @@ copy_artifacts () {
     cp /gpu-operator/helm-charts-k8s/gpu-operator-0.0.1.tgz  $BUNDLE_DIR/gpu-operator-k8s-0.0.1.tgz
     # copy openshift helm package
     cp /gpu-operator/helm-charts-openshift/gpu-operator-0.0.1.tgz  $BUNDLE_DIR/gpu-operator-openshift-0.0.1.tgz
+    # copy gpuuperator bundle package
+    cp /gpu-operator/amd-gpu-operator-bundle.tar.gz  $BUNDLE_DIR/
     # list the artifacts copied out
     ls -la $BUNDLE_DIR
 }
@@ -31,9 +33,9 @@ setup () {
 }
 
 upload () {
-    cd /gpu-operator/output
+    cd $BUNDLE_DIR
     find . -type f -print0 | while IFS= read -r -d $'\0' file;
-      do asset-push builds hourly $RELEASE "$file" ;
+      do asset-push builds hourly-gpu-operator $RELEASE "$file" ;
       if [ $? -ne 0 ]; then
         exit 1
       fi
