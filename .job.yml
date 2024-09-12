@@ -38,4 +38,6 @@ image:
   
 jobs:
   api:
+    labels: ["CI-run"]
+  asset-build:
     labels: ["CI-Sanity-Build"]
