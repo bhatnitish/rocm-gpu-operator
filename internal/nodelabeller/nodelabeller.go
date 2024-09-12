@@ -133,7 +133,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				InitContainers: initContainers,
 				Containers: []v1.Container{
 					{
-						Args:    []string{"-c", "while [ ! -d /sys/class/kfd ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done;./k8s-node-labeller -vram -cu-count -simd-count -device-id -family"},
+						Args:    []string{"-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done;./k8s-node-labeller -vram -cu-count -simd-count -device-id -family"},
 						Command: []string{"sh"},
 						Env: []v1.EnvVar{
 							{
