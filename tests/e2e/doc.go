@@ -7,13 +7,14 @@ import (
 
 // E2ESuite e2e config
 type E2ESuite struct {
-	clientSet   *kubernetes.Clientset
-	dClient     *client.DeviceConfigClient
-	cfgName     string
-	registry    string
-	helmChart   string
-	ns          string
-	kubeconfig  string
-	clusterType string
-	openshift   bool
+	clientSet            *kubernetes.Clientset
+	dClient              *client.DeviceConfigClient
+	cfgName              string
+	registry             string
+	helmChart            string
+	ns                   string
+	kubeconfig           string
+	clusterType          string
+	defaultDriverVersion string
+	openshift            bool
 }

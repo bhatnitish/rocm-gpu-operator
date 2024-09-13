@@ -3,35 +3,40 @@ package e2e
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"os/exec"
 	"os/user"
 	"strings"
 	"time"
 
-	"github.com/pensando/gpu-operator/api/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/pensando/gpu-operator/api/v1alpha1"
+	"github.com/pensando/gpu-operator/internal/kmmmodule"
+	"github.com/pensando/gpu-operator/tests/e2e/utils"
 )
 
 func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	userInfo, err := user.Current()
-	assert.Errorf(c, err, "failed to get user")
+	assert.Errorf(c, err, fmt.Sprintf("failed to get user: %+v", err))
 	devCfg := &v1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: s.cfgName,
+			Name:      s.cfgName,
+			Namespace: s.ns,
 		},
 		Spec: v1alpha1.DeviceConfigSpec{
 			DriversImage:   fmt.Sprintf("registry.test.pensando.io:5000/e2e/%v", userInfo.Username),
-			DriversVersion: "6.1.3",
+			DriversVersion: s.defaultDriverVersion,
 			//SkipDrivers:    true,
-			MetricsExport: v1alpha1.MetricsExportSpec{
-				Port: 32501,
+			MetricsExporter: v1alpha1.MetricsExporterSpec{
+				NodePort: 32501,
 			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 		},
@@ -42,7 +47,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	return devCfg
 }
 
-func (s *E2ESuite) createDevice(devCfg *v1alpha1.DeviceConfig, c *C) {
+func (s *E2ESuite) createDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
 	_, err := s.dClient.DeviceConfigs(s.ns).Create(devCfg)
 	assert.NoError(c, err, "failed to create %v", s.cfgName)
 }
@@ -93,21 +98,17 @@ func (s *E2ESuite) checkMetricsExportStatus(devCfg *v1alpha1.DeviceConfig, ns st
 
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
 			svc.Spec.Type == corev1.ServiceTypeNodePort && len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(5000) &&
-			svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExport.Port
+			svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
 	}, 5*time.Minute, 5*time.Second)
 }
 
-func (s *E2ESuite) TestDeployment(c *C) {
-	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
-	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchDriversVersion(devCfg)
+	assert.NoError(c, err, "failed to update %v", s.cfgName)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
+}
 
-	log.Infof("create %v", s.cfgName)
-	devCfg := s.getDeviceConfig(c)
-	s.createDevice(devCfg, c)
-	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
-	s.checkMetricsExportStatus(devCfg, s.ns, c)
-
+func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
 		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 		if err != nil {
@@ -125,7 +126,9 @@ func (s *E2ESuite) TestDeployment(c *C) {
 			devCfg.Status.DevicePlugin.NodesMatchingSelectorNumber == devCfg.Status.DevicePlugin.AvailableNumber &&
 			devCfg.Status.DevicePlugin.DesiredNumber == devCfg.Status.DevicePlugin.AvailableNumber
 	}, 5*time.Minute, 5*time.Second)
+}
 
+func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: func() string {
@@ -156,25 +159,115 @@ func (s *E2ESuite) TestDeployment(c *C) {
 		return true
 
 	}, 5*time.Minute, 5*time.Second)
+}
 
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
-	assert.NoError(c, err, "failed to deploy pods")
+func (s *E2ESuite) verifyNodeDriverVersionLabel(devCfg *v1alpha1.DeviceConfig, c *C) {
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: func() string {
+				s := []string{}
+				for k, v := range devCfg.Spec.Selector {
+					s = append(s, fmt.Sprintf("%v=%v", k, v))
+				}
+				return strings.Join(s, ",")
+			}(),
+		})
+		if err != nil {
+			log.Errorf("failed to get nodes %v", err)
+			return false
+		}
+		allMatched := true
+		for _, node := range nodes.Items {
+			versionLabelKey, versionLabelValue := kmmmodule.GetVersionLabelKV(devCfg)
+			if ver, ok := node.Labels[versionLabelKey]; !ok {
+				log.Errorf("failed to find driver version label %+v on node %+v", versionLabelKey, node.Name)
+				allMatched = false
+			} else if ver != versionLabelValue {
+				log.Errorf("mismatched driver version label, node resource has %+v but expect %+v", ver, versionLabelValue)
+				allMatched = false
+			}
+		}
+		return allMatched
+	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) updateNodeDriverVersionLabel(devCfg *v1alpha1.DeviceConfig, c *C) {
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: func() string {
+				s := []string{}
+				for k, v := range devCfg.Spec.Selector {
+					s = append(s, fmt.Sprintf("%v=%v", k, v))
+				}
+				return strings.Join(s, ",")
+			}(),
+		})
+		if err != nil {
+			log.Errorf("failed to get nodes %v", err)
+			return false
+		}
+
+		success := true
+		for _, node := range nodes.Items {
+			versionLabelKey, versionLabelValue := kmmmodule.GetVersionLabelKV(devCfg)
+			node.Labels[versionLabelKey] = versionLabelValue
+			patch := map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]string{
+						versionLabelKey: versionLabelValue,
+					},
+				},
+			}
+			patchBytes, _ := json.Marshal(patch)
+			result, err := s.clientSet.CoreV1().Nodes().Patch(context.TODO(), node.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+			if err != nil {
+				log.Errorf("failed to patch node label %v", err)
+				success = false
+				continue
+			}
+			if ver, ok := result.Labels[versionLabelKey]; !ok {
+				log.Errorf("failed to find label %+v after patching node resource", versionLabelKey)
+				success = false
+			} else if ver != versionLabelValue {
+				log.Errorf("failed to match label %+v after patching node resource, got %+v expect %+v", versionLabelKey, ver, versionLabelValue)
+				success = false
+			}
+		}
+		return success
+
+	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) verifyROCMPOD(driverInstalled bool, c *C) {
 	pods, err := utils.ListRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to deploy pods")
 	for _, p := range pods {
-		v, err := utils.GetRocmInfo(p)
-		assert.NoError(c, err, "rocm-smi failed on", p, v)
-		log.Infof("rocm-smi %v  \n %v", p, v)
-		v, err = utils.ListGpuDrivers(p)
-		assert.NoError(c, err, "list drivers failed on", p, v)
-		log.Infof("gpudrivers %v \n%v ", p, v)
-		v, err = utils.GetGpuDriverVersion(p)
-		assert.NoError(c, err, "drivers version failed on", p, v)
-		log.Infof("gpudrivers %v \n%v ", p, v)
+		if driverInstalled {
+			v, err := utils.GetRocmInfo(p)
+			assert.NoError(c, err, "rocm-smi failed on", p, v)
+			log.Infof("rocm-smi %v  \n %v", p, v)
+			v, err = utils.ListGpuDrivers(p)
+			assert.NoError(c, err, "list drivers failed on", p, v)
+			log.Infof("gpudrivers %v \n%v ", p, v)
+			v, err = utils.GetGpuDriverVersion(p)
+			assert.NoError(c, err, "drivers version failed on", p, v)
+			log.Infof("gpudrivers %v \n%v ", p, v)
+		} else {
+			v, err := utils.GetRocmInfo(p)
+			assert.Errorf(c, err, "rocm-smi available oni %v %v", p, v)
+			log.Infof("rocm-smi %v \n %v", p, v)
+			v, err = utils.ListGpuDrivers(p)
+			assert.Errorf(c, err, "drivers available on %v %v", p, v)
+			log.Infof("gpudrivers %v \n%v ", p, v)
+			v, err = utils.GetGpuDriverVersion(p)
+			assert.Errorf(c, err, "driver version available on %v %v", p, v)
+			log.Infof("driver version %v \n%v ", p, v)
+		}
 	}
+}
 
-	// delete
-	_, err = s.dClient.DeviceConfigs(s.ns).Delete(s.cfgName)
+func (s *E2ESuite) deleteDeviceConfig(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Delete(s.cfgName)
 	assert.NoErrorf(c, err, "failed to delete %v", s.cfgName)
 
 	assert.Eventually(c, func() bool {
@@ -194,25 +287,123 @@ func (s *E2ESuite) TestDeployment(c *C) {
 		}
 		return true
 	}, 5*time.Minute, 5*time.Second)
+}
 
-	pods, err = utils.ListRocmPods(context.TODO(), s.clientSet)
+func (s *E2ESuite) TestDeployment(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to deploy pods")
-	for _, p := range pods {
-		v, err := utils.GetRocmInfo(p)
-		assert.Errorf(c, err, "rocm-smi available oni %v %v", p, v)
-		log.Infof("rocm-smi %v \n %v", p, v)
-		v, err = utils.ListGpuDrivers(p)
-		assert.Errorf(c, err, "drivers available on %v %v", p, v)
-		log.Infof("gpudrivers %v \n%v ", p, v)
-		v, err = utils.GetGpuDriverVersion(p)
-		assert.Errorf(c, err, "driver version available on %v %v", p, v)
-		log.Infof("driver version %v \n%v ", p, v)
-	}
+	s.verifyROCMPOD(true, c)
 
+	// delete
+	s.deleteDeviceConfig(c)
+
+	s.verifyROCMPOD(false, c)
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+// TestDriverUpgradeByUpdatingCR
+// test the driver upgrade by directly updating CR
+// 1. install the driver
+// 2. make sure the worker node was labeled with correct driver version
+// 3. update the CR to the new driver version
+// 4. update the worker node label to the new driver version
+// 5. make sure the new version driver was loaded
+func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeDriverVersionLabel(devCfg, c)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	s.verifyROCMPOD(true, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
 	log.Infof("Test completed")
 
+	// upgrade
+	// update the CR's driver version config
+	devCfg.Spec.DriversVersion = "6.2"
+	s.patchDriversVersion(devCfg, c)
+	// update the node resources version labels
+	s.updateNodeDriverVersionLabel(devCfg, c)
+	s.verifyNodeDriverVersionLabel(devCfg, c)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	s.verifyROCMPOD(true, c)
+
+	// delete
+	s.deleteDeviceConfig(c)
+
+	s.verifyROCMPOD(false, c)
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+// TestDriverUpgradeByPsuhingNewCR
+// test the driver upgrade by pushing new CR
+// 1. install the driver
+// 2. make sure the worker node was labeled with correct driver version
+// 3. update the CR to the new driver version
+// 4. update the worker node label to the new driver version
+// 5. make sure the new version driver was loaded
+func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeDriverVersionLabel(devCfg, c)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	s.verifyROCMPOD(true, c)
+	s.deleteDeviceConfig(c)
+	s.verifyROCMPOD(false, c)
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
+
+	// upgrade by pushing new CR with new version
+	devCfg.Spec.DriversVersion = "6.2"
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeDriverVersionLabel(devCfg, c)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to deploy pods")
+	s.verifyROCMPOD(true, c)
+	s.deleteDeviceConfig(c)
+	s.verifyROCMPOD(false, c)
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
 }
 
 func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
@@ -247,7 +438,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		standardSelector = "feature.node.kubernetes.io/pci-1002.present"
 		deployCommand = "OPENSHIFT=1 make -C ../../ helm-install"
 		undeployCommand = "OPENSHIFT=1 make -C ../../ helm-uninstall"
-		deployWithoutNFDKMMCommand  = "OPENSHIFT=1 SKIP_NFD=1 SKIP_KMM=1 make -C ../../ helm-install"
+		deployWithoutNFDKMMCommand = "OPENSHIFT=1 SKIP_NFD=1 SKIP_KMM=1 make -C ../../ helm-install"
 		nfdInstallCommands = append(nfdInstallCommands, "oc create -f ./yamls/openshift/nfd-namespace.yaml")
 		nfdInstallCommands = append(nfdInstallCommands, "oc create -f ./yamls/openshift/nfd-operatorgroup.yaml")
 		nfdInstallCommands = append(nfdInstallCommands, "oc create -f ./yamls/openshift/nfd-sub.yaml")
@@ -264,7 +455,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		standardSelector = "feature.node.kubernetes.io/amd-gpu"
 		standardNFDNamespace = "node-feature-discovery"
 		standardNFDWorkerName = "nfd-worker"
-		deployCommand =  "make -C ../../ helm-install"
+		deployCommand = "make -C ../../ helm-install"
 		undeployCommand = "make -C ../../ helm-uninstall"
 		deployWithoutNFDKMMCommand = "SKIP_NFD=1 SKIP_KMM=1 make -C ../../ helm-install"
 		nfdInstallCommands = append(nfdInstallCommands, "kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/v0.7.0/nfd-master.yaml.template")
@@ -289,14 +480,13 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		}, 5*time.Minute, 5*time.Second)
 	} else {
 		assert.Eventually(c, func() bool {
-			if err := utils.CheckHelmOCDeployment(s.clientSet,false); err != nil {
+			if err := utils.CheckHelmOCDeployment(s.clientSet, false); err != nil {
 				log.Infof("    %v", err)
 				return false
 			}
 			return true
 		}, 5*time.Minute, 5*time.Second)
 	}
-
 
 	log.Infof("Deploying standard NFD and KMM Operator")
 	// Deploy standard NFD and KMM Operator
@@ -320,7 +510,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		}, 5*time.Minute, 5*time.Second)
 	} else {
 		assert.Eventually(c, func() bool {
-			if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet,true); err != nil {
+			if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet, true); err != nil {
 				log.Infof("    %v", err)
 				return false
 			}
@@ -330,7 +520,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 
 	devCfg := s.getDeviceConfig(c)
 	devCfg.Spec.Selector = map[string]string{standardSelector: "true"}
-	s.createDevice(devCfg, c)
+	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(standardNFDNamespace, c, standardNFDWorkerName)
 	s.checkNodeLabellerStatus("kube-amd-gpu", c)
 
@@ -360,7 +550,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		}, 5*time.Minute, 5*time.Second)
 	} else {
 		assert.Eventually(c, func() bool {
-			if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet,false); err != nil {
+			if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet, false); err != nil {
 				log.Infof("    %v", err)
 				return false
 			}
@@ -381,7 +571,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		}, 5*time.Minute, 5*time.Second)
 	} else {
 		assert.Eventually(c, func() bool {
-			if err := utils.CheckHelmOCDeployment(s.clientSet,true); err != nil {
+			if err := utils.CheckHelmOCDeployment(s.clientSet, true); err != nil {
 				log.Infof("    %v", err)
 				return false
 			}

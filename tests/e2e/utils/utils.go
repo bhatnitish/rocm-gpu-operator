@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
+	"time"
+
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -14,8 +17,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"os/exec"
-	"time"
 )
 
 const ClusterTypeOpenShift = "openshift"
@@ -327,6 +328,7 @@ func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string, n
 					Labels: matchLabels,
 				},
 				Spec: v1.PodSpec{
+					NodeSelector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 					Containers: []v1.Container{
 						{
 							Name:    name,

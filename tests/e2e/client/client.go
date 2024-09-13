@@ -2,9 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/pensando/gpu-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 )
@@ -47,6 +49,7 @@ type deviceConfigsClient struct {
 type DeviceConfigsInterface interface {
 	Create(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	List(opts metav1.ListOptions) (*v1alpha1.DeviceConfigList, error)
+	PatchDriversVersion(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	Get(name string, options metav1.GetOptions) (*v1alpha1.DeviceConfig, error)
 	Delete(name string) (*v1alpha1.DeviceConfig, error)
 }
@@ -94,6 +97,33 @@ func (c *deviceConfigsClient) Create(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.D
 
 	return &result, err
 }
+
+func (c *deviceConfigsClient) PatchDriversVersion(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]string{
+			"driversVersion": devCfg.Spec.DriversVersion,
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
 func (c *deviceConfigsClient) Delete(name string) (*v1alpha1.DeviceConfig, error) {
 	result := v1alpha1.DeviceConfig{}
 	err := c.restClient.

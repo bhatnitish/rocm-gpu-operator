@@ -2,11 +2,12 @@ package e2e
 
 import (
 	"flag"
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
-	"github.com/stretchr/testify/assert"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/pensando/gpu-operator/tests/e2e/client"
 	log "github.com/sirupsen/logrus"
@@ -22,6 +23,7 @@ var helmChart = flag.String("helmchart", "", "helmchart")
 var operatorNS = flag.String("namespace", "kube-amd-gpu", "namespace")
 var cfgName = flag.String("deviceConfigName", "test-device-config", "deviceConfig name")
 var registry = flag.String("registry", "10.11.18.9:5000/ubuntu:amdgpu-6.1.3", "driver container registry")
+var driverVersion = flag.String("driverVersion", "6.1.3", "the default driver version for e2e test")
 var openshift = flag.Bool("openshift", false, "openshift deployment")
 
 // Hook up gocheck into the "go test" runner.
@@ -38,6 +40,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	s.ns = *operatorNS
 	s.cfgName = *cfgName
 	s.registry = *registry
+	s.defaultDriverVersion = *driverVersion
 	s.openshift = *openshift
 
 	// use the current context in kubeconfig
