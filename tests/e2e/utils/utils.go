@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"strings"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -40,6 +41,52 @@ func CheckGpuLabel(rl v1.ResourceList) bool {
 		return false
 	}
 	return true
+}
+
+func CheckDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) error {
+	for _, d := range []struct {
+		ns, name string
+	}{
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "kmm-operator-system", name: "kmm-operator-controller"},
+		{ns: "kmm-operator-system", name: "kmm-operator-webhook-server"},
+		{ns: "node-feature-discovery", name: "nfd-master"},
+	} {
+		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
+		}
+	}
+
+	for _, d := range []struct {
+		ns, name string
+	}{
+		{ns: "node-feature-discovery", name: "nfd-worker"},
+	} {
+		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
+		}
+	}
+	return nil
 }
 
 func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) error {
@@ -137,7 +184,7 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
 	return nil
 }
 
-func CheckHelmDeployment(cl *kubernetes.Clientset, ns string) error {
+func CheckHelmDeployment(cl *kubernetes.Clientset, ns string, create bool) error {
 	for _, d := range []struct {
 		ns, name string
 	}{
@@ -151,11 +198,20 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string) error {
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-node-feature-discovery-master"},
 	} {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
-		}
-		if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
-			return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+		if create == false {
+			if strings.Contains(d.name, "cert-manager") {
+				continue
+			}
+			if err == nil {
+				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.Replicas == 0 || s.Status.ReadyReplicas != s.Status.Replicas {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
 		}
 	}
 
@@ -165,11 +221,17 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string) error {
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-node-feature-discovery-worker"},
 	} {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
-		}
-		if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
-			return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+		if create == false {
+			if err == nil {
+				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+			}
+		} else {
+			if err != nil {
+				return fmt.Errorf("failed to get %v/%v err %v", d.ns, d.name, err)
+			}
+			if s.Status.DesiredNumberScheduled == 0 || s.Status.DesiredNumberScheduled != s.Status.NumberReady {
+				return fmt.Errorf("replicas not ready %v/%v status %v", d.ns, d.name, s.Status)
+			}
 		}
 	}
 	return nil

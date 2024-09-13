@@ -62,7 +62,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 
 	if s.openshift == false {
 		assert.Eventually(c, func() bool {
-			if err := utils.CheckHelmDeployment(cs, s.ns); err != nil {
+			if err := utils.CheckHelmDeployment(cs, s.ns, true); err != nil {
 				log.Infof("%v", err)
 				return false
 			}
