@@ -551,7 +551,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 				}
 			}
 			//todo: remove after debug
-                        logger.Info("deleted amd.com labels", kmmmodule.MapToLabelSelector(node.Labels))
+			logger.Info("deleted amd.com labels", kmmmodule.MapToLabelSelector(node.Labels))
 			return nil
 		})
 		logger.Info("update node labels", "node", node.Name, "error", err, "response", opRes)

@@ -29,6 +29,17 @@ spec:
   # when you need to upgrade the driver, just update this field
   # we will unload the old version driver and load the new version driver
   driversVersion: "6.1.3"
+
+  # Specify the metrics exporter config
+  metricsExporter:
+    # To enable/disable the metrics exporter, disabled by default
+    enable: True
+
+    # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
+    serviceType: "NodePort"
+
+    # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
+    nodePort: 32500
   
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:

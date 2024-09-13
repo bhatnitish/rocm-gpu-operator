@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
+	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
@@ -41,7 +41,6 @@ func CheckGpuLabel(rl v1.ResourceList) bool {
 	}
 	return true
 }
-
 
 func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) error {
 	for _, d := range []struct {
@@ -373,4 +372,3 @@ func RunCommand(command string) {
 	}
 	cmd.Wait()
 }
-

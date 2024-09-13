@@ -27,14 +27,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"strings"
 )
 
 const (
-	defaultMetricsExporterImage = "10.11.18.9:5000/gpu-operator/rdcd-export:0.3"
+	defaultMetricsExporterImage = "registry.test.pensando.io:5000/gpu-operator/rdcd-export:0.3"
 	metricsPort                 = 5000
 )
 
-var metricsExporterLabelPair = []string{"app.kubernetes.io/name", "metrics-export"}
+var metricsExporterLabelPair = []string{"app.kubernetes.io/name", "metrics-exporter"}
 
 //go:generate mockgen -source=metricsexporter.go -package=metricsexporter -destination=mock_metricsexporter.go MetricsExporter
 type MetricsExporter interface {
@@ -152,8 +153,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		},
 	}
 
-	switch devConfig.Spec.MetricsExporter.ServiceType {
-	case string(v1.ServiceTypeNodePort):
+	switch strings.ToLower(devConfig.Spec.MetricsExporter.ServiceType) {
+	case strings.ToLower(string(v1.ServiceTypeNodePort)):
 		svc.Spec.Type = v1.ServiceTypeNodePort
 		svc.Spec.Ports = []v1.ServicePort{
 			{
