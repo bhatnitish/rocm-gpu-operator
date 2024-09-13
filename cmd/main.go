@@ -18,7 +18,7 @@ package main
 
 import (
 	"flag"
-
+	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -89,10 +89,12 @@ func main() {
 	client := mgr.GetClient()
 	kmmHandler := kmmmodule.NewKMMModule(client, scheme)
 	nlHandler := nodelabeller.NewNodeLabeller(scheme)
+	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	dcr := controllers.NewDeviceConfigReconciler(
 		client,
 		kmmHandler,
-		nlHandler)
+		nlHandler,
+		metricsHandler)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}

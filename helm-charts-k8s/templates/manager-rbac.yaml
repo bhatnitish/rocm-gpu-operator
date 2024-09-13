@@ -100,6 +100,26 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/finalizers
+  verbs:
+  - create
+  - get
+  - update
+  - watch
+- apiGroups:
   - kmm.sigs.x-k8s.io
   resources:
   - modules

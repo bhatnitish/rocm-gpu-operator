@@ -74,6 +74,11 @@ type DeviceConfigSpec struct {
 	// +optional
 	ImageRepoSecret *v1.LocalObjectReference `json:"imageRepoSecret,omitempty"`
 
+	// metrics export
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MetricsExporter",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter"}
+	// +optional
+	MetricsExporter MetricsExporterSpec `json:"metricsExporter,omitempty"`
+
 	// ImageSignKeySecret the private key used to sign kernel modules within image
 	// necessary for secire boot enabled system
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageSignKeySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret"}
@@ -100,6 +105,33 @@ type DeviceConfigSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RedhatSubscriptionPassword",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:redhatSubscriptionPassword"}
 	// +optional
 	RedhatSubscriptionPassword string `json:"redhatSubscriptionPassword,omitempty"`
+}
+
+type MetricsExporterSpec struct {
+	// enable metrics export, disabled by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	// +optional
+	Enable bool `json:"enable,omitempty"`
+
+	// metrics exporter image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// ServiceType service type for metrics, clusterIP/NodePort, clusterIP by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceType"}
+	// +optional
+	ServiceType string `json:"enableNodePortService,omitempty"`
+
+	// metrics tcp port in the range 30000-32767, assigned automatically by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodePort",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodePort"}
+	// +optional
+	NodePort int32 `json:"port,omitempty"`
+
+	// Selector describes on which nodes to enable metrics export
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
+	// +optional
+	Selector map[string]string `json:"selector,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during
@@ -139,7 +171,7 @@ type DeviceConfigStatus struct {
 //+kubebuilder:subresource:status
 
 // DeviceConfig describes how to enable AMD GPU device
-// +operator-sdk:csv:customresourcedefinitions:displayName="DeviceConfig",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps}}
+// +operator-sdk:csv:customresourcedefinitions:displayName="DeviceConfig",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps}, {services,v1,core}}
 type DeviceConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -26,7 +26,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-09-06T21:34:03Z"
+    createdAt: "2024-09-13T02:03:16Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -44,6 +44,9 @@ spec:
       resources:
       - kind: Daemonset
         name: apps
+        version: v1
+      - kind: services
+        name: core
         version: v1
       - kind: Module
         name: modules.kmm.sigs.x-k8s.io
@@ -95,6 +98,38 @@ spec:
         path: imageSignKeySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: metrics export
+        displayName: MetricsExporter
+        path: metricsExporter
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter
+      - description: enable metrics export, disabled by default
+        displayName: Enable
+        path: metricsExporter.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: ServiceType service type for metrics, clusterIP/NodePort, clusterIP
+          by default
+        displayName: ServiceType
+        path: metricsExporter.enableNodePortService
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
+      - description: metrics exporter image
+        displayName: Image
+        path: metricsExporter.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: metrics tcp port in the range 30000-32767, assigned automatically
+          by default
+        displayName: NodePort
+        path: metricsExporter.port
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Selector describes on which nodes to enable metrics export
+        displayName: Selector
+        path: metricsExporter.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
       - description: node labeller image
         displayName: NodeLabellerImage
         path: nodeLabellerImage
@@ -277,6 +312,26 @@ spec:
           resources:
           - nodes/status
           verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services/finalizers
+          verbs:
+          - create
           - get
           - update
           - watch

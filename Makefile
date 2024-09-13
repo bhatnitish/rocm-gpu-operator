@@ -101,7 +101,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 .PHONY: all
-all: generate manager manifests
+all: generate manager manifests docker-build helm-k8s helm-openshift bundle-build
 
 ##@ General
 
@@ -466,3 +466,4 @@ clean-helm-openshift:
 
 clean-helm-k8s:
 	rm -rf $(shell pwd)/helm-charts-k8s
+

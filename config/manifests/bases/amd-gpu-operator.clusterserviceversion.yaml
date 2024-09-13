@@ -20,6 +20,9 @@ spec:
       - kind: Daemonset
         name: apps
         version: v1
+      - kind: services
+        name: core
+        version: v1
       - kind: Module
         name: modules.kmm.sigs.x-k8s.io
         version: v1beta1
@@ -70,6 +73,38 @@ spec:
         path: imageSignKeySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: metrics export
+        displayName: MetricsExporter
+        path: metricsExporter
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter
+      - description: enable metrics export, disabled by default
+        displayName: Enable
+        path: metricsExporter.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: ServiceType service type for metrics, clusterIP/NodePort, clusterIP
+          by default
+        displayName: ServiceType
+        path: metricsExporter.enableNodePortService
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
+      - description: metrics exporter image
+        displayName: Image
+        path: metricsExporter.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: metrics tcp port in the range 30000-32767, assigned automatically
+          by default
+        displayName: NodePort
+        path: metricsExporter.port
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Selector describes on which nodes to enable metrics export
+        displayName: Selector
+        path: metricsExporter.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
       - description: node labeller image
         displayName: NodeLabellerImage
         path: nodeLabellerImage

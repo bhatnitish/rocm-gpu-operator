@@ -1,14 +1,16 @@
 package e2e
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"os/exec"
 	"os/user"
 	"strings"
 	"time"
-	"bufio"
 
 	"github.com/pensando/gpu-operator/api/v1alpha1"
 	log "github.com/sirupsen/logrus"
@@ -28,6 +30,9 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			DriversImage:   fmt.Sprintf("registry.test.pensando.io:5000/e2e/%v", userInfo.Username),
 			DriversVersion: "6.1.3",
 			//SkipDrivers:    true,
+			MetricsExport: v1alpha1.MetricsExportSpec{
+				Port: 32501,
+			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 		},
 	}
@@ -50,9 +55,9 @@ func (s *E2ESuite) checkNFDWorkerStatus(ns string, c *C) {
 			return false
 		}
 		log.Infof("node-feature-discovery-worker status %+v",
-		ds.Status)
+			ds.Status)
 		return ds.Status.DesiredNumberScheduled > 0 &&
-		ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
+			ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
 	}, 5*time.Minute, 5*time.Second)
 }
 
@@ -63,9 +68,29 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 			log.Errorf("failed to get node-labeller %v", err)
 			return false
 		}
-		log.Infof("node-labeller status %+v",
-		ds.Status)
-		return ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
+		log.Infof("node-labeller status %+v", ds.Status)
+		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
+	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) checkMetricsExportStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
+	assert.Eventually(c, func() bool {
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get metrics export %v", err)
+			return false
+		}
+		log.Infof("metrics export %+v", ds.Status)
+		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get metrics service %v", err)
+			return false
+		}
+		log.Infof("metrics service %+v", svc.Spec)
+
+		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
+			svc.Spec.Type == corev1.ServiceTypeNodePort && len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(5000) &&
+			svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExport.Port
 	}, 5*time.Minute, 5*time.Second)
 }
 
@@ -78,6 +103,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.createDevice(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c)
 	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkMetricsExportStatus(devCfg, s.ns, c)
 
 	assert.Eventually(c, func() bool {
 		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -182,6 +208,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+	log.Infof("Test completed")
 
 }
 
@@ -207,27 +234,27 @@ func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
 	return
 }
 
-func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
+func (s *E2ESuite) TestOCDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	if s.openshift == false {
 		c.Skip("Skipping for K8s")
 	}
 	var cleanedup bool
 
-	deployCommand               := "OPENSHIFT=1 make -C ../../ helm-install"
-	undeployCommand             := "OPENSHIFT=1 make -C ../../ helm-uninstall"
-	deployWithoutNFDKMMCommand  := "OPENSHIFT=1 SKIP_NFD=1 SKIP_KMM=1 make -C ../../ helm-install"
-	selectorString              := "feature.node.kubernetes.io/amd-gpu"
-	nfdNamespaceCommand         := "oc create -f ./yamls/openshift/nfd-namespace.yaml"
-	nfdOperatorInstallCommand   := "oc create -f ./yamls/openshift/nfd-operatorgroup.yaml"
-	nfdSubscriptionCommand      := "oc create -f ./yamls/openshift/nfd-sub.yaml"
-	nfdInstanceCommand          := "oc apply -f ./yamls/openshift/nfd-instance.yaml"
-	nfdDeleteNFDCommand         := "oc delete -f ./yamls/openshift/nfd-instance.yaml"
-	nfdRemoveSubscription       := "oc delete subscription nfd -n openshift-nfd"
-	nfdOperatorUndeployCommand  := "oc delete -f ./yamls/openshift/nfd-operatorgroup.yaml"
-	nfdRemoveCSV                := "oc delete clusterserviceversion -n openshift-nfd %s"
-	nfdDeleteNamespaceCommand   := "oc delete -f ./yamls/openshift/nfd-namespace.yaml"
-	kmmInstallCommand           := "oc apply -k https://github.com/rh-ecosystem-edge/kernel-module-management/config/default"
-	kmmUnInstallCommand         := "oc delete -k https://github.com/rh-ecosystem-edge/kernel-module-management/config/default"
+	deployCommand := "OPENSHIFT=1 make -C ../../ helm-install"
+	undeployCommand := "OPENSHIFT=1 make -C ../../ helm-uninstall"
+	deployWithoutNFDKMMCommand := "OPENSHIFT=1 SKIP_NFD=1 SKIP_KMM=1 make -C ../../ helm-install"
+	selectorString := "feature.node.kubernetes.io/amd-gpu"
+	nfdNamespaceCommand := "oc create -f ./yamls/openshift/nfd-namespace.yaml"
+	nfdOperatorInstallCommand := "oc create -f ./yamls/openshift/nfd-operatorgroup.yaml"
+	nfdSubscriptionCommand := "oc create -f ./yamls/openshift/nfd-sub.yaml"
+	nfdInstanceCommand := "oc apply -f ./yamls/openshift/nfd-instance.yaml"
+	nfdDeleteNFDCommand := "oc delete -f ./yamls/openshift/nfd-instance.yaml"
+	nfdRemoveSubscription := "oc delete subscription nfd -n openshift-nfd"
+	nfdOperatorUndeployCommand := "oc delete -f ./yamls/openshift/nfd-operatorgroup.yaml"
+	nfdRemoveCSV := "oc delete clusterserviceversion -n openshift-nfd %s"
+	nfdDeleteNamespaceCommand := "oc delete -f ./yamls/openshift/nfd-namespace.yaml"
+	kmmInstallCommand := "oc apply -k https://github.com/rh-ecosystem-edge/kernel-module-management/config/default"
+	kmmUnInstallCommand := "oc delete -k https://github.com/rh-ecosystem-edge/kernel-module-management/config/default"
 
 	cleanup := func() {
 		if cleanedup == false {
@@ -242,13 +269,12 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 		}
 	}
 
-
 	log.Infof("Un-Deploying the e2e deployment")
 	// Delete the current Deployment
 	utils.RunCommand(undeployCommand)
 	log.Infof("Waiting for cleanup after undeploy")
 	assert.Eventually(c, func() bool {
-		if err := utils.CheckHelmOCDeployment(s.clientSet,false); err != nil {
+		if err := utils.CheckHelmOCDeployment(s.clientSet, false); err != nil {
 			log.Infof("    %v", err)
 			return false
 		}
@@ -271,7 +297,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 
 	log.Infof("Verify GPU operator deployment with standard NFD and KMM operator")
 	assert.Eventually(c, func() bool {
-		if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet,true); err != nil {
+		if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet, true); err != nil {
 			log.Infof("    %v", err)
 			return false
 		}
@@ -298,7 +324,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 
 	log.Infof("Waiting for cleanup after undeploy")
 	assert.Eventually(c, func() bool {
-		if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet,false); err != nil {
+		if err := utils.CheckOCDeploymentWithStandardKMMNFD(s.clientSet, false); err != nil {
 			log.Infof("    %v", err)
 			return false
 		}

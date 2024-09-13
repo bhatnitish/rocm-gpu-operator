@@ -87,6 +87,31 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              metricsExporter:
+                description: metrics export
+                properties:
+                  enable:
+                    description: enable metrics export, disabled by default
+                    type: boolean
+                  enableNodePortService:
+                    description: ServiceType service type for metrics, clusterIP/NodePort,
+                      clusterIP by default
+                    type: string
+                  image:
+                    description: metrics exporter image
+                    type: string
+                  port:
+                    description: metrics tcp port in the range 30000-32767, assigned
+                      automatically by default
+                    format: int32
+                    type: integer
+                  selector:
+                    additionalProperties:
+                      type: string
+                    description: Selector describes on which nodes to enable metrics
+                      export
+                    type: object
+                type: object
               nodeLabellerImage:
                 description: node labeller image
                 type: string
