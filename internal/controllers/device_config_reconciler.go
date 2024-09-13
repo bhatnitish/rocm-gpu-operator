@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
+	"k8s.io/client-go/util/retry"
 	"strings"
 
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
@@ -34,7 +35,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -416,29 +416,10 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		return fmt.Errorf("failed to delete the requested Module: %s: %v", namespacedName, err)
 	}
 
-	labelKey, _ := kmmmodule.GetVersionLabelKV(devConfig)
-	for _, node := range nodes.Items {
-		// add retry logic here
-		// in case Node resource is being updated by multiple clients concurrently
-		if retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			nodeObj := &v1.Node{}
-			if err := dcrh.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
-				return err
-			}
-			// if the version label doesn't exist in the Node resource
-			// no need to remove it
-			if _, ok := nodeObj.Labels[labelKey]; !ok {
-				return nil
-			}
-			// 1. use PATCH instead of UPDATE
-			//    to minimize the resource usage, compared to update the whole Node resource
-			// 2. in the label, the character "/" needs to be escaped for json patch by using "~1"
-			patch := []byte(`[{"op": "remove", "path": "/metadata/labels/` + strings.Replace(labelKey, "/", "~1", -1) + `"}]`)
-			return dcrh.client.Patch(ctx, nodeObj, client.RawPatch(types.JSONPatchType, patch))
-		}); retryErr != nil {
-			logger.Error(retryErr, fmt.Sprintf("failed to remove version label for node %+v", node.Name))
-		}
+	if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
+		logger.Error(err, fmt.Sprintf("failed to update node labels"))
 	}
+
 	return nil
 }
 
@@ -539,24 +520,9 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		return nil
 	}
 
-	for i := range its.Items {
-		node := &v1.Node{
-			ObjectMeta: its.Items[i].ObjectMeta,
-		}
-		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, node, func() error {
-			for k := range node.Labels {
-				if strings.HasPrefix(k, "beta.amd.com") ||
-					strings.HasPrefix(k, "amd.com") {
-					delete(node.Labels, k)
-				}
-			}
-			//todo: remove after debug
-			logger.Info("deleted amd.com labels", kmmmodule.MapToLabelSelector(node.Labels))
-			return nil
-		})
-		logger.Info("update node labels", "node", node.Name, "error", err, "response", opRes)
+	if err := dcrh.updateNodeLabels(ctx, devConfig, its, false); err != nil {
+		logger.Error(err, fmt.Sprintf("failed to update node labels"))
 	}
-
 	return nil
 }
 func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -584,5 +550,49 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 	}
 	logger.Info("Reconciled metrics service", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, isFinalizer bool) error {
+	logger := log.FromContext(ctx)
+	labelKey, _ := kmmmodule.GetVersionLabelKV(devConfig)
+
+	for _, node := range nodes.Items {
+		// add retry logic here
+		// in case Node resource is being updated by multiple clients concurrently
+		if retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			updated := false
+			nodeObj := &v1.Node{}
+			if err := dcrh.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
+				return err
+			}
+			nodeObjCopy := nodeObj.DeepCopy()
+
+			if isFinalizer {
+				if _, ok := nodeObj.Labels[labelKey]; ok {
+					delete(nodeObj.Labels, labelKey)
+					updated = true
+				}
+			}
+
+			for k := range nodeObjCopy.Labels {
+				if strings.HasPrefix(k, "beta.amd.com") ||
+					strings.HasPrefix(k, "amd.com") {
+					delete(nodeObj.Labels, k)
+					updated = true
+				}
+			}
+
+			// 1. use PATCH instead of UPDATE
+			//    to minimize the resource usage, compared to update the whole Node resource
+			if updated {
+				return dcrh.client.Patch(ctx, nodeObj, client.MergeFrom(nodeObjCopy))
+			}
+
+			return nil
+		}); retryErr != nil {
+			logger.Error(retryErr, fmt.Sprintf("failed to remove labels from node %+v", node.Name))
+		}
+	}
 	return nil
 }
