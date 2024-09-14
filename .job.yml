@@ -30,7 +30,8 @@ targets:
   test:
     commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && \
                                     make generate && \
-                                    make fmt"]
+                                    make vet && \
+                                    make lint"]
     owners: ["email:mharkara@amd.com"]
     area:
     sub-area:
@@ -41,6 +42,6 @@ image:
   
 jobs:
   api:
-    labels: ["CI-run"]
+    labels: ["CI-Precheckin-Gpuoperator"]
   asset-build:
     labels: ["CI-Sanity-Build"]
