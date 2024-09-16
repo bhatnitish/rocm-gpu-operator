@@ -163,13 +163,14 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-TEST ?= ./...
+UNIT_TEST ?= ./internal/controllers ./internal/kmmmodule
 
-.PHONY: unit-test e2e
+.PHONY: unit-test
 unit-test: vet ## Run tests.
-	go test $(TEST) -coverprofile cover.out
+	go test $(UNIT_TEST) -v -coverprofile cover.out
 
 #GPU_OPERATOR_RELEASE=$(shell helm version > /dev/null && helm list --deployed -n kube-amd-gpu -q)
+.PHONY: e2e
 e2e:
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install

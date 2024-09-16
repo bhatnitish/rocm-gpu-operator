@@ -9,14 +9,21 @@ spec:
       modprobe:
         moduleName: amdgpu
         firmwarePath: firmwareDir/updates
+        modulesLoadingOrder: 
+          - amdgpu
+          - amdttm
+          - amdkcl
       kernelMappings:
-        - regexp: "^.+$"
+        - regexp: ""
+          literal: "6.8.0-40-generic"
           containerImage: driversImage
           InTreeModuleToRemove: amdgpu
           build:
             buildArgs:
               - name: DRIVERS_VERSION
                 value: driversVersion
+              - name: REPO_URL
+                value: "https://repo.radeon.com"
             dockerfileConfigMap:
               name: dockerfile
     serviceAccountName: "amd-gpu-operator-kmm-module-loader"

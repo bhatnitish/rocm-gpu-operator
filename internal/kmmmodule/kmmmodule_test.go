@@ -17,7 +17,9 @@ limitations under the License.
 package kmmmodule
 
 import (
+	"context"
 	"fmt"
+
 	//"gopkg.in/yaml.v3"
 	"os"
 
@@ -28,6 +30,33 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
+)
+
+var (
+	testNodeList = &v1.NodeList{
+		Items: []v1.Node{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "Node",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unit-test-node",
+				},
+				Spec: v1.NodeSpec{},
+				Status: v1.NodeStatus{
+					NodeInfo: v1.NodeSystemInfo{
+						Architecture:            "amd64",
+						ContainerRuntimeVersion: "containerd://1.7.19",
+						KernelVersion:           "6.8.0-40-generic",
+						KubeProxyVersion:        "v1.30.3",
+						KubeletVersion:          "v1.30.3",
+						OperatingSystem:         "linux",
+						OSImage:                 "Ubuntu 22.04.3 LTS",
+					},
+				},
+			},
+		},
+	}
 )
 
 var _ = Describe("setKMMModuleLoader", func() {
@@ -42,6 +71,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
 			},
 		}
+		// default input
 		input := amdv1alpha1.DeviceConfig{}
 
 		expectedYAMLFile, err := os.ReadFile("testdata/module_loader_test.yaml")
@@ -55,12 +85,13 @@ var _ = Describe("setKMMModuleLoader", func() {
 		fmt.Printf("<%s>\n", expectedMod.Spec.ModuleLoader.Container.Modprobe.ModuleName)
 		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
 
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = fmt.Sprintf(defaultDriversImageTemplate, defaultDriversVersion)
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = "dockerfile-" + input.Name
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = defaultDriversVersion
-		expectedMod.Spec.Selector = map[string]string{"feature.node.kubernetes.io/pci-1002.present": "true"}
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod:ubuntu-22.04-${KERNEL_FULL_VERSION}-6.1.3"
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = "ubuntu-22.04"
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = "6.1.3"
+		expectedMod.Spec.Selector = map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"}
+		expectedMod.Spec.ModuleLoader.Container.Modprobe.Args = &kmmv1beta1.ModprobeArgs{Load: nil, Unload: nil}
 
-		err = setKMMModuleLoader(&mod, &input, false)
+		err = setKMMModuleLoader(context.TODO(), &mod, &input, false, testNodeList)
 
 		Expect(err).To(BeNil())
 		Expect(mod).To(Equal(expectedMod))
@@ -77,6 +108,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
 			},
 		}
+		// user input
 		input := amdv1alpha1.DeviceConfig{
 			Spec: amdv1alpha1.DeviceConfigSpec{
 				UseInTreeDrivers: false,
@@ -98,13 +130,15 @@ var _ = Describe("setKMMModuleLoader", func() {
 		fmt.Printf("<%s>\n", expectedMod.Spec.ModuleLoader.Container.Modprobe.ModuleName)
 		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
 
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = "some driver image"
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = "dockerfile-" + input.Name
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = "some driver image:ubuntu-22.04-${KERNEL_FULL_VERSION}-some driver version"
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = "ubuntu-22.04"
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = "some driver version"
+		expectedMod.Spec.ModuleLoader.Container.Modprobe.Args = &kmmv1beta1.ModprobeArgs{Load: nil, Unload: nil}
+		expectedMod.Spec.ModuleLoader.Container.Version = "some driver version"
 		expectedMod.Spec.Selector = map[string]string{"some label": "some label value"}
 		expectedMod.Spec.ImageRepoSecret = &v1.LocalObjectReference{Name: "image repo secret name"}
 
-		err = setKMMModuleLoader(&mod, &input, false)
+		err = setKMMModuleLoader(context.TODO(), &mod, &input, false, testNodeList)
 
 		Expect(err).To(BeNil())
 		Expect(mod).To(Equal(expectedMod))
@@ -133,6 +167,11 @@ var _ = Describe("setKMMDevicePlugin", func() {
 		Expect(err).To(BeNil())
 		err = yaml.Unmarshal(expectedJSON, &expectedMod)
 		Expect(err).To(BeNil())
+		expectedMod.Spec.DevicePlugin.Container.Command = []string{"sh"}
+		expectedMod.Spec.DevicePlugin.Container.Args = []string{
+			"-c",
+			"while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done; ./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5",
+		}
 
 		setKMMDevicePlugin(&mod, &input)
 
@@ -166,6 +205,11 @@ var _ = Describe("setKMMDevicePlugin", func() {
 		Expect(err).To(BeNil())
 
 		expectedMod.Spec.DevicePlugin.Container.Image = "some device plugin image"
+		expectedMod.Spec.DevicePlugin.Container.Command = []string{"sh"}
+		expectedMod.Spec.DevicePlugin.Container.Args = []string{
+			"-c",
+			"while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done; ./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5",
+		}
 
 		setKMMDevicePlugin(&mod, &input)
 
