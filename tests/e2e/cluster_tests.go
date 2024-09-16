@@ -25,7 +25,7 @@ import (
 
 func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	userInfo, err := user.Current()
-	assert.Errorf(c, err, fmt.Sprintf("failed to get user: %+v", err))
+	assert.NoErrorf(c, err, fmt.Sprintf("failed to get user: %+v", err))
 	devCfg := &v1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.cfgName,
