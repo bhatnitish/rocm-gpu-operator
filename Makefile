@@ -175,6 +175,7 @@ e2e:
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
 	export OPENSHIFT
+	export NOAMDGPU
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
 

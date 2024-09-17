@@ -25,6 +25,7 @@ var cfgName = flag.String("deviceConfigName", "test-device-config", "deviceConfi
 var registry = flag.String("registry", "10.11.18.9:5000/ubuntu:amdgpu-6.1.3", "driver container registry")
 var driverVersion = flag.String("driverVersion", "6.1.3", "the default driver version for e2e test")
 var openshift = flag.Bool("openshift", false, "openshift deployment")
+var noamdgpu = flag.Bool("noamdgpu", false, "testbed without amd gpus")
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
@@ -42,6 +43,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	s.registry = *registry
 	s.defaultDriverVersion = *driverVersion
 	s.openshift = *openshift
+	s.noamdgpu = *noamdgpu
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", s.kubeconfig)

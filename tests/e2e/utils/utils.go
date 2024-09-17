@@ -14,6 +14,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -30,6 +32,9 @@ func init() {
 		log.Fatalf("failed to find kubectl %v", err)
 	}
 	kubectl = c
+
+	//Set logging properties
+	log.SetReportCaller(true)
 }
 
 func CheckGpuLabel(rl v1.ResourceList) bool {
@@ -244,6 +249,7 @@ var rocmLabel = map[string]string{
 var rocmDs = "e2e-rocm"
 
 func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset) error {
+
 	err := CreateDaemonset(ctx, cl, v1.NamespaceDefault, rocmDs, "rocm/tensorflow:latest", rocmLabel)
 	if err != nil {
 		return fmt.Errorf("failed to create e2e pods %v", err)
@@ -312,7 +318,15 @@ func GetGpuDriverVersion(name string) (string, error) {
 	return ExecPodCmd("rocm-smi --showdriverversion | grep Driver", v1.NamespaceDefault, name)
 }
 
-func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string, name string, image string, matchLabels map[string]string) error {
+func DeletePod(ctx context.Context, cl *kubernetes.Clientset, ns string,
+	name string) error {
+	rpodCli := cl.CoreV1().Pods(ns)
+	return rpodCli.Delete(ctx, name, metav1.DeleteOptions{})
+}
+
+func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string,
+	name string, image string, matchLabels map[string]string) error {
+
 	dsCli := cl.AppsV1().DaemonSets(ns)
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -435,4 +449,198 @@ func RunCommand(command string) {
 		log.Infof("    %v", m)
 	}
 	cmd.Wait()
+}
+
+func GetWorkerNodes(cl *kubernetes.Clientset) []*v1.Node {
+	ret := make([]*v1.Node, 0)
+
+	labelSelector := labels.NewSelector()
+	r, _ := labels.NewRequirement(
+		"node-role.kubernetes.io/control-plane",
+		selection.DoesNotExist,
+		nil,
+	)
+	labelSelector = labelSelector.Add(*r)
+
+	nodes, err := cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelSelector.String(),
+	})
+	if err != nil {
+		log.Errorf("GetWorkerNodes error: %v", err)
+		return ret
+	}
+	for i := 0; i < len(nodes.Items); i++ {
+		node := &nodes.Items[i]
+		ret = append(ret, node)
+	}
+	return ret
+}
+
+func GetAMDGpuWorker(cl *kubernetes.Clientset) []*v1.Node {
+	ret := make([]*v1.Node, 0)
+
+	labelSelector := labels.NewSelector()
+	r, _ := labels.NewRequirement(
+		"node-role.kubernetes.io/control-plane",
+		selection.DoesNotExist,
+		nil,
+	)
+	labelSelector = labelSelector.Add(*r)
+	r, _ = labels.NewRequirement("gpu.vendor",
+		selection.Equals,
+		[]string{"amd"},
+	)
+	labelSelector = labelSelector.Add(*r)
+
+	nodes, err := cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelSelector.String(),
+	})
+	if err != nil {
+		log.Errorf("GetWorkerNodes error: %v", err)
+		return ret
+	}
+	for i := 0; i < len(nodes.Items); i++ {
+		node := &nodes.Items[i]
+		ret = append(ret, node)
+	}
+	return ret
+}
+
+func GetNonAMDGpuWorker(cl *kubernetes.Clientset) []*v1.Node {
+	ret := make([]*v1.Node, 0)
+
+	labelSelector := labels.NewSelector()
+	r, _ := labels.NewRequirement(
+		"node-role.kubernetes.io/control-plane",
+		selection.DoesNotExist,
+		nil,
+	)
+	labelSelector = labelSelector.Add(*r)
+	r, _ = labels.NewRequirement("gpu.vendor",
+		selection.NotEquals,
+		[]string{"amd"},
+	)
+	labelSelector = labelSelector.Add(*r)
+
+	nodes, err := cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelSelector.String(),
+	})
+	if err != nil {
+		log.Errorf("GetWorkerNodes error: %v", err)
+		return ret
+	}
+	for i := 0; i < len(nodes.Items); i++ {
+		node := &nodes.Items[i]
+		ret = append(ret, node)
+	}
+	return ret
+}
+
+func CreatePod(ctx context.Context, cl *kubernetes.Clientset, ns string,
+	name string, image string, workerNodeName string) error {
+
+	rpodCli := cl.CoreV1().Pods(ns)
+	rpod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:    name,
+					Image:   image,
+					Command: []string{"sh", "-c", "--"},
+					Args:    []string{"sleep infinity"},
+				},
+			},
+			NodeName: workerNodeName,
+		},
+	}
+
+	// Create pod
+	_, err := rpodCli.Create(context.TODO(), rpod, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create pod %v", err)
+	}
+	return err
+}
+
+func DeployRocmPodsByNodeNames(ctx context.Context, cl *kubernetes.Clientset,
+	workerNodeNames []string) error {
+
+	for _, name := range workerNodeNames {
+
+		err := CreatePod(ctx, cl, v1.NamespaceDefault,
+			fmt.Sprintf("%s-%s", rocmDs, name), "rocm/tensorflow:latest", name)
+		if err != nil {
+			return fmt.Errorf("failed to create rocm as e2e pods %v", err)
+		}
+	}
+
+	if err := Retry(func() error {
+
+		for _, name := range workerNodeNames {
+			its, err := cl.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+				FieldSelector: fmt.Sprintf("spec.nodeName=%s", name),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to get rocm e2e pods %v", err)
+			}
+
+			for _, p := range its.Items {
+				for _, c := range p.Status.ContainerStatuses {
+					if !c.Ready {
+						return fmt.Errorf("pod %v/%v is not ready(%v)",
+							p.Name, c.Name, c.Ready)
+					}
+				}
+			}
+		}
+		return nil
+	}, time.Minute*5, time.Second*5); err != nil {
+		return fmt.Errorf("pods not ready %v", err)
+	}
+	return nil
+}
+
+func ListRocmPodsByNodeNames(ctx context.Context,
+	workerNodeNames []string) []string {
+
+	ret := make([]string, 0)
+	for _, name := range workerNodeNames {
+		ret = append(ret, fmt.Sprintf("%s-%s", rocmDs, name))
+	}
+	return ret
+}
+
+func DelRocmPodsByNodeNames(ctx context.Context, cl *kubernetes.Clientset,
+	workerNodeNames []string) error {
+
+	for _, name := range workerNodeNames {
+		if err := DeletePod(ctx, cl, v1.NamespaceDefault,
+			fmt.Sprintf("%s-%s", rocmDs, name)); err != nil {
+			return fmt.Errorf("failed to delete %v, %v", rocmDs, err)
+		}
+	}
+
+	if err := Retry(func() error {
+		for _, node := range workerNodeNames {
+			its, err := cl.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+				FieldSelector: fmt.Sprintf("spec.nodeName=%s", node),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to get rocm e2e pods %v", err)
+			}
+			for _, p := range its.Items {
+				if p.Name == rocmDs {
+					return fmt.Errorf("pod %v exists", len(its.Items))
+				}
+			}
+		}
+		return nil
+	}, time.Minute*5, time.Second*5); err != nil {
+		return fmt.Errorf("pod(s) exist, %v", err)
+	}
+	return nil
+
 }
