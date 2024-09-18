@@ -26,7 +26,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-09-13T03:44:08Z"
+    createdAt: "2024-09-17T01:11:52Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -103,17 +103,22 @@ spec:
         path: metricsExporter
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter
+      - description: optional configuration for metrics
+        displayName: Config
+        path: metricsExporter.config
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:config
+      - description: Name of the configMap that defines the list of metrics default
+          list:[]
+        displayName: Name
+        path: metricsExporter.config.name
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:name
       - description: enable metrics export, disabled by default
         displayName: Enable
         path: metricsExporter.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
-      - description: ServiceType service type for metrics, clusterIP/NodePort, clusterIP
-          by default
-        displayName: ServiceType
-        path: metricsExporter.enableNodePortService
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
       - description: metrics exporter image
         displayName: Image
         path: metricsExporter.image
@@ -122,7 +127,7 @@ spec:
       - description: metrics tcp port in the range 30000-32767, assigned automatically
           by default
         displayName: NodePort
-        path: metricsExporter.port
+        path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
       - description: Selector describes on which nodes to enable metrics export
@@ -130,6 +135,12 @@ spec:
         path: metricsExporter.selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: ServiceType service type for metrics, clusterIP/NodePort, clusterIP
+          by default
+        displayName: ServiceType
+        path: metricsExporter.serviceType
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
       - description: node labeller image
         displayName: NodeLabellerImage
         path: nodeLabellerImage

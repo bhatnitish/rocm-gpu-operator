@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	defaultMetricsExporterImage = "registry.test.pensando.io:5000/gpu-operator/rdcd-export:0.3"
+	defaultMetricsExporterImage = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
 	metricsPort                 = 5000
 )
 
@@ -91,6 +91,24 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		},
 	}
 
+	if devConfig.Spec.MetricsExporter.Config.Name != "" {
+		volumes = append(volumes, v1.Volume{
+			Name: "metrics-config-volume",
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: devConfig.Spec.MetricsExporter.Config.Name,
+					},
+				},
+			},
+		})
+
+		containerVolumeMounts = append(containerVolumeMounts, v1.VolumeMount{
+			Name:      "metrics-config-volume",
+			MountPath: "/etc/metrics/",
+		})
+	}
+
 	matchLabels := map[string]string{
 		"daemonset-name":            devConfig.Name,
 		metricsExporterLabelPair[0]: metricsExporterLabelPair[1], // in amdgpu namespace
@@ -103,6 +121,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		nodeSelector = devConfig.Spec.Selector
 	}
 	nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+
+	mxImage := defaultMetricsExporterImage
+	if devConfig.Spec.MetricsExporter.Image != "" {
+		mxImage = devConfig.Spec.MetricsExporter.Image
+	}
 
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
@@ -123,9 +146,9 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 								},
 							},
 						},
-						Name:            "metricsexport-container",
+						Name:            metricsExporterLabelPair[1] + "-container",
 						WorkingDir:      "/root",
-						Image:           defaultMetricsExporterImage,
+						Image:           mxImage,
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts:    containerVolumeMounts,
 					},

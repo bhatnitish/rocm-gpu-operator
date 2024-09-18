@@ -90,17 +90,21 @@ spec:
               metricsExporter:
                 description: metrics export
                 properties:
+                  config:
+                    description: optional configuration for metrics
+                    properties:
+                      name:
+                        description: Name of the configMap that defines the list of
+                          metrics default list:[]
+                        type: string
+                    type: object
                   enable:
                     description: enable metrics export, disabled by default
                     type: boolean
-                  enableNodePortService:
-                    description: ServiceType service type for metrics, clusterIP/NodePort,
-                      clusterIP by default
-                    type: string
                   image:
                     description: metrics exporter image
                     type: string
-                  port:
+                  nodePort:
                     description: metrics tcp port in the range 30000-32767, assigned
                       automatically by default
                     format: int32
@@ -111,6 +115,10 @@ spec:
                     description: Selector describes on which nodes to enable metrics
                       export
                     type: object
+                  serviceType:
+                    description: ServiceType service type for metrics, clusterIP/NodePort,
+                      clusterIP by default
+                    type: string
                 type: object
               nodeLabellerImage:
                 description: node labeller image

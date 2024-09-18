@@ -121,17 +121,31 @@ type MetricsExporterSpec struct {
 	// ServiceType service type for metrics, clusterIP/NodePort, clusterIP by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceType"}
 	// +optional
-	ServiceType string `json:"enableNodePortService,omitempty"`
+	ServiceType string `json:"serviceType,omitempty"`
 
 	// metrics tcp port in the range 30000-32767, assigned automatically by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodePort",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodePort"}
 	// +optional
-	NodePort int32 `json:"port,omitempty"`
+	NodePort int32 `json:"nodePort,omitempty"`
+
+	// optional configuration for metrics
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Config",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:config"}
+	// +optional
+	Config MetricsConfig `json:"config,omitempty"`
 
 	// Selector describes on which nodes to enable metrics export
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`
+}
+
+// MetricsConfig contains list of metrics to collect/report
+type MetricsConfig struct {
+	// Name of the configMap that defines the list of metrics
+	// default list:[]
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Name",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:name"}
+	// +optional
+	Name string `json:"name,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during
