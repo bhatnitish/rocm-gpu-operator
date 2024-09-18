@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
@@ -81,27 +80,6 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 		}
 		log.Infof("node-labeller status %+v", ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
-	}, 5*time.Minute, 5*time.Second)
-}
-
-func (s *E2ESuite) checkMetricsExportStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
-	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
-		if err != nil {
-			log.Errorf("failed to get metrics export %v", err)
-			return false
-		}
-		log.Infof("metrics export %+v", ds.Status)
-		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
-		if err != nil {
-			log.Errorf("failed to get metrics service %v", err)
-			return false
-		}
-		log.Infof("metrics service %+v", svc.Spec)
-
-		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
-			svc.Spec.Type == corev1.ServiceTypeNodePort && len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(5000) &&
-			svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
 	}, 5*time.Minute, 5*time.Second)
 }
 
@@ -293,7 +271,7 @@ func (s *E2ESuite) deleteDeviceConfig(c *C) {
 }
 
 func (s *E2ESuite) TestDeployment(c *C) {
-	if s.noamdgpu == true {
+	if s.noamdgpu {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -327,7 +305,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 // 4. update the worker node label to the new driver version
 // 5. make sure the new version driver was loaded
 func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
-	if s.noamdgpu == true {
+	if s.noamdgpu {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -377,7 +355,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 // 4. update the worker node label to the new driver version
 // 5. make sure the new version driver was loaded
 func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
-	if s.noamdgpu == true {
+	if s.noamdgpu {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -423,7 +401,10 @@ func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
 	log.Infof("  %v", command)
 	cmd := exec.Command("bash", "-c", command)
 	output, _ := cmd.StdoutPipe()
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		log.Errorf("Command %v failed to start with error: %v", command, err)
+		return
+	}
 	scanner := bufio.NewScanner(output)
 	for scanner.Scan() {
 		m := scanner.Text()
@@ -436,12 +417,14 @@ func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
 			break
 		}
 	}
-	cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		log.Errorf("Coammand %v did not complete with error: %v", command, err)
+	}
 	return
 }
 
 func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
-	if s.noamdgpu == true {
+	if s.noamdgpu {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	var deployCommand, undeployCommand, deployWithoutNFDKMMCommand string
@@ -485,7 +468,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	// Delete the current Deployment
 	utils.RunCommand(undeployCommand)
 	log.Infof("Waiting for cleanup after undeploy")
-	if s.openshift == false {
+	if !s.openshift {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckHelmDeployment(s.clientSet, s.ns, false); err != nil {
 				log.Infof("%v", err)
@@ -515,7 +498,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	utils.RunCommand(deployWithoutNFDKMMCommand)
 
 	log.Infof("Verify GPU operator deployment with standard NFD and KMM operator")
-	if s.openshift == false {
+	if !s.openshift {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckDeploymentWithStandardKMMNFD(s.clientSet, true); err != nil {
 				log.Infof("%v", err)
@@ -555,7 +538,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 
 	log.Infof("m4")
 	log.Infof("Waiting for cleanup with standard KMM NFD deployment")
-	if s.openshift == false {
+	if !s.openshift {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckDeploymentWithStandardKMMNFD(s.clientSet, false); err != nil {
 				log.Infof("%v", err)
@@ -576,7 +559,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	log.Infof("Re-Deploying the e2e deployment")
 	// Restore E2E Deployment
 	utils.RunCommand(deployCommand)
-	if s.openshift == false {
+	if !s.openshift {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckHelmDeployment(s.clientSet, s.ns, true); err != nil {
 				log.Infof("%v", err)
@@ -597,7 +580,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 
 func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
-	if s.noamdgpu == false {
+	if !s.noamdgpu {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 

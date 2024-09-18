@@ -417,7 +417,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 
 	if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
-		logger.Error(err, fmt.Sprintf("failed to update node labels"))
+		logger.Error(err, "failed to update node labels")
 	}
 
 	return nil
@@ -521,7 +521,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	}
 
 	if err := dcrh.updateNodeLabels(ctx, devConfig, its, false); err != nil {
-		logger.Error(err, fmt.Sprintf("failed to update node labels"))
+		logger.Error(err, "failed to update node labels")
 	}
 	return nil
 }

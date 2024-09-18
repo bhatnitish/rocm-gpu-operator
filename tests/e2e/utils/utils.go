@@ -59,7 +59,7 @@ func CheckDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) er
 		{ns: "node-feature-discovery", name: "nfd-master"},
 	} {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -79,7 +79,7 @@ func CheckDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) er
 		{ns: "node-feature-discovery", name: "nfd-worker"},
 	} {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -106,7 +106,7 @@ func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) 
 		{ns: "openshift-nfd", name: "nfd-master"},
 	} {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -126,7 +126,7 @@ func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) 
 		{ns: "openshift-nfd", name: "nfd-worker"},
 	} {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -154,7 +154,7 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
 		{ns: "kube-amd-gpu", name: "nfd-master"},
 	} {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -174,7 +174,7 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
 		{ns: "kube-amd-gpu", name: "nfd-worker"},
 	} {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -204,7 +204,7 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string, create bool) error
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-node-feature-discovery-master"},
 	} {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if strings.Contains(d.name, "cert-manager") {
 				continue
 			}
@@ -227,7 +227,7 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string, create bool) error
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-node-feature-discovery-worker"},
 	} {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
-		if create == false {
+		if !create {
 			if err == nil {
 				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
@@ -441,14 +441,19 @@ func RunCommand(command string) {
 	log.Infof("  %v", command)
 	cmd := exec.Command("bash", "-c", command)
 	output, _ := cmd.StdoutPipe()
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		log.Errorf("Command %v failed to start with error: %v", command, err)
+		return
+	}
 
 	scanner := bufio.NewScanner(output)
 	for scanner.Scan() {
 		m := scanner.Text()
 		log.Infof("    %v", m)
 	}
-	cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		log.Errorf("Coammand %v did not complete with error: %v", command, err)
+	}
 }
 
 func GetWorkerNodes(cl *kubernetes.Clientset) []*v1.Node {

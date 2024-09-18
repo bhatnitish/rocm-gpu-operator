@@ -499,10 +499,6 @@ func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 	}
 }
 
-func getDockerfileCMName(devConfig *amdv1alpha1.DeviceConfig) string {
-	return "dockerfile-" + devConfig.Name
-}
-
 func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	if devConfig.Spec.Selector != nil {
 		return devConfig.Spec.Selector
