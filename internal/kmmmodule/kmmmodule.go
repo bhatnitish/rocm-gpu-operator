@@ -153,6 +153,7 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 var driverLabels = map[string]string{
 	"20.04": "focal",
 	"22.04": "jammy",
+	"24.04": "noble",
 }
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
