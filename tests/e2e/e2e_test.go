@@ -97,6 +97,7 @@ func (s *E2ESuite) TearDownTest(c *C) {
 				c.Fatalf(err.Error())
 			}
 		}
+		time.Sleep(30 * time.Second)
 	}
 }
 func (s *E2ESuite) TearDownSuite(c *C) {
@@ -108,5 +109,6 @@ func (s *E2ESuite) TearDownSuite(c *C) {
 				c.Fatalf(err.Error())
 			}
 		}
+		time.Sleep(30 * time.Second)
 	}
 }

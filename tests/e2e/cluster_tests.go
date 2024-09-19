@@ -63,10 +63,10 @@ func (s *E2ESuite) checkNFDWorkerStatus(ns string, c *C, workerName string) {
 	assert.Eventually(c, func() bool {
 		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), workerName, metav1.GetOptions{})
 		if err != nil {
-			log.Errorf("failed to get node-feature-discovery %v", err)
+			log.Errorf("  failed to get node-feature-discovery %v", err)
 			return false
 		}
-		log.Infof("node-feature-discovery-worker status %+v",
+		log.Infof("  node-feature-discovery-worker status %+v",
 			ds.Status)
 		return ds.Status.DesiredNumberScheduled > 0 &&
 			ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
@@ -77,10 +77,11 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 	assert.Eventually(c, func() bool {
 		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), utils.NodeLabellerName(s.cfgName), metav1.GetOptions{})
 		if err != nil {
-			log.Errorf("failed to get node-labeller %v", err)
+			log.Errorf("  failed to get node-labeller %v", err)
 			return false
 		}
-		log.Infof("node-labeller status %+v", ds.Status)
+
+		log.Infof(" node-labeller status %+v", ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
 	}, 5*time.Minute, 5*time.Second)
 }
@@ -119,9 +120,9 @@ func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C)
 			log.Errorf("failed to get deviceConfig %v", err)
 			return false
 		}
-		log.Infof("driver status %+v",
+		log.Infof(" driver status %+v",
 			devCfg.Status.Drivers)
-		log.Infof("device-plugin status %+v",
+		log.Infof(" device-plugin status %+v",
 			devCfg.Status.DevicePlugin)
 
 		return devCfg.Status.DevicePlugin.NodesMatchingSelectorNumber > 0 &&
@@ -719,4 +720,16 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
 	err = utils.DelRocmPodsByNodeNames(ctx, s.clientSet, noamdNodeNames)
 	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+func (s *E2ESuite) TestEnableBlacklist(c *C) {
+	log.Infof("TestEnableBlacklist")
+
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.BlacklistDrivers = true
+
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
 }
