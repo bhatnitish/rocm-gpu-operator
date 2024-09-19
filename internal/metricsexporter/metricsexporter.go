@@ -113,7 +113,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		"daemonset-name":            devConfig.Name,
 		metricsExporterLabelPair[0]: metricsExporterLabelPair[1], // in amdgpu namespace
 	}
-	nodeSelector := map[string]string{}
+	var nodeSelector map[string]string
 
 	if devConfig.Spec.MetricsExporter.Selector != nil {
 		nodeSelector = devConfig.Spec.MetricsExporter.Selector

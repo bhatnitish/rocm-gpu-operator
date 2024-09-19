@@ -411,12 +411,12 @@ func ExecPodCmd(command string, ns string, name string) (string, error) {
 
 func Retry(f func() error, timeout time.Duration, period time.Duration) error {
 	timedout := time.After(timeout)
-	tick := time.Tick(period)
+	tick := time.NewTicker(period)
 	for {
 		select {
 		case <-timedout:
 			return fmt.Errorf("timeout")
-		case <-tick:
+		case <-tick.C:
 			if err := f(); err == nil {
 				return nil
 			}

@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
@@ -37,6 +38,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			DriversVersion: s.defaultDriverVersion,
 			//SkipDrivers:    true,
 			MetricsExporter: v1alpha1.MetricsExporterSpec{
+				Enable:   true,
 				NodePort: 32501,
 			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
@@ -80,6 +82,27 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 		}
 		log.Infof("node-labeller status %+v", ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
+	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
+	assert.Eventually(c, func() bool {
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get metrics export %v", err)
+			return false
+		}
+		log.Infof("metrics export %+v", ds.Status)
+		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get metrics service %v", err)
+			return false
+		}
+		log.Infof("metrics service %+v", svc.Spec)
+
+		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
+			svc.Spec.Type == corev1.ServiceTypeNodePort && len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(5000) &&
+			svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
 	}, 5*time.Minute, 5*time.Second)
 }
 
@@ -282,6 +305,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
@@ -660,11 +684,13 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 	pods := utils.ListRocmPodsByNodeNames(ctx, noamdNodeNames)
 	for _, p := range pods {
 		v, err := utils.GetRocmInfo(p)
+		assert.NoError(c, err, "failed to get rocm", p, v)
 		log.Infof("rocm-smi %v: %v", p, v)
 		v, err = utils.ListGpuDrivers(p)
-		assert.NoError(c, err, "list drivers failed on", p, v)
+		assert.NoError(c, err, "failed to list drivers", p, v)
 		log.Infof("gpudrivers %v \n%v ", p, v)
 		v, err = utils.GetGpuDriverVersion(p)
+		assert.NoError(c, err, "failed to list driver version", p, v)
 		log.Infof("gpudrivers %v: %v ", p, v)
 	}
 
