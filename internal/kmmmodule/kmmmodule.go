@@ -245,10 +245,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 
 func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) ([]kmmv1beta1.KernelMapping, error) {
 
-	inTreeModuleToRemove := gpuDriverModuleName
-	if devConfig.Spec.SkipDrivers {
-		inTreeModuleToRemove = ""
-	}
+	inTreeModuleToRemove := ""
 
 	if nodes == nil || len(nodes.Items) == 0 {
 		return nil, fmt.Errorf("No nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
