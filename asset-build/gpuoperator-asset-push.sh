@@ -18,11 +18,11 @@ copy_artifacts () {
     # copy gpu-opertar container image
     cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/
     # copy k8s helm package
-    cp /gpu-operator/helm-charts-k8s/gpu-operator-0.0.1.tgz  $BUNDLE_DIR/gpu-operator-k8s-0.0.1.tgz
+    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-0.0.1.tgz  $BUNDLE_DIR/
     # copy openshift helm package
-    cp /gpu-operator/helm-charts-openshift/gpu-operator-0.0.1.tgz  $BUNDLE_DIR/gpu-operator-openshift-0.0.1.tgz
+    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-0.0.1.tgz  $BUNDLE_DIR/
     # copy gpuuperator bundle package
-    cp /gpu-operator/amd-gpu-operator-bundle.tar.gz  $BUNDLE_DIR/
+    cp /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/
     # list the artifacts copied out
     ls -la $BUNDLE_DIR
 }

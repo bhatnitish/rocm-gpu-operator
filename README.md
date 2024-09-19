@@ -47,8 +47,8 @@ Run ```make``` to generate the basic yaml files for CRD and build controller ima
     * ```make```
     * ```make docker-build```
     * ```make docker-push```
-  * For vanilla k8s cluster: Run ```make helm``` to generate helm charts, the helm charts will be packed into ```helm-charts-k8s/gpu-operator-x.x.x.tgz```
-  * For openshift cluster: Run ```OPENSHIFT=1 make helm``` to generate helm charts, the helm charts will be packed into ```helm-charts-openshift/gpu-operator-x.x.x.tgz```
+  * For vanilla k8s cluster: Run ```make helm``` to generate helm charts, the helm charts will be packed into ```helm-charts-k8s/gpu-operator-helm-k8s-x.x.x.tgz```
+  * For openshift cluster: Run ```OPENSHIFT=1 make helm``` to generate helm charts, the helm charts will be packed into ```helm-charts-openshift/gpu-operator-helm-openshift-x.x.x.tgz```
   * Run ```make cert-manager-install``` to install cert-manager if there is no cert-manager running within your cluster
   * Install helm chart:
     * Remember if you are installing on openshift cluster, pls run make commands with ```OPENSHIFT=1```
@@ -396,7 +396,7 @@ gpu-operator$ ./tools/techsupport_dump.sh all
 ## e2e tests
 Requires access to kubernetes cluster (~/.kube/config configured)
 ```
-make e2e # deploy gpu operator (default ./helm-charts-k8s/gpu-operator-0.0.1.tgz) and run tests
+make e2e # deploy gpu operator (default ./helm-charts-k8s/gpu-operator-helm-k8s-0.0.1.tgz) and run tests
 make e2e GPU_OPERATOR_CHART="path to helm chart" # deploy the given chart and run tests
 make -C tests/e2e # run e2e tests only
 ```
