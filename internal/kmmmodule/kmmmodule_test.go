@@ -72,7 +72,12 @@ var _ = Describe("setKMMModuleLoader", func() {
 			},
 		}
 		// default input
-		input := amdv1alpha1.DeviceConfig{}
+		input := amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				Name:      "testname",
+			},
+		}
 
 		expectedYAMLFile, err := os.ReadFile("testdata/module_loader_test.yaml")
 		Expect(err).To(BeNil())
@@ -86,7 +91,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
 
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod:ubuntu-22.04-${KERNEL_FULL_VERSION}-6.1.3"
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = "ubuntu-22.04"
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = fmt.Sprintf("ubuntu-22.04-%v-%v", input.Name, input.Namespace)
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = "6.1.3"
 		expectedMod.Spec.Selector = map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"}
 		expectedMod.Spec.ModuleLoader.Container.Modprobe.Args = &kmmv1beta1.ModprobeArgs{Load: nil, Unload: nil}
@@ -110,6 +115,10 @@ var _ = Describe("setKMMModuleLoader", func() {
 		}
 		// user input
 		input := amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				Name:      "testname",
+			},
 			Spec: amdv1alpha1.DeviceConfigSpec{
 				UseInTreeDrivers: false,
 				DriversImage:     "some driver image",
@@ -131,7 +140,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
 
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = "some driver image:ubuntu-22.04-${KERNEL_FULL_VERSION}-some driver version"
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = "ubuntu-22.04"
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.DockerfileConfigMap.Name = fmt.Sprintf("ubuntu-22.04-%v-%v", input.Name, input.Namespace)
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = "some driver version"
 		expectedMod.Spec.ModuleLoader.Container.Modprobe.Args = &kmmv1beta1.ModprobeArgs{Load: nil, Unload: nil}
 		expectedMod.Spec.ModuleLoader.Container.Version = "some driver version"

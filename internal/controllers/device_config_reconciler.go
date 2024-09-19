@@ -20,9 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	"k8s.io/client-go/util/retry"
-	"strings"
 
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 
@@ -431,10 +432,11 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 	savedCMName := map[string]bool{}
 	buildOK := true
 	for _, node := range nodes.Items {
-		cmName, err := kmmmodule.GetCMName(node)
+		osName, err := kmmmodule.GetOSName(node, devConfig)
 		if err != nil {
 			return fmt.Errorf("invalid node %s, err: %v", node.Name, err)
 		}
+		cmName := kmmmodule.GetCMName(osName, devConfig)
 		if savedCMName[cmName] {
 			// already saved a docker file for the OS-Version combo
 			continue

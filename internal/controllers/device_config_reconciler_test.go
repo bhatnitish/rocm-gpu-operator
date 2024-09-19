@@ -461,7 +461,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 		newBuildCM := &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: devConfig.Namespace,
-				Name:      "ubuntu-22.04",
+				Name:      kmmmodule.GetCMName("ubuntu-22.04", devConfig),
 			},
 		}
 		gomock.InOrder(
@@ -478,13 +478,13 @@ var _ = Describe("handleBuildConfigMap", func() {
 		existingBuildCM := &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: devConfig.Namespace,
-				Name:      "ubuntu-22.04",
+				Name:      kmmmodule.GetCMName("ubuntu-22.04", devConfig),
 			},
 		}
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Do(
 				func(_ interface{}, _ interface{}, buildCM *v1.ConfigMap, _ ...client.GetOption) {
-					buildCM.Name = "ubuntu-22.04"
+					buildCM.Name = kmmmodule.GetCMName("ubuntu-22.04", devConfig)
 					buildCM.Namespace = devConfig.Namespace
 				},
 			),

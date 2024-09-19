@@ -156,7 +156,7 @@ var driverLabels = map[string]string{
 }
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
-	splits := strings.SplitN(cmName, "-", 2)
+	splits := strings.SplitN(cmName, "-", 4)
 	os := splits[0]
 	version := splits[1]
 	var dockerfileTemplate string
@@ -272,7 +272,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	driversVersion := devConfig.Spec.DriversVersion
 	driversImage := devConfig.Spec.DriversImage
 	var err error
-	cmName, err := GetCMName(node)
+	osName, err := GetOSName(node, devConfig)
 	if err != nil {
 		return kmmv1beta1.KernelMapping{}, err
 	}
@@ -284,7 +284,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultOcDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, cmName, driversVersion)
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
 	} else {
 		if driversVersion == "" {
 			driversVersion, err = getDefaultDriversVersion(node)
@@ -295,7 +295,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, cmName, driversVersion)
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
 	}
 
 	repoURL := defaultRepo
@@ -319,7 +319,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		InTreeModuleToRemove: inTreeModuleToRemove,
 		Build: &kmmv1beta1.Build{
 			DockerfileConfigMap: &v1.LocalObjectReference{
-				Name: cmName,
+				Name: GetCMName(osName, devConfig),
 			},
 			BuildArgs: []kmmv1beta1.BuildArg{
 				{
@@ -336,9 +336,9 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}, nil
 }
 
-func addNodeInfoSuffixToImageTag(imgStr string, cmName, driversVersion string) string {
+func addNodeInfoSuffixToImageTag(imgStr string, osName, driversVersion string) string {
 	// KMM will render and fulfill the value of ${KERNEL_FULL_VERSION}
-	tag := cmName + "-${KERNEL_FULL_VERSION}-" + driversVersion
+	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion
 	// tag cannot be more than 128 chars
 	if len(tag) > 128 {
 		tag = tag[len(tag)-128:]
@@ -356,7 +356,11 @@ func getDefaultDriversVersion(node v1.Node) (string, error) {
 	return "", fmt.Errorf("OS: %s not supported. Should be one of %v", osImageStr, maps.Keys(cmNameMappers))
 }
 
-func GetCMName(node v1.Node) (string, error) {
+func GetCMName(osName string, devCfg *amdv1alpha1.DeviceConfig) string {
+	return osName + "-" + devCfg.Name + "-" + devCfg.Namespace
+}
+
+func GetOSName(node v1.Node, devCfg *amdv1alpha1.DeviceConfig) (string, error) {
 	osImageStr := strings.ToLower(node.Status.NodeInfo.OSImage)
 
 	// sort the key of cmNameMappers
