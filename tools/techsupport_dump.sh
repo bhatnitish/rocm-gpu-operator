@@ -15,7 +15,7 @@ green='\033[0;32m'
 clr='\033[0m'
 
 usage() {
-	echo -e "$0 [-w] [-o yaml/json] [-k kubeconfig] <node-name/all>" 
+	echo -e "$0 [-w] [-o yaml/json] [-k kubeconfig] <node-name/all>"
 	echo -e "   [-w] wide option "
 	echo -e "   [-o yaml/json] output format, yaml/json(default)"
 	echo -e "   [-k kubeconfig] path to kubeconfig(default ~/.kube/config)"
@@ -82,7 +82,7 @@ done
 
 # logs
 if [ "${NODES}" == "all" ]; then
-	NODES=$(${KUBECTL} get nodes -o name)
+	NODES=$(${KUBECTL} get nodes | grep -w Ready | awk '{print $1}')
 fi
 
 for lnode in ${NODES}; do
