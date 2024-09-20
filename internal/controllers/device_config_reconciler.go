@@ -521,6 +521,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		logger.Info("failed to get node list ", err)
 		return nil
 	}
+	logger.Info(fmt.Sprintf("updated node labels for %v", len(its.Items)))
 
 	if err := dcrh.updateNodeLabels(ctx, devConfig, its, false); err != nil {
 		logger.Error(err, "failed to update node labels")
