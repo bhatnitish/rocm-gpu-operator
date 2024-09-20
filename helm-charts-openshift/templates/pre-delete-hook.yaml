@@ -19,7 +19,7 @@ spec:
       serviceAccountName: {{ include "helm-charts-openshift.fullname" . }}-controller-manager
       containers:
         - name: pre-uninstall-check
-          image: registry.test.pensando.io:5000/amd-gpu-operator:dev
+          image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
           command:
             - /bin/sh
             - -c
@@ -56,7 +56,7 @@ spec:
       serviceAccountName: {{ include "helm-charts-openshift.fullname" . }}-controller-manager
       containers:
         - name: pre-uninstall-check
-          image: registry.test.pensando.io:5000/amd-gpu-operator:dev
+          image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
           command:
             - /bin/sh
             - -c

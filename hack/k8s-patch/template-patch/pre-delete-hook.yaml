@@ -16,7 +16,7 @@ spec:
       serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
       containers:
         - name: pre-uninstall-check
-          image: registry.test.pensando.io:5000/amd-gpu-operator:dev
+          image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
           command:
             - /bin/sh
             - -c
