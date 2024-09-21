@@ -27,8 +27,14 @@ copy_artifacts () {
     ls -la $BUNDLE_DIR
 }
 
+docker_build_push () {
+    IMAGE_TAG=latest HOURLY_TAG_LABEL=$RELEASE make docker-build
+    make docker-push
+}
+
 setup () {
     setup_dir
+    docker_build_push
     copy_artifacts
 }
 

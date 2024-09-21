@@ -62,6 +62,8 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(PROJECT_VERSION)
 INDEX_IMG := $(IMAGE_TAG_BASE)-index:v$(PROJECT_VERSION)
 BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle
 
+HOURLY_TAG_LABEL ?= latest
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -193,7 +195,7 @@ manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t $(IMG) --build-arg TARGET=manager .
+	docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
