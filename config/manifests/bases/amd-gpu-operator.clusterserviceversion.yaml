@@ -185,6 +185,21 @@ spec:
         path: driver.nodesMatchingSelectorNumber
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: metricsExporter.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: metricsExporter.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: metricsExporter.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
       - description: NodeModuleStatus contains per node status of driver module installation
         displayName: NodeModuleStatus
         path: nodeModuleStatus

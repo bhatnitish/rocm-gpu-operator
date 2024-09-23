@@ -26,7 +26,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-09-17T01:11:52Z"
+    createdAt: "2024-09-23T18:27:48Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -208,6 +208,21 @@ spec:
       - description: number of nodes that are targeted by the DeviceConfig selector
         displayName: NodesMatchingSelectorNumber
         path: driver.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: metricsExporter.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: metricsExporter.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: metricsExporter.nodesMatchingSelectorNumber
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
       - description: NodeModuleStatus contains per node status of driver module installation

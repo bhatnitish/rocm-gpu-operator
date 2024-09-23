@@ -268,6 +268,24 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 		}
 	}
 
+	if devConfig.Spec.MetricsExporter.Enable {
+		metricsDS := appsv1.DaemonSet{}
+		dsName := types.NamespacedName{
+			Namespace: devConfig.Namespace,
+			Name:      devConfig.Name + "-" + metricsExporter,
+		}
+
+		if err := dcrh.client.Get(ctx, dsName, &metricsDS); err == nil {
+			devConfig.Status.MetricsExporter = amdv1alpha1.DeploymentStatus{
+				NodesMatchingSelectorNumber: metricsDS.Status.NumberAvailable,
+				DesiredNumber:               metricsDS.Status.DesiredNumberScheduled,
+				AvailableNumber:             metricsDS.Status.NumberAvailable,
+			}
+		} else {
+			return fmt.Errorf("failed to fetch metricsExporter %+v: %+v", dsName, err)
+		}
+	}
+
 	// fetch latest node modules config, push their status back to DeviceConfig's status fields
 	err = dcrh.updateDeviceConfigNodeStatus(ctx, devConfig, nodes)
 	if err != nil {

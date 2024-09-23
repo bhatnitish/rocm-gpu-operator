@@ -171,6 +171,7 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 	}
 
 	svc.Spec = v1.ServiceSpec{
+		ExternalTrafficPolicy: v1.ServiceExternalTrafficPolicyLocal,
 		Selector: map[string]string{
 			metricsExporterLabelPair[0]: metricsExporterLabelPair[1],
 		},

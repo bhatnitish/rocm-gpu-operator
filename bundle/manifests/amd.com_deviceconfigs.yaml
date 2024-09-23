@@ -189,6 +189,24 @@ spec:
                     format: int32
                     type: integer
                 type: object
+              metricsExporter:
+                description: MetricsExporter contains the status of the MetricsExporter
+                  deployment
+                properties:
+                  availableNumber:
+                    description: number of the actually deployed and running pods
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    description: number of the pods that should be deployed for daemonset
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
+                    description: number of nodes that are targeted by the DeviceConfig
+                      selector
+                    format: int32
+                    type: integer
+                type: object
               nodeModuleStatus:
                 additionalProperties:
                   description: ModuleStatus contains the status of driver module installed

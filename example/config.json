@@ -1,0 +1,10 @@
+{
+    "Fields" : [
+        "GPU_NODES_TOTAL",
+        "GPU_FAN_SPEED"
+    ],
+    "Labels": [
+        "CARD_MODEL",
+        "DRIVER_VERSION"
+    ]
+}
