@@ -44,6 +44,7 @@ managerConfig:
     worker:
       runAsUser: 0
       seLinuxType: spc_t
+      setFirmwareClassPath: /var/lib/firmware
 webhookServer:
   replicas: 1
   webhookServer:

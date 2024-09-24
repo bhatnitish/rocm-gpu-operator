@@ -59,6 +59,7 @@ managerConfig:
     worker:
       runAsUser: 0
       seLinuxType: spc_t
+      setFirmwareClassPath: /var/lib/firmware
 kmmModuleLoader:
   serviceAccount:
     annotations: {}
