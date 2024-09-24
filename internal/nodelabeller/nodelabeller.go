@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,8 +66,8 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 
 	initVolumeMounts := []v1.VolumeMount{
 		{
-			Name:      "etc-volume",
-			MountPath: "/host-etc",
+			Name:      "sys-volume",
+			MountPath: "/host-sys",
 		},
 	}
 
@@ -95,8 +94,14 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
-	initContainers := []v1.Container{}
+	initContainerCommand := []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
+
 	if devConfig.Spec.BlacklistDrivers {
+		initContainerCommand = []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
+		initVolumeMounts = append(initVolumeMounts, v1.VolumeMount{
+			Name:      "etc-volume",
+			MountPath: "/host-etc",
+		})
 		volumes = append(volumes, v1.Volume{
 			Name: "etc-volume",
 			VolumeSource: v1.VolumeSource{
@@ -106,23 +111,19 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				},
 			},
 		})
+	}
 
-		initContainers = []v1.Container{
-			{
-				Name:            "blacklist-driver",
-				Image:           "busybox:1.36",
-				Command:         []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf"},
-				SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
-				VolumeMounts:    initVolumeMounts,
-			},
-		}
+	initContainers := []v1.Container{
+		{
+			Name:            "driver-init",
+			Image:           "busybox:1.36",
+			Command:         initContainerCommand,
+			SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+			VolumeMounts:    initVolumeMounts,
+		},
 	}
 
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
-	nodeSelector := map[string]string{
-		// node labeller should be deployed on the node where module is ready + device plugin is ready
-		labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name): "",
-	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -133,7 +134,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				InitContainers: initContainers,
 				Containers: []v1.Container{
 					{
-						Args:    []string{"-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done;./k8s-node-labeller -vram -cu-count -simd-count -device-id -family"},
+						Args:    []string{"-c", "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family"},
 						Command: []string{"sh"},
 						Env: []v1.EnvVar{
 							{
@@ -153,7 +154,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 					},
 				},
 				PriorityClassName:  "system-node-critical",
-				NodeSelector:       nodeSelector,
+				NodeSelector:       devConfig.Spec.Selector,
 				ServiceAccountName: "amd-gpu-operator-node-labeller",
 				Volumes:            volumes,
 			},
