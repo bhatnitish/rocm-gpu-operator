@@ -105,6 +105,11 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: service port exposed by metrics-exporter, default 5000
+        displayName: Port
+        path: metricsExporter.port
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:port
       - description: Selector describes on which nodes to enable metrics exporter
         displayName: Selector
         path: metricsExporter.selector

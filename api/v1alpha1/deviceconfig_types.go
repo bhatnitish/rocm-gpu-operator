@@ -118,6 +118,11 @@ type MetricsExporterSpec struct {
 	// +optional
 	Image string `json:"image,omitempty"`
 
+	// service port exposed by metrics-exporter, default 5000
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Port",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:port"}
+	// +optional
+	Port int32 `json:"port,omitempty"`
+
 	// ServiceType service type for metrics, clusterIP/NodePort, clusterIP by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceType"}
 	// +optional

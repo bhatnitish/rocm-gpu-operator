@@ -113,6 +113,11 @@ spec:
                       automatically by default
                     format: int32
                     type: integer
+                  port:
+                    description: service port exposed by metrics-exporter, default
+                      5000
+                    format: int32
+                    type: integer
                   selector:
                     additionalProperties:
                       type: string

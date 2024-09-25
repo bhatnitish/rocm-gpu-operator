@@ -32,7 +32,7 @@ import (
 
 const (
 	defaultMetricsExporterImage = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
-	metricsPort                 = 5000
+	servicePort                 = 5000
 	ExporterName                = "metrics-exporter"
 )
 
@@ -123,6 +123,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	}
 	nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 
+	svcPort := int32(servicePort)
+	if devConfig.Spec.MetricsExporter.Port > 0 {
+		svcPort = devConfig.Spec.MetricsExporter.Port
+	}
+
 	mxImage := defaultMetricsExporterImage
 	if devConfig.Spec.MetricsExporter.Image != "" {
 		mxImage = devConfig.Spec.MetricsExporter.Image
@@ -145,6 +150,10 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 										FieldPath: "spec.nodeName",
 									},
 								},
+							},
+							{
+								Name:  "METRICS_EXPORTER_PORT",
+								Value: fmt.Sprintf("%v", svcPort),
 							},
 						},
 						Name:            ExporterName + "-container",
@@ -177,6 +186,11 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		},
 	}
 
+	svcPort := int32(servicePort)
+	if devConfig.Spec.MetricsExporter.Port > 0 {
+		svcPort = devConfig.Spec.MetricsExporter.Port
+	}
+
 	switch strings.ToLower(devConfig.Spec.MetricsExporter.ServiceType) {
 	case strings.ToLower(string(v1.ServiceTypeNodePort)):
 		svc.Spec.Type = v1.ServiceTypeNodePort
@@ -184,8 +198,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,
-				Port:       metricsPort,
-				TargetPort: intstr.FromInt32(metricsPort),
+				Port:       svcPort,
+				TargetPort: intstr.FromInt32(svcPort),
 				NodePort:   devConfig.Spec.MetricsExporter.NodePort,
 			},
 		}
@@ -194,8 +208,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,
-				Port:       metricsPort,
-				TargetPort: intstr.FromInt32(metricsPort),
+				Port:       svcPort,
+				TargetPort: intstr.FromInt32(svcPort),
 			},
 		}
 
