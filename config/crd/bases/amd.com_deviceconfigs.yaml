@@ -88,7 +88,7 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               metricsExporter:
-                description: metrics export
+                description: metrics exporter
                 properties:
                   config:
                     description: optional configuration for metrics
@@ -99,7 +99,7 @@ spec:
                         type: string
                     type: object
                   enable:
-                    description: enable metrics export, disabled by default
+                    description: enable metrics exporter, disabled by default
                     type: boolean
                   image:
                     description: metrics exporter image
@@ -113,7 +113,7 @@ spec:
                     additionalProperties:
                       type: string
                     description: Selector describes on which nodes to enable metrics
-                      export
+                      exporter
                     type: object
                   serviceType:
                     description: ServiceType service type for metrics, clusterIP/NodePort,

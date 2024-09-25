@@ -49,7 +49,6 @@ import (
 const (
 	DeviceConfigReconcilerName = "DriverAndPluginReconciler"
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
-	metricsExporter            = "metrics-exporter"
 )
 
 // ModuleReconciler reconciles a Module object
@@ -166,13 +165,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle node labeller for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
-	if devConfig.Spec.MetricsExporter.Enable {
-		logger.Info("start metrics exporter reconciliation")
-		err = r.helper.handleMetricsExporter(ctx, devConfig)
-		if err != nil {
-			return res, fmt.Errorf("failed to handle metrics exporter for DeviceConfig %s: %v", req.NamespacedName, err)
-		}
+	logger.Info("start metrics exporter reconciliation", "enable", devConfig.Spec.MetricsExporter.Enable)
+	if err := r.helper.handleMetricsExporter(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle metrics exporter for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
+
 	err = r.helper.updateDeviceConfigStatus(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
@@ -272,7 +269,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 		metricsDS := appsv1.DaemonSet{}
 		dsName := types.NamespacedName{
 			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name + "-" + metricsExporter,
+			Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
 		}
 
 		if err := dcrh.client.Get(ctx, dsName, &metricsDS); err == nil {
@@ -360,43 +357,51 @@ func (dcrh *deviceConfigReconcilerHelper) setFinalizer(ctx context.Context, devC
 	return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
 }
 
+func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+
+	metricsSvc := v1.Service{}
+	svcName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
+	}
+
+	if err := dcrh.client.Get(ctx, svcName, &metricsSvc); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get metrics exporter service %s: %v", svcName, err)
+		}
+	} else {
+		logger.Info("deleting metrics exporter service", "service", svcName)
+		if err := dcrh.client.Delete(ctx, &metricsSvc); err != nil {
+			return fmt.Errorf("failed to delete metrics exporter service %s: %v", svcName, err)
+		}
+	}
+
+	metricsDS := appsv1.DaemonSet{}
+	dsName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
+	}
+
+	if err := dcrh.client.Get(ctx, dsName, &metricsDS); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get metrics exporter daemonset %s: %v", dsName, err)
+		}
+	} else {
+		logger.Info("deleting metrics exporter daemonset", "daemonset", dsName)
+		if err := dcrh.client.Delete(ctx, &metricsDS); err != nil {
+			return fmt.Errorf("failed to delete metrics exporter daemonset %s: %v", dsName, err)
+		}
+	}
+
+	return nil
+}
+
 func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
-	if devConfig.Spec.MetricsExporter.Enable {
-		metricsSvc := v1.Service{}
-		svcName := types.NamespacedName{
-			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name + "-" + metricsExporter,
-		}
-
-		if err := dcrh.client.Get(ctx, svcName, &metricsSvc); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return fmt.Errorf("failed to get metrics export service %s: %v", svcName, err)
-			}
-		} else {
-			logger.Info("deleting metrics export service", "service", svcName)
-			if err := dcrh.client.Delete(ctx, &metricsSvc); err != nil {
-				return fmt.Errorf("failed to delete metrics export service %s: %v", svcName, err)
-			}
-		}
-
-		metricsDS := appsv1.DaemonSet{}
-		dsName := types.NamespacedName{
-			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name + "-" + metricsExporter,
-		}
-
-		if err := dcrh.client.Get(ctx, dsName, &metricsDS); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return fmt.Errorf("failed to get metrics export daemonset %s: %v", dsName, err)
-			}
-		} else {
-			logger.Info("deleting metrics export daemonset", "daemonset", dsName)
-			if err := dcrh.client.Delete(ctx, &metricsDS); err != nil {
-				return fmt.Errorf("failed to delete metrics export daemonset %s: %v", dsName, err)
-			}
-		}
+	if err := dcrh.finalizeMetricsExporter(ctx, devConfig); err != nil {
+		return err
 	}
 
 	nlDS := appsv1.DaemonSet{}
@@ -547,20 +552,26 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	return nil
 }
 func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
-	ds := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + metricsExporter},
-	}
 	logger := log.FromContext(ctx)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + metricsexporter.ExporterName},
+	}
+
+	// delete if disabled
+	if !devConfig.Spec.MetricsExporter.Enable {
+		return dcrh.finalizeMetricsExporter(ctx, devConfig)
+	}
+
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
 		return dcrh.metricsHandler.SetMetricsExporterAsDesired(ds, devConfig)
 	})
 	if err != nil {
 		return err
 	}
-	logger.Info("Reconciled metrics export", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+	logger.Info("Reconciled metrics exporter", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
 	svc := &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + metricsExporter},
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + metricsexporter.ExporterName},
 	}
 	opRes, err = controllerutil.CreateOrPatch(ctx, dcrh.client, svc, func() error {
 		return dcrh.metricsHandler.SetMetricsServiceAsDesired(svc, devConfig)

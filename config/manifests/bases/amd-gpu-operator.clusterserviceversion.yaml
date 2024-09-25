@@ -73,7 +73,7 @@ spec:
         path: imageSignKeySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
-      - description: metrics export
+      - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter
         x-descriptors:
@@ -89,7 +89,7 @@ spec:
         path: metricsExporter.config.name
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:name
-      - description: enable metrics export, disabled by default
+      - description: enable metrics exporter, disabled by default
         displayName: Enable
         path: metricsExporter.enable
         x-descriptors:
@@ -105,7 +105,7 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
-      - description: Selector describes on which nodes to enable metrics export
+      - description: Selector describes on which nodes to enable metrics exporter
         displayName: Selector
         path: metricsExporter.selector
         x-descriptors:

@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/pensando/gpu-operator/internal/metricsexporter"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -271,6 +272,11 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		Namespace: devConfigNamespace,
 	}
 
+	metricsNN := types.NamespacedName{
+		Name:      devConfigName + "-" + metricsexporter.ExporterName,
+		Namespace: devConfigNamespace,
+	}
+
 	nn := types.NamespacedName{
 		Name:      devConfigName,
 		Namespace: devConfigNamespace,
@@ -281,6 +287,13 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	}
 
 	It("failed to get NodeLabeller daemonset", func() {
+		statusErr := &k8serrors.StatusError{
+			ErrStatus: metav1.Status{
+				Reason: metav1.StatusReasonNotFound,
+			},
+		}
+
+		kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2)
 		kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(fmt.Errorf("some error"))
 
 		err := dcrh.finalizeDeviceConfig(ctx, devConfig, testNodeList)
@@ -309,7 +322,14 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	//})
 
 	It("node metrics daemonset exists", func() {
+		statusErr := &k8serrors.StatusError{
+			ErrStatus: metav1.Status{
+				Reason: metav1.StatusReasonNotFound,
+			},
+		}
+
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(nil),
 			kubeClient.EXPECT().Delete(ctx, gomock.Any()).Return(nil),
@@ -321,7 +341,14 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	})
 
 	It("failed to get KMM Module", func() {
+		statusErr := &k8serrors.StatusError{
+			ErrStatus: metav1.Status{
+				Reason: metav1.StatusReasonNotFound,
+			},
+		}
+
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(fmt.Errorf("some error")),
 		)
@@ -331,11 +358,18 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	})
 
 	It("KMM module not found, removing finalizer", func() {
+		statusErr := &k8serrors.StatusError{
+			ErrStatus: metav1.Status{
+				Reason: metav1.StatusReasonNotFound,
+			},
+		}
+
 		expectedDevConfig := devConfig.DeepCopy()
 		expectedDevConfig.SetFinalizers([]string{})
 		controllerutil.AddFinalizer(devConfig, deviceConfigFinalizer)
 
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "moduleName")),
 			kubeClient.EXPECT().Patch(ctx, expectedDevConfig, gomock.Any()).Return(nil),
@@ -346,6 +380,12 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	})
 
 	It("KMM module found, deleting it", func() {
+		statusErr := &k8serrors.StatusError{
+			ErrStatus: metav1.Status{
+				Reason: metav1.StatusReasonNotFound,
+			},
+		}
+
 		mod := kmmv1beta1.Module{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      devConfigName,
@@ -358,6 +398,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		controllerutil.AddFinalizer(devConfig, deviceConfigFinalizer)
 
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Do(
 				func(_ interface{}, _ interface{}, mod *kmmv1beta1.Module, _ ...client.GetOption) {

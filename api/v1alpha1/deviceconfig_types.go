@@ -74,7 +74,7 @@ type DeviceConfigSpec struct {
 	// +optional
 	ImageRepoSecret *v1.LocalObjectReference `json:"imageRepoSecret,omitempty"`
 
-	// metrics export
+	// metrics exporter
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MetricsExporter",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter"}
 	// +optional
 	MetricsExporter MetricsExporterSpec `json:"metricsExporter,omitempty"`
@@ -108,7 +108,7 @@ type DeviceConfigSpec struct {
 }
 
 type MetricsExporterSpec struct {
-	// enable metrics export, disabled by default
+	// enable metrics exporter, disabled by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
 	// +optional
 	Enable bool `json:"enable,omitempty"`
@@ -133,7 +133,7 @@ type MetricsExporterSpec struct {
 	// +optional
 	Config MetricsConfig `json:"config,omitempty"`
 
-	// Selector describes on which nodes to enable metrics export
+	// Selector describes on which nodes to enable metrics exporter
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`

@@ -33,9 +33,10 @@ import (
 const (
 	defaultMetricsExporterImage = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
 	metricsPort                 = 5000
+	ExporterName                = "metrics-exporter"
 )
 
-var metricsExporterLabelPair = []string{"app.kubernetes.io/name", "metrics-exporter"}
+var metricsExporterLabelPair = []string{"app.kubernetes.io/name", ExporterName}
 
 //go:generate mockgen -source=metricsexporter.go -package=metricsexporter -destination=mock_metricsexporter.go MetricsExporter
 type MetricsExporter interface {
@@ -146,7 +147,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 								},
 							},
 						},
-						Name:            metricsExporterLabelPair[1] + "-container",
+						Name:            ExporterName + "-container",
 						WorkingDir:      "/root",
 						Image:           mxImage,
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
@@ -171,7 +172,6 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 	}
 
 	svc.Spec = v1.ServiceSpec{
-		ExternalTrafficPolicy: v1.ServiceExternalTrafficPolicyLocal,
 		Selector: map[string]string{
 			metricsExporterLabelPair[0]: metricsExporterLabelPair[1],
 		},
@@ -180,6 +180,7 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 	switch strings.ToLower(devConfig.Spec.MetricsExporter.ServiceType) {
 	case strings.ToLower(string(v1.ServiceTypeNodePort)):
 		svc.Spec.Type = v1.ServiceTypeNodePort
+		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyLocal
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,

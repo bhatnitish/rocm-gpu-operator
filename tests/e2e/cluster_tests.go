@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	"os/exec"
 	"os/user"
 	"strings"
@@ -88,13 +89,13 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 
 func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
 	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), s.cfgName+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
 		if err != nil {
-			log.Errorf("failed to get metrics export %v", err)
+			log.Errorf("failed to get metrics exporter %v", err)
 			return false
 		}
-		log.Infof("metrics export %+v", ds.Status)
-		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), s.cfgName+"-metrics-export", metav1.GetOptions{})
+		log.Infof("metrics exporter %+v", ds.Status)
+		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), s.cfgName+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("failed to get metrics service %v", err)
 			return false

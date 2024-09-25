@@ -26,7 +26,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-09-23T18:27:48Z"
+    createdAt: "2024-09-25T07:22:12Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -98,7 +98,7 @@ spec:
         path: imageSignKeySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
-      - description: metrics export
+      - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter
         x-descriptors:
@@ -114,7 +114,7 @@ spec:
         path: metricsExporter.config.name
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:name
-      - description: enable metrics export, disabled by default
+      - description: enable metrics exporter, disabled by default
         displayName: Enable
         path: metricsExporter.enable
         x-descriptors:
@@ -130,7 +130,7 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
-      - description: Selector describes on which nodes to enable metrics export
+      - description: Selector describes on which nodes to enable metrics exporter
         displayName: Selector
         path: metricsExporter.selector
         x-descriptors:
