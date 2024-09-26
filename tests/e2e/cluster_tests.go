@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -82,7 +84,7 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 			return false
 		}
 
-		log.Infof(" node-labeller status %+v", ds.Status)
+		log.Infof("node-labeller: %s status %+v", ds.Name, ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
 	}, 5*time.Minute, 5*time.Second)
 }
@@ -311,7 +313,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
 
@@ -346,7 +348,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.verifyNodeGPULabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
@@ -361,7 +363,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.updateNodeDriverVersionLabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
 
@@ -396,7 +398,7 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	s.verifyNodeGPULabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
 	s.deleteDeviceConfig(c)
@@ -413,7 +415,7 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	s.verifyNodeGPULabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet)
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
 	s.deleteDeviceConfig(c)
@@ -733,4 +735,59 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
+}
+
+func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
+	if s.noamdgpu {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	ctx := context.TODO()
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+
+	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet)
+	if err != nil {
+		log.Errorf("error: %v", err)
+	}
+	var minGPU int = 10000
+	for _, v := range ret {
+		if v < minGPU {
+			minGPU = v
+		}
+	}
+	assert.Greater(c, minGPU, 0, "did not find any server with amd gpu")
+
+	gpuLimitCount := minGPU
+	gpuReqCount := minGPU
+
+	res := &v1.ResourceRequirements{
+		Limits: v1.ResourceList{
+			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
+		},
+		Requests: v1.ResourceList{
+			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
+		},
+	}
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
+	assert.NoError(c, err, "failed to deploy pods")
+	s.verifyROCMPOD(true, c)
+	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount)
+	assert.NoError(c, err, fmt.Sprintf("%v", err))
+
+	// delete
+	s.deleteDeviceConfig(c)
+
+	s.verifyROCMPOD(false, c)
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
 }

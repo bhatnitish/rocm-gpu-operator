@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -248,9 +249,11 @@ var rocmLabel = map[string]string{
 }
 var rocmDs = "e2e-rocm"
 
-func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset) error {
+func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset,
+	res *v1.ResourceRequirements) error {
 
-	err := CreateDaemonset(ctx, cl, v1.NamespaceDefault, rocmDs, "rocm/tensorflow:latest", rocmLabel)
+	err := CreateDaemonset(ctx, cl, v1.NamespaceDefault, rocmDs,
+		"rocm/tensorflow:latest", rocmLabel, res)
 	if err != nil {
 		return fmt.Errorf("failed to create e2e pods %v", err)
 	}
@@ -325,7 +328,20 @@ func DeletePod(ctx context.Context, cl *kubernetes.Clientset, ns string,
 }
 
 func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string,
-	name string, image string, matchLabels map[string]string) error {
+	name string, image string, matchLabels map[string]string,
+	res *v1.ResourceRequirements) error {
+
+	if res == nil {
+		res = &v1.ResourceRequirements{
+			Limits: v1.ResourceList{
+				"amd.com/gpu": resource.MustParse("1"),
+			},
+
+			Requests: v1.ResourceList{
+				"amd.com/gpu": resource.MustParse("1"),
+			},
+		}
+	}
 
 	dsCli := cl.AppsV1().DaemonSets(ns)
 	ds := &appsv1.DaemonSet{
@@ -345,19 +361,11 @@ func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string,
 					NodeSelector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 					Containers: []v1.Container{
 						{
-							Name:    name,
-							Image:   image,
-							Command: []string{"sh", "-c", "--"},
-							Args:    []string{"sleep infinity"},
-							Resources: v1.ResourceRequirements{
-								Limits: v1.ResourceList{
-									"amd.com/gpu": resource.MustParse("1"),
-								},
-
-								Requests: v1.ResourceList{
-									"amd.com/gpu": resource.MustParse("1"),
-								},
-							},
+							Name:      name,
+							Image:     image,
+							Command:   []string{"sh", "-c", "--"},
+							Args:      []string{"sleep infinity"},
+							Resources: *res,
 						},
 					},
 				},
@@ -648,4 +656,55 @@ func DelRocmPodsByNodeNames(ctx context.Context, cl *kubernetes.Clientset,
 	}
 	return nil
 
+}
+
+func GetAMDGPUCount(ctx context.Context, cl *kubernetes.Clientset) (map[string]int, error) {
+
+	ret := make(map[string]int)
+	// Get the list of nodes
+	nodes, err := cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return ret, err
+	}
+
+	// Iterate over the nodes and count AMD GPUs
+	for _, node := range nodes.Items {
+		if val, ok := node.Status.Capacity["amd.com/gpu"]; ok {
+			num, err := strconv.ParseInt(val.String(), 10, 64)
+			if err != nil {
+				log.Infof("error: %v", err)
+				continue
+			}
+			ret[node.Name] = int(num)
+		}
+	}
+	return ret, nil
+}
+
+func VerifyROCMPODResourceCount(ctx context.Context, cl *kubernetes.Clientset,
+	gpuReqCount int) error {
+
+	its, err := cl.CoreV1().Pods("").List(ctx,
+		metav1.ListOptions{
+			LabelSelector: kmmmodule.MapToLabelSelector(rocmLabel),
+		})
+	if err != nil {
+		return err
+	}
+	for _, p := range its.Items {
+		for _, cntr := range p.Spec.Containers {
+			if !strings.Contains(p.Name, rocmDs) {
+				continue
+			}
+
+			if gpu, ok := cntr.Resources.Requests["amd.com/gpu"]; ok {
+				gpuAssignedCount := int(gpu.Value())
+				if gpuReqCount < gpuAssignedCount {
+					return fmt.Errorf("gpu requested %d got %d",
+						gpuReqCount, gpuAssignedCount)
+				}
+			}
+		}
+	}
+	return nil
 }
