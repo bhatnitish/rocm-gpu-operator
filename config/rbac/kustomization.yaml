@@ -13,3 +13,6 @@ resources:
   - node_labeller_service_account.yaml
   - node_labeller_cluster_role.yaml
   - node_labeller_role_binding.yaml
+  - metrics_exporter_service_account.yaml
+  - metrics_exporter_cluster_role.yaml
+  - metrics_exporter_role_binding.yaml

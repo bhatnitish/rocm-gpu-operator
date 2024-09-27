@@ -166,7 +166,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 
 				PriorityClassName:  "system-node-critical",
 				NodeSelector:       nodeSelector,
-				ServiceAccountName: "amd-gpu-operator-node-labeller", //todo: temporary, create new sa
+				ServiceAccountName: "amd-gpu-operator-metrics-exporter",
 				Volumes:            volumes,
 			},
 		},

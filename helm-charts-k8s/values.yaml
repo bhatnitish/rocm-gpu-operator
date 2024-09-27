@@ -57,3 +57,6 @@ metricsService:
 nodeLabeller:
   serviceAccount:
     annotations: {}
+metricsExporter:
+  serviceAccount:
+    annotations: {}
