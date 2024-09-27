@@ -539,7 +539,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 
 	// todo: temp. cleanup labels set by node-labeller
 	// not required once label cleanup is added in node-labeller
-	its, err := kmmmodule.GetK8SNodes("! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name))
+	its, err := kmmmodule.GetK8SNodes(kmmmodule.MapToLabelSelector(devConfig.Spec.Selector) + "," + "! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name))
 	if err != nil {
 		logger.Info("failed to get node list ", err)
 		return nil
@@ -618,6 +618,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 			// 1. use PATCH instead of UPDATE
 			//    to minimize the resource usage, compared to update the whole Node resource
 			if updated {
+				logger.Info(fmt.Sprintf("updating node-labeller labels in %v", nodeObj.Name))
 				return dcrh.client.Patch(ctx, nodeObj, client.MergeFrom(nodeObjCopy))
 			}
 
