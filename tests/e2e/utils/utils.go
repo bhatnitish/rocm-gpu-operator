@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -11,6 +14,7 @@ import (
 
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	log "github.com/sirupsen/logrus"
+
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -20,6 +24,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/yaml"
 )
 
 const ClusterTypeOpenShift = "openshift"
@@ -706,5 +711,159 @@ func VerifyROCMPODResourceCount(ctx context.Context, cl *kubernetes.Clientset,
 			}
 		}
 	}
+	return nil
+}
+
+func DeployNodeAppDaemonSet(cl *kubernetes.Clientset) error {
+
+	// Read the YAML file
+	naFile, err := os.ReadFile("nodeapp/nodeappds.yaml")
+	if err != nil {
+		return fmt.Errorf("nodeapp yaml read error: %v", err)
+	}
+
+	var ds appsv1.DaemonSet
+	if err = yaml.Unmarshal(naFile, &ds); err != nil {
+		return fmt.Errorf("nodeapp yaml unmarshal error: %v", err)
+	}
+
+	dsCli := cl.AppsV1().DaemonSets("default")
+	_, reterr := dsCli.Create(context.TODO(), &ds, metav1.CreateOptions{})
+	if reterr != nil {
+		return fmt.Errorf("nodeapp create error: %v", reterr)
+	}
+
+	// wait till it is ready, download time could vary
+	return Retry(func() error {
+		d, err := dsCli.Get(context.TODO(), ds.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get ds %v, %v", ds.Name, err)
+		}
+		if d.Status.NumberReady == 0 || d.Status.DesiredNumberScheduled != d.Status.NumberReady {
+			return fmt.Errorf("ds %v not ready, %v", d.Name, d.Status)
+		}
+		return nil
+	}, 10*time.Minute, time.Second*5)
+}
+
+func DeleteNodeAppDaemonSet(cl *kubernetes.Clientset) error {
+
+	dsCli := cl.AppsV1().DaemonSets("default")
+	reterr := dsCli.Delete(context.TODO(), "e2e-nodeapp-ds", metav1.DeleteOptions{})
+	if reterr != nil {
+		return fmt.Errorf("nodeapp create error: %v", reterr)
+	}
+	return nil
+}
+
+func GetNodeIP(ctx context.Context, cl *kubernetes.Clientset,
+	nodeName string) (string, error) {
+
+	var nodeip string
+	// Get the node object
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nodeip, fmt.Errorf("Error getting node: %v", err)
+	}
+
+	// Extract the IP address
+	for _, address := range node.Status.Addresses {
+		if address.Type == "InternalIP" {
+			nodeip = address.Address
+			break
+		}
+	}
+	if nodeip == "" {
+		return nodeip, fmt.Errorf("error getting ip of node: %v", err)
+	}
+
+	return nodeip, nil
+}
+
+func IsNodeHealthy(cl *kubernetes.Clientset, nodeip string) error {
+
+	url := fmt.Sprintf("http://%s:8080/health", nodeip)
+	client := &http.Client{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	log.Infof("resp status: %v body: %v error: %v",
+		resp.Status, string(body), err)
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("node health status: %v", resp.Status)
+	}
+	if string(body) != "healthy" {
+		return fmt.Errorf("node health body: %v", body)
+	}
+
+	return nil
+}
+
+func RebootNode(cl *kubernetes.Clientset, nodeip string) error {
+
+	url := fmt.Sprintf("http://%s:8080/reboot", nodeip)
+	client := &http.Client{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	log.Infof("resp status: %v body: %v error: %v",
+		resp.Status, string(body), err)
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("reboot failed response: %v", resp.Status)
+	}
+	return nil
+}
+
+func RebootNodeWithWait(ctx context.Context, cl *kubernetes.Clientset,
+	nodeName string) error {
+
+	nodeip, err := GetNodeIP(ctx, cl, nodeName)
+	if err != nil || nodeip == "" {
+		log.Errorf("node %s: %s get error: %v", nodeName, nodeip, err)
+		return err
+	}
+
+	if err := RebootNode(cl, nodeip); err != nil {
+		log.Errorf("node reboot error: %v", err)
+		return err
+	}
+
+	if err := Retry(func() error {
+		if err := IsNodeHealthy(cl, nodeip); err != nil {
+			log.Errorf("node %s: %s health error: %v", nodeName, nodeip, err)
+			return err
+		}
+		return nil
+	}, time.Minute*5, time.Second*20); err != nil {
+		return fmt.Errorf("node did not become healthy %v", err)
+	}
+
 	return nil
 }
