@@ -5,7 +5,7 @@ kind: CustomResourceDefinition
 metadata:
   name: nodemodulesconfigs.kmm.sigs.x-k8s.io
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.1
   labels:
     app.kubernetes.io/component: kmm
     app.kubernetes.io/part-of: kmm
@@ -63,6 +63,11 @@ spec:
                       properties:
                         containerImage:
                           type: string
+                        imagePullPolicy:
+                          default: IfNotPresent
+                          description: PullPolicy describes a policy for if/when to
+                            pull a container image
+                          type: string
                         inTreeModuleToRemove:
                           type: string
                         inTreeModulesToRemove:
@@ -160,6 +165,7 @@ spec:
                           type: object
                       required:
                       - containerImage
+                      - imagePullPolicy
                       - insecurePull
                       - kernelVersion
                       - modprobe
@@ -176,9 +182,7 @@ spec:
                             This field is effectively required, but due to backwards compatibility is
                             allowed to be empty. Instances of this type with an empty value here are
                             almost certainly wrong.
-                            TODO: Add other useful fields. apiVersion, kind, uid?
                             More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
@@ -211,6 +215,11 @@ spec:
                       properties:
                         containerImage:
                           type: string
+                        imagePullPolicy:
+                          default: IfNotPresent
+                          description: PullPolicy describes a policy for if/when to
+                            pull a container image
+                          type: string
                         inTreeModuleToRemove:
                           type: string
                         inTreeModulesToRemove:
@@ -308,6 +317,7 @@ spec:
                           type: object
                       required:
                       - containerImage
+                      - imagePullPolicy
                       - insecurePull
                       - kernelVersion
                       - modprobe
@@ -324,9 +334,7 @@ spec:
                             This field is effectively required, but due to backwards compatibility is
                             allowed to be empty. Instances of this type with an empty value here are
                             almost certainly wrong.
-                            TODO: Add other useful fields. apiVersion, kind, uid?
                             More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic

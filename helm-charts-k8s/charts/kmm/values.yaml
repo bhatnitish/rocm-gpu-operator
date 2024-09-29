@@ -6,11 +6,11 @@ controller:
       allowPrivilegeEscalation: false
     env:
       relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
-      relatedImageSign: gcr.io/k8s-staging-kmm/kernel-module-management-signimage:v20240618-v2.1.1
-      relatedImageWorker: gcr.io/k8s-staging-kmm/kernel-module-management-worker:v20240618-v2.1.1
+      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:dev
+      relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:dev
     image:
-      repository: gcr.io/k8s-staging-kmm/kernel-module-management-operator
-      tag: v20240618-v2.1.1
+      repository: registry.test.pensando.io:5000/kernel-module-management-operator
+      tag: dev
     imagePullPolicy: Always
     resources:
       limits:
@@ -44,7 +44,7 @@ managerConfig:
     worker:
       runAsUser: 0
       seLinuxType: spc_t
-      setFirmwareClassPath: /var/lib/firmware
+      firmwareHostPath: /var/lib/firmware
 webhookServer:
   replicas: 1
   webhookServer:
@@ -56,8 +56,8 @@ webhookServer:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
-      repository: gcr.io/k8s-staging-kmm/kernel-module-management-webhook-server
-      tag: latest
+      repository: registry.test.pensando.io:5000/kernel-module-management-webhook-server
+      tag: dev
     imagePullPolicy: Always
     resources:
       limits:

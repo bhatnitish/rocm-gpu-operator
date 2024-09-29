@@ -9,8 +9,8 @@ PROJECT_VERSION ?= 0.0.1
 
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/test_device_config.yaml config/default/kustomization.yaml
 CRD_YAML_FILES = deviceconfig-crd.yaml
-K8S_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml nodemodulesconfig-crd.yaml
-OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml preflightvalidation-crd.yaml preflightvalidationocp-crd.yaml nodemodulesconfig-crd.yaml
+K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
+OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
 
 ifdef OPENSHIFT
@@ -49,7 +49,6 @@ IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
 # This is the default tag of all images made by this Makefile.
 IMAGE_TAG ?= dev
-
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 
@@ -63,6 +62,14 @@ INDEX_IMG := $(IMAGE_TAG_BASE)-index:v$(PROJECT_VERSION)
 BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle
 
 HOURLY_TAG_LABEL ?= latest
+
+# KMM related images
+KMM_IMAGE_TAG ?= dev
+KMM_SIGNER_IMG ?= registry.test.pensando.io:5000/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
+KMM_WORKER_IMG ?= registry.test.pensando.io:5000/kernel-module-management-worker:$(KMM_IMAGE_TAG)
+KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
+KMM_WEBHOOK_IMG_NAME ?= registry.test.pensando.io:5000/kernel-module-management-webhook-server
+KMM_OPERATOR_IMG_NAME ?= registry.test.pensando.io:5000/kernel-module-management-operator
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -138,6 +145,13 @@ update-registry:
 	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
 	hack/openshift-patch/metadata-patch/values.yaml helm-charts-openshift/values.yaml \
 	example/test_device_config.yaml
+	sed -i -e 's|tag:.*$$|tag: ${KMM_IMAGE_TAG}|' \
+	-e 's|repository:.*operator.*$$|repository: ${KMM_OPERATOR_IMG_NAME}|' \
+	-e 's|repository:.*webhook.*$$|repository: ${KMM_WEBHOOK_IMG_NAME}|' \
+	-e 's|relatedImageBuild:.*$$|relatedImageBuild: ${KMM_BUILDER_IMG}|' \
+	-e 's|relatedImageSign:.*$$|relatedImageSign: ${KMM_SIGNER_IMG}|' \
+	-e 's|relatedImageWorker:.*$$|relatedImageWorker: ${KMM_WORKER_IMG}|' \
+	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
 manifests: controller-gen update-registry ## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
@@ -442,18 +456,18 @@ gen-kmm-charts-openshift:
 	mkdir helm-charts-openshift/charts/kmm/crds
 	@for file in $(OPENSHIFT_KMM_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-openshift/charts/kmm -s templates/$$file > helm-charts-openshift/charts/kmm/crds/$$file; \
+		rm helm-charts-openshift/charts/kmm/templates/$$file; \
 	done
-	rm helm-charts-openshift/charts/kmm/templates/*crd.yaml
 	rm -rf /tmp/kmm
 
 gen-kmm-charts-k8s:
-	rm -rf /tmp/kmm && git clone https://github.com/kubernetes-sigs/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout v2.1.1
+	rm -rf /tmp/kmm && git clone https://github.com/pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 	mkdir helm-charts-k8s/charts/kmm/crds
 	@for file in $(K8S_KMM_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-k8s/charts/kmm -s templates/$$file > helm-charts-k8s/charts/kmm/crds/$$file; \
+		rm helm-charts-k8s/charts/kmm/templates/$$file; \
 	done
-	rm helm-charts-k8s/charts/kmm/templates/*crd.yaml
 	rm -rf /tmp/kmm
 
 cert-manager-install:
