@@ -49,6 +49,7 @@ import (
 const (
 	DeviceConfigReconcilerName = "DriverAndPluginReconciler"
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
+	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
 )
 
 // ModuleReconciler reconciles a Module object
@@ -539,12 +540,29 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 
 	// todo: temp. cleanup labels set by node-labeller
 	// not required once label cleanup is added in node-labeller
-	its, err := kmmmodule.GetK8SNodes(kmmmodule.MapToLabelSelector(devConfig.Spec.Selector) + "," + "! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name))
+	nodeLabels := func() string {
+		// nodes without gpu, kmm, dev-plugin
+		sel := []string{
+			"! " + NodeFeatureLabelAmdGpu,
+			"! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name),
+			"! " + labels.GetDevicePluginNodeLabel(devConfig.Namespace, devConfig.Name),
+		}
+
+		for k, v := range devConfig.Spec.Selector {
+			if k == NodeFeatureLabelAmdGpu { // skip
+				continue
+			}
+			sel = append(sel, fmt.Sprintf("%s=%s", k, v))
+		}
+		return strings.Join(sel, ",")
+	}()
+
+	its, err := kmmmodule.GetK8SNodes(nodeLabels)
 	if err != nil {
 		logger.Info("failed to get node list ", err)
 		return nil
 	}
-	logger.Info(fmt.Sprintf("updated node labels for %v", len(its.Items)))
+	logger.Info(fmt.Sprintf("select (%v) found %v nodes", nodeLabels, len(its.Items)))
 
 	if err := dcrh.updateNodeLabels(ctx, devConfig, its, false); err != nil {
 		logger.Error(err, "failed to update node labels")
