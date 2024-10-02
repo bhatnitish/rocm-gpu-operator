@@ -11,6 +11,10 @@ builds:
     artifacts:
      - /gpu-operator/amd-gpu-operator-latest.tar.gz
      - /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz
+    repo-dependencies:
+      /ws/builder/kernel-module-management:
+        repository: https://github.com/pensando/kernel-module-management
+        reference: main
 
   build-gpu-operator-k8s:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
@@ -18,6 +22,10 @@ builds:
     owners: ["email:mharkara@amd.com"]
     artifacts:
      - /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-0.0.1.tgz
+    repo-dependencies:
+      /ws/builder/kernel-module-management:
+        repository: https://github.com/pensando/kernel-module-management
+        reference: main
 
   build-gpu-operator-openshift:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
@@ -25,6 +33,10 @@ builds:
     owners: ["email:mharkara@amd.com"]
     artifacts:
      - /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-0.0.1.tgz
+    repo-dependencies:
+      /ws/builder/kernel-module-management:
+        repository: https://github.com/pensando/kernel-module-management
+        reference: main
 
 targets:
   gpu-operator-sanity:

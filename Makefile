@@ -461,14 +461,19 @@ gen-kmm-charts-openshift:
 	rm -rf /tmp/kmm
 
 gen-kmm-charts-k8s:
+ifdef JOB_ID
+	@echo "Running in CI"
+	$(KUSTOMIZE) build /ws/builder/kernel-module-management/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
+else
 	rm -rf /tmp/kmm && git clone https://github.com/pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
+	rm -rf /tmp/kmm
+endif
 	mkdir helm-charts-k8s/charts/kmm/crds
 	@for file in $(K8S_KMM_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-k8s/charts/kmm -s templates/$$file > helm-charts-k8s/charts/kmm/crds/$$file; \
 		rm helm-charts-k8s/charts/kmm/templates/$$file; \
 	done
-	rm -rf /tmp/kmm
 
 cert-manager-install:
 	helm repo add jetstack https://charts.jetstack.io --force-update
