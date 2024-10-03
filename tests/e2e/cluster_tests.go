@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	"os/exec"
 	"os/user"
 	"strings"
 	"time"
+
+	"github.com/pensando/gpu-operator/internal/metricsexporter"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -84,7 +85,7 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 			return false
 		}
 
-		log.Infof("node-labeller: %s status %+v", ds.Name, ds.Status)
+		log.Infof(" node-labeller: %s status %+v", ds.Name, ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
 	}, 5*time.Minute, 5*time.Second)
 }
@@ -783,6 +784,36 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	s.verifyROCMPOD(true, c)
 	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount)
 	assert.NoError(c, err, fmt.Sprintf("%v", err))
+
+	// delete
+	s.deleteDeviceConfig(c)
+
+	s.verifyROCMPOD(false, c)
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
+	if s.noamdgpu {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	// do not specify driver version
+	devCfg.Spec.DriversVersion = ""
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
+	assert.NoError(c, err, "failed to deploy pods")
+	s.verifyROCMPOD(true, c)
 
 	// delete
 	s.deleteDeviceConfig(c)

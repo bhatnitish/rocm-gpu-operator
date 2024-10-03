@@ -83,6 +83,9 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 		}, 5*time.Minute, 5*time.Second)
 	}
 
+	if err := utils.DeleteNodeAppDaemonSet(s.clientSet); err != nil {
+		log.Infof("%v", err)
+	}
 	if err := utils.DeployNodeAppDaemonSet(cs); err != nil {
 		c.Fatalf(err.Error())
 	}
