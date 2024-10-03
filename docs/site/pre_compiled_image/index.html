@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Pre-Compiled Driver Image - AMD GPU OPERATOR</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Pre-Compiled Driver Image";
+        var mkdocs_page_input_path = "pre_compiled_image.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> AMD GPU OPERATOR
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Components</a>
+    <ul>
+                <li class="toctree-l2"><a class="" href="../nfd.md">Node Feature Discovery</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../kmm.md">Kernel Module Management</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../operator.md">AMD GPU Operator</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../device_plugin.md">Device Plugin</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../node_labeller.md">Node Labeller</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../metrics_exporter.md">Metrics Exporter</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Install</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="" href="../vanilla_k8s_deploy_helm.md">Vanilla Kubernetes - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../openshift_deploy_helm.md">OpenShift - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_olm/">OpenShift - OLM bundle</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Deploy Driver</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../driver_install/">Install Driver</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="./">Pre-Compiled Driver Image</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#background">Background</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#how-to-prepare-pre-compiled-image">How to Prepare Pre-compiled image</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#1-select-base-image">1. Select base image:</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#2-install-the-driver-kernel-module">2. Install the driver kernel module</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#3-update-kernel-module-dependency-map">3. Update kernel module dependency map</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#4-pick-up-necessary-files">4. Pick up necessary files</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#5-run-docker-build-command-to-build-the-image-based-on-prepare-dockerfile">5. Run docker build command to build the image based on prepare dockerfile</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#6-tag-the-prepared-image-properly">6. Tag the prepared image properly</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#7-push-the-newly-built-image-to-users-private-registry">7. Push the newly built image to users private registry</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#test-prepared-image">Test prepared image</a>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../secure_boot/">Secure Boot Driver Image</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Upgrade</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../operator_upgrade.md">Upgrade Operator</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_upgrade/">Upgrade Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../kernel_upgrade.md">Upgrade Kernel</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Uninstall</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../driver_unload.md">Unload Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../operator_uninstall.md">Uninstall Operator</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../troubleshoot.md">TroubleShooting</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../http_proxy.md">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../airgapped_network.md">Air-Gapped Network</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">AMD GPU OPERATOR</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Install &raquo;</li>
+          <li>Deploy Driver &raquo;</li>
+      <li>Pre-Compiled Driver Image</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/pre_compiled_image.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="prepare-pre-compiled-amd-gpu-driver-kernel-module-image">Prepare Pre-compiled AMD GPU Driver Kernel Module Image</h1>
+<h2 id="background">Background</h2>
+<ul>
+<li>
+<p>AMD GPU Operator is targeting for deploying AMD GPU driver kernel module on worker nodes within Kubernetes-based cluster and it is using Kernel Module Management (KMM) Operator as dependency to achieve its functionalities.</p>
+</li>
+<li>
+<p>Different worker node may have different Operating System installed, such as different Linux distro, OS release version and kernel version, etc. </p>
+</li>
+<li>
+<p>For worker nodes with any specific combination of OS spec (e.g. Ubuntu 22.04 6.8.0-40-generic), it would require the incoming kernel module built by exactly the same environment, to make sure the kernel module could be loaded successfully.</p>
+</li>
+<li>
+<p>AMD GPU Operator will select the worker nodes based on user input selector, then read their OS info and get all combinations of these specs then submit the information to KMM.</p>
+</li>
+</ul>
+<pre><code>Linux distros
+OS release version
+Kernel version 
+</code></pre>
+<ul>
+<li>
+<p>KMM will read through all the combinations of aforementioned system spec, plus user asked AMD GPU driver version, to check whether corresponding driver image exists or not in the registry based on image tag.</p>
+<ul>
+<li>Example 1: Users select worker node with Ubuntu 22.04 + linux kernel <code>6.8.0-40-generic</code> and want to install driver with ROCM version 6.1.3, KMM would look for tag <code>ubuntu-22.04-6.8.0-40-generic-6.1.3</code></li>
+<li>Example 2: Users select worker node with RedHat CoreOS 416.94 + linux kernel <code>5.14.0-427.28.1.el9_4.x86_64</code> and want to install driver with ROCM version 6.1.1, KMM would look for tag <code>coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1</code></li>
+</ul>
+</li>
+<li>
+<p>There are 2 situations that the driver image could exist or doesn't exist when users push the custom resource to the Kubernetes cluster:</p>
+<ul>
+<li>If the driver image tag doesn't exist, KMM would build the driver image within the cluster, by using AMD GPU Operator pre-defined Dockerfile. After the image build the image would be used to install the driver kernel module.</li>
+<li>If the driver image tag already exists, KMM would directly pull the existing driver image within the worker pod and install the driver kernel module within the driver image.</li>
+</ul>
+</li>
+<li>
+<p>Users could prepare / download the pre-compiled AMD GPU driver image and tag them properly to let the operator directly pick up the existing driver image, then skip building the driver image.</p>
+</li>
+</ul>
+<h2 id="how-to-prepare-pre-compiled-image">How to Prepare Pre-compiled image</h2>
+<p>Here is a Dockerfile example of building AMD GPU driver image, the eaxct steps may differ for other linux distros / release version:</p>
+<pre><code>FROM ubuntu:$$VERSION as builder
+
+ARG KERNEL_FULL_VERSION
+
+ARG DRIVERS_VERSION
+
+ARG REPO_URL
+
+RUN apt-get update &amp;&amp; apt-get install -y bc \
+    bison \
+    flex \
+    libelf-dev \
+    gnupg \
+    wget \
+    git \
+    make \
+    gcc \
+    linux-headers-${KERNEL_FULL_VERSION} \
+    linux-modules-extra-${KERNEL_FULL_VERSION}
+
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+
+RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg &gt; /dev/null
+
+RUN echo &quot;deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main&quot; \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+RUN apt-get update &amp;&amp; apt-get install -y amdgpu-dkms
+
+RUN depmod ${KERNEL_FULL_VERSION}
+
+FROM ubuntu:$$VERSION
+
+ARG KERNEL_FULL_VERSION
+
+RUN apt-get update &amp;&amp; apt-get install -y kmod
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu
+</code></pre>
+<h4 id="1-select-base-image">1. Select base image:</h4>
+<p>Users need to know the OS information of the worker nodes of their clusters, then pick up corresponding base image to build the driver image. For example, if the worker nodes are using Ubuntu 22.04, users need to pick up ubuntu:22.04 as the base image to prepare the driver image.</p>
+<pre><code>FROM ubuntu:22.04 as builder
+</code></pre>
+<h4 id="2-install-the-driver-kernel-module">2. Install the driver kernel module</h4>
+<p>AMD GPU DKMS driver kernel module needs to be installed within the builder container during image preparation. In the above example, Ubuntu native package manager is used to install <code>amdgpu-dkms</code> package. Other linux distros may require other package manager / other installation method to install the AMD GPU dkms driver.</p>
+<pre><code>RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg &gt; /dev/null
+
+RUN echo &quot;deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main&quot; \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+RUN apt-get update &amp;&amp; apt-get install -y amdgpu-dkms
+</code></pre>
+<h4 id="3-update-kernel-module-dependency-map">3. Update kernel module dependency map</h4>
+<p>After installing the new kernel module, updating the modules dependency map is required in order to record the new dependency mapping. </p>
+<pre><code>RUN depmod ${KERNEL_FULL_VERSION}
+</code></pre>
+<h4 id="4-pick-up-necessary-files">4. Pick up necessary files</h4>
+<p>After installing dkms driver in builder container, not all the system kernel modules are required to install <code>amdgpu</code> module and saving the whole builder container would cost large storage space of the image registry. Moving necessary files only to the final container and convert them to be the eventual image would be a better choice.</p>
+<pre><code>RUN apt-get update &amp;&amp; apt-get install -y kmod
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu
+</code></pre>
+<p>Explanation:</p>
+<ul>
+<li>Installing kmod utility is required since KMM worker would use the utility later to do <code>modprobe</code> operations on <code>amdgpu</code> kernel module.</li>
+</ul>
+<pre><code>RUN apt-get update &amp;&amp; apt-get install -y kmod
+</code></pre>
+<ul>
+<li>
+<p>AMD GPU operator asks KMM to look for the <code>amdgpu</code> at the path <code>/opt</code>, so all <code>amdgpu</code> related kernel module files (for example: <code>.ko</code> and <code>modules.*</code> files) need to be copied to <code>/opt/lib/modules/${KERNEL_FULL_VERSION}/</code> folder, where <code>${KERNEL_FULL_VERSION}</code> is the linux kernel version full name of users worker nodes (e.g. <code>6.8.0-40-generic</code>).</p>
+</li>
+<li>
+<p>Some firmware files could be required during loading the kernel module, by default the system would look for corresponding firmware from <code>/lib/firmware</code>. AMD GPU operator asks KMM to add <code>/firmwareDir/updates</code> into the system's firmware search path, in that way all related <code>amdgpu</code> firmware files should be copied into <code>/firmwareDir/udpates</code> of the driver image</p>
+</li>
+</ul>
+<h4 id="5-run-docker-build-command-to-build-the-image-based-on-prepare-dockerfile">5. Run <code>docker build</code> command to build the image based on prepare dockerfile</h4>
+<h4 id="6-tag-the-prepared-image-properly">6. Tag the prepared image properly</h4>
+<p>After building the driver image, the image tag should follow the following pattern:</p>
+<pre><code>&lt;linux distro&gt;-&lt;OS version&gt;-&lt;kernel version&gt;-&lt;ROCM version&gt;
+</code></pre>
+<p>For example, if the prepared image is for worker nodes with Ubuntu 22.04 + kernel 6.8.0-40-generic (can be queried on the worker node by running <code>uname -r</code>) + ROCM 6.1.3, the image tag should be <code>ubuntu-22.04-6.8.0-40-generic-6.1.3</code></p>
+<p>Use <code>docker tag</code> command to tag the newly built image</p>
+<h4 id="7-push-the-newly-built-image-to-users-private-registry">7. Push the newly built image to users private registry</h4>
+<h2 id="test-prepared-image">Test prepared image</h2>
+<p>In the DeviceConfig custom resource, configure <code>driversImage</code> field to the registry that is storing the prepared pre-compile images.</p>
+<p>For example, if users push the pre-compiled image to <code>docker.io/username/amdgpu_driver_image:ubuntu-22.04-6.8.0-40-generic-6.1.3</code>, the DeviceConfig yaml should be:</p>
+<pre><code>apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-device-config
+  namespace: kube-amd-gpu
+spec:
+  # Specify driver image here
+  # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for users
+  driversImage: docker.io/username/amdgpu_driver_image
+
+  # Specify the credential for users private registry if it requires credential to get pull/push access, users can create the docker-registry type secret by running command like:
+  # kubectl create secret docker-registry mySecret -n kube-amd-gpu --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
+  imageRepoSecret:
+    name: mySecret
+
+  devicePluginImage: rocm/k8s-device-plugin:latest
+  nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+  driversVersion: &quot;6.1.3&quot;
+  selector:
+    feature.node.kubernetes.io/amd-gpu: &quot;true&quot;
+</code></pre>
+<p>After creating the custom resource, cluster would skip building procedure and directly pick up the pre-compiled image.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../driver_install/" class="btn btn-neutral float-left" title="Install Driver"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../secure_boot/" class="btn btn-neutral float-right" title="Secure Boot Driver Image">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/pensando/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../driver_install/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../secure_boot/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

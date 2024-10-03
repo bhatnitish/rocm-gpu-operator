@@ -20,48 +20,49 @@ For method 2, users could prepare a image signing key pair and registry the publ
     * A valid public/private key pair in the correct (der) format, for example the key pair could be created by running ```openssl req -x509 -new -nodes -utf8 -sha256 -days 36500 -batch -outform DER -out my_signing_key_pub.der -keyout my_signing_key.priv```
     * All secure boot enabled worker nodes have the public key registered within MOK database
 
-* Add key pair for signing
+* Encode the key pair:
+```
+cat my_signing_key.priv | base64 -w 0  > my_signing_key2.base64
+cat my_signing_key_pub.der | base64 -w 0 > my_signing_key_pub.base64
+``` 
+Save the encoded string and put them into the secret later. 
+   
+  * Prepare the secrets: 
 
-    * Encode the key pair:
-    ```
-    cat my_signing_key.priv | base64 -w 0  > my_signing_key2.base64
-    cat my_signing_key_pub.der | base64 -w 0 > my_signing_key_pub.base64
-    ```
-    * Prepare the secrets:
-    ```
-    apiVersion: v1
-    kind: Secret
-    metadata:
-    name: my-signing-key-pub
-    namespace: default
-    type: Opaque
-    data:
-    cert: <base64 encoded secureboot public key>
-    ---
-    apiVersion: v1
-    kind: Secret
-    metadata:
+```
+apiVersion: v1
+kind: Secret
+metadata:
+name: my-signing-key-pub
+namespace: <operator namespace>
+type: Opaque
+data:
+cert: <base64 encoded secureboot public key>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+name: my-signing-key
+namespace: <operator namespace>
+type: Opaque
+data:
+key: <base64 encoded secureboot private key>
+```
+    
+* Create the secrets: ```kubectl apply -f <secrets yaml file>```
+    
+* Specify secret name in ```DeviceConfig```:
+    
+```
+metadata:
+  ...
+spec:
+  ...
+  imageSignKeySecret:
     name: my-signing-key
-    namespace: default
-    type: Opaque
-    data:
-    key: <base64 encoded secureboot private key>
-    ```
-    * Create the secrets:
-    ```
-    kubectl apply -f <secrets yaml file>
-    ```
-    * Specify secret name in ```DeviceConfig```:
-    ```
-    metadata:
-      ...
-    spec:
-      ...
-      imageSignKeySecret:
-        name: my-signing-key
-      imageSignCertSecret:
-        name: my-signing-key-pub
-    ```
+  imageSignCertSecret:
+    name: my-signing-key-pub
+```
 
 By following aforementioned steps, the operator would build the image within the cluster firstly, then sign the kernel module of the newly built image, ultimately use the newly built + signed image to load the AMD GPU driver kernel module on worker nodes.
 

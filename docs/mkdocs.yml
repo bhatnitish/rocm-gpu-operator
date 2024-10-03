@@ -1,0 +1,37 @@
+site_name: AMD GPU OPERATOR
+nav:
+  - Introduction: index.md
+  - Architecture:
+    - Components:
+      - Node Feature Discovery: nfd.md
+      - Kernel Module Management: kmm.md
+      - AMD GPU Operator: operator.md
+      - Device Plugin: device_plugin.md
+      - Node Labeller: node_labeller.md
+      - Metrics Exporter: metrics_exporter.md
+  - Install:
+    - Install Operator:
+        - Vanilla Kubernetes - Helm Charts: vanilla_k8s_deploy_helm.md
+        - OpenShift - Helm Charts: openshift_deploy_helm.md
+        - OpenShift - OLM bundle: openshift_deploy_olm.md
+    - Deploy Driver:
+      - Install Driver: driver_install.md
+      - Pre-Compiled Driver Image: pre_compiled_image.md
+      - Secure Boot Driver Image: secure_boot.md
+  - Upgrade:
+    - Upgrade Operator: operator_upgrade.md
+    - Upgrade Driver: driver_upgrade.md
+    - Upgrade Kernel: kernel_upgrade.md
+  - Uninstall:
+    - Unload Driver: driver_unload.md
+    - Uninstall Operator: operator_uninstall.md
+  - TroubleShooting: troubleshoot.md
+  - Specialized Networks:
+    - HTTP Proxy: http_proxy.md
+    - Air-Gapped Network: airgapped_network.md
+theme: readthedocs
+markdown_extensions:
+  - admonition
+repo_url: https://github.com/pensando/gpu-operator
+edit_uri: blob/main/docs/docs/
+copyright: Copyright © 2024-2025, Advanced Micro Devices, Inc.

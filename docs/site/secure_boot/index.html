@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Secure Boot Driver Image - AMD GPU OPERATOR</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Secure Boot Driver Image";
+        var mkdocs_page_input_path = "secure_boot.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> AMD GPU OPERATOR
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Components</a>
+    <ul>
+                <li class="toctree-l2"><a class="" href="../nfd.md">Node Feature Discovery</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../kmm.md">Kernel Module Management</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../operator.md">AMD GPU Operator</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../device_plugin.md">Device Plugin</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../node_labeller.md">Node Labeller</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../metrics_exporter.md">Metrics Exporter</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Install</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="" href="../vanilla_k8s_deploy_helm.md">Vanilla Kubernetes - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../openshift_deploy_helm.md">OpenShift - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_olm/">OpenShift - OLM bundle</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Deploy Driver</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../driver_install/">Install Driver</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../pre_compiled_image/">Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="./">Secure Boot Driver Image</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#image-signing-with-the-operator">Image signing with the Operator</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#troubleshooting">TroubleShooting</a>
+    </li>
+    </ul>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Upgrade</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../operator_upgrade.md">Upgrade Operator</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_upgrade/">Upgrade Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../kernel_upgrade.md">Upgrade Kernel</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Uninstall</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../driver_unload.md">Unload Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../operator_uninstall.md">Uninstall Operator</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../troubleshoot.md">TroubleShooting</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../http_proxy.md">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../airgapped_network.md">Air-Gapped Network</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">AMD GPU OPERATOR</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Install &raquo;</li>
+          <li>Deploy Driver &raquo;</li>
+      <li>Secure Boot Driver Image</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/secure_boot.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="secure-boot">Secure Boot</h1>
+<p>Secure boot is one mechanism to protect a system against malicious code being loaded and executed early in the boot process, before the operating system has been loaded. Fore more information, please take a look at <a href="https://wiki.debian.org/SecureBoot">here</a>. For how to sign the kernel module manually, please refer to <a href="https://ubuntu.com/blog/how-to-sign-things-for-secure-boot">Ubuntu Tutorial</a> or <a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/managing_monitoring_and_updating_the_kernel/signing-a-kernel-and-modules-for-secure-boot_managing-monitoring-and-updating-the-kernel">RedHat Linux Tutorial</a>.</p>
+<p>If users worker nodes have secure boot enabled, the system would have more security restrictions to load kernel module. The incoming kernel module must be signed with a valid key pair and the public key must be registered with Machine Owner Key (MOK) database. Otherwise the system would reject loading the kernel module.</p>
+<p>As for AMD GPU Operator, there are 2 different methods to get the driver image:</p>
+<ol>
+<li>Users prepare their own driver image and sign the kernel module by themselves.</li>
+<li>Users ask AMD GPU Operator to build the driver image within the Kubernetes cluster.</li>
+</ol>
+<p>For method 1, users are responsible to sign the kernel module correctly within the prepared driver image and make sure the signing public key has been registered on all selected worker nodes. Users could refer to the links mentioned above to do the kernel module signing.</p>
+<p>For method 2, users could prepare a image signing key pair and registry the public key with MOK database, then ask for AMD GPU Operator to sign the kernel module.</p>
+<h3 id="image-signing-with-the-operator">Image signing with the Operator</h3>
+<ul>
+<li>
+<p>Prerequisites:</p>
+<ul>
+<li>A valid public/private key pair in the correct (der) format, for example the key pair could be created by running <code>openssl req -x509 -new -nodes -utf8 -sha256 -days 36500 -batch -outform DER -out my_signing_key_pub.der -keyout my_signing_key.priv</code></li>
+<li>All secure boot enabled worker nodes have the public key registered within MOK database</li>
+</ul>
+</li>
+<li>
+<p>Encode the key pair:</p>
+</li>
+</ul>
+<pre><code>cat my_signing_key.priv | base64 -w 0  &gt; my_signing_key2.base64
+cat my_signing_key_pub.der | base64 -w 0 &gt; my_signing_key_pub.base64
+</code></pre>
+<p>Save the encoded string and put them into the secret later. </p>
+<ul>
+<li>Prepare the secrets: </li>
+</ul>
+<pre><code>apiVersion: v1
+kind: Secret
+metadata:
+name: my-signing-key-pub
+namespace: &lt;operator namespace&gt;
+type: Opaque
+data:
+cert: &lt;base64 encoded secureboot public key&gt;
+---
+apiVersion: v1
+kind: Secret
+metadata:
+name: my-signing-key
+namespace: &lt;operator namespace&gt;
+type: Opaque
+data:
+key: &lt;base64 encoded secureboot private key&gt;
+</code></pre>
+<ul>
+<li>
+<p>Create the secrets: <code>kubectl apply -f &lt;secrets yaml file&gt;</code></p>
+</li>
+<li>
+<p>Specify secret name in <code>DeviceConfig</code>:</p>
+</li>
+</ul>
+<pre><code>metadata:
+  ...
+spec:
+  ...
+  imageSignKeySecret:
+    name: my-signing-key
+  imageSignCertSecret:
+    name: my-signing-key-pub
+</code></pre>
+<p>By following aforementioned steps, the operator would build the image within the cluster firstly, then sign the kernel module of the newly built image, ultimately use the newly built + signed image to load the AMD GPU driver kernel module on worker nodes.</p>
+<h3 id="troubleshooting">TroubleShooting</h3>
+<p>If the KMM operator worker failed to load the kernel module due to errors like <code>modprobe: ERROR: could not insert '&lt;your kmod name&gt;': Required key not available</code> or <code>modprobe: ERROR: could not insert 'amdgpu': Operation not permitted</code>, the possible situations could be:
+* The kernel modules within the driver image were not signed
+* The kernel modules were signed with wrong key
+* The public key was not registered within the worker node's MOK database correctly</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../pre_compiled_image/" class="btn btn-neutral float-left" title="Pre-Compiled Driver Image"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../driver_upgrade/" class="btn btn-neutral float-right" title="Upgrade Driver">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/pensando/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../pre_compiled_image/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../driver_upgrade/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

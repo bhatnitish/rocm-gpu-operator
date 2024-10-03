@@ -98,14 +98,15 @@ status:
     desiredNumber: 1               # number of nodes that is expected to deploy new amdgpu driver
     nodesMatchingSelectorNumber: 1 # number of nodes selected by node selector
   nodeModuleStatus:                # per node status of installing driver
-    leto:                          # cluster's Node resource name
+    leto:                          # Node resource name
       containerImage: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
       kernelVersion: 6.5.0-44-generic
       lastTransitionTime: 2024-08-12 12:37:03 +0000 UTC
 ```
 
-> [!WARNING]
-> Uninstalling the AMD GPU driver by deleting the DeviceConfig requires all the resources when the same DeviceConfig got created, including the image registry, driver images, secret for the registry access. In that way, after the creation of DeviceConfig and successful installation of drivers, users need to make sure don't remove any driver image within the image registry, or any registry credential secret within the Kubernetes cluster. Any unexpected deletion of the resource could result in the failure of uninstalling the driver on worker nodes.
+!!! warning
+    
+    Uninstalling the AMD GPU driver by deleting the DeviceConfig requires all the resources when the same DeviceConfig got created, including the image registry, driver images, secret for the registry access. In that way, after the creation of DeviceConfig and successful installation of drivers, users need to make sure don't remove any driver image within the image registry, or any registry credential secret within the Kubernetes cluster. Any unexpected deletion of the resource could result in the failure of uninstalling the driver on worker nodes.
 
 
 

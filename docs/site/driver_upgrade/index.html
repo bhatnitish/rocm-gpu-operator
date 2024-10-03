@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Upgrade Driver - AMD GPU OPERATOR</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Upgrade Driver";
+        var mkdocs_page_input_path = "driver_upgrade.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> AMD GPU OPERATOR
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Components</a>
+    <ul>
+                <li class="toctree-l2"><a class="" href="../nfd.md">Node Feature Discovery</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../kmm.md">Kernel Module Management</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../operator.md">AMD GPU Operator</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../device_plugin.md">Device Plugin</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../node_labeller.md">Node Labeller</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../metrics_exporter.md">Metrics Exporter</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Install</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="" href="../vanilla_k8s_deploy_helm.md">Vanilla Kubernetes - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="" href="../openshift_deploy_helm.md">OpenShift - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_olm/">OpenShift - OLM bundle</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Deploy Driver</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../driver_install/">Install Driver</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../pre_compiled_image/">Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../secure_boot/">Secure Boot Driver Image</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Upgrade</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="" href="../operator_upgrade.md">Upgrade Operator</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Upgrade Driver</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#1-check-existing-node-resource-labels">1. Check existing Node resource labels</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-update-driver-version-on-deviceconfig">2. Update driver version on DeviceConfig</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-stop-the-workload-on-worker-node">3. Stop the workload on worker node</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-remove-old-driver-version-label-from-node-resource">4. Remove old driver version label from Node resource</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-perform-maintaince-on-the-worker-node">5. Perform maintaince on the worker node</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-add-new-driver-version-label-to-node-resource">6. Add new driver version label to Node resource</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-bring-up-workload-on-worker-node">7. Bring up workload on worker node</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../kernel_upgrade.md">Upgrade Kernel</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Uninstall</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../driver_unload.md">Unload Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../operator_uninstall.md">Uninstall Operator</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../troubleshoot.md">TroubleShooting</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../http_proxy.md">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../airgapped_network.md">Air-Gapped Network</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">AMD GPU OPERATOR</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Upgrade &raquo;</li>
+      <li>Upgrade Driver</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/driver_upgrade.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="driver-upgrade">Driver Upgrade</h1>
+<p>After the installation of AMD GPU driver on worker nodes, users could choose to upgrade the driver to a new version by following these steps:</p>
+<h3 id="1-check-existing-node-resource-labels">1. Check existing Node resource labels</h3>
+<p>After installing the drivers on selected worker nodes, the operator would automatically setup the driver version label on selected Node resource, it will be <code>kmm.node.kubernetes.io/version-module.&lt;deviceconfig-namespace&gt;.&lt;deviceconfig-name&gt;=driverVersion</code> and the Node resource labels could be queried by the commands like <code>kubectl get node worker1 -o yaml</code>. For example, if users deployed the driver version 6.1.3 by using a DeviceConfig named test-device-config under kube-amd-gpu namespace, the label would be <code>kmm.node.kubernetes.io/version-module.kube-amd-gpu.test-device-config=6.1.3</code>.</p>
+<h3 id="2-update-driver-version-on-deviceconfig">2. Update driver version on DeviceConfig</h3>
+<p>After verifying that all selected worker nodes have the version label configured properly, users could directly update the <code>driversVersion</code> field of the DeviceConfig custom resource. One example method to update the resource is to use command like <code>kubectl edit deviceconfigs myDeviceConfig -n kube-amd-gpu</code> then directly modify the YAML file and save it.</p>
+<p>After modifying the <code>driversVersion</code> field, the operator will start to look for new version driver image within the image registry and determine the image exists or not based on image tag. The image tag name was determined by the worker nodes OS spec:</p>
+<p>Example 1: Users select worker node with Ubuntu 22.04 + linux kernel <code>6.8.0-40-generic</code> and want to install driver with ROCM version 6.1.3, KMM would look for tag <code>ubuntu-22.04-6.8.0-40-generic-6.1.3</code></p>
+<p>Example 2: Users select worker node with RedHat CoreOS 416.94 + linux kernel <code>5.14.0-427.28.1.el9_4.x86_64</code> and want to install driver with ROCM version 6.1.1, KMM would look for tag <code>coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1</code></p>
+<ul>
+<li>
+<p>If the new version driver image doesn't exist, the KMM operator would start to build the driver image within the cluster and once finished push the newly built image to user specified registry.</p>
+</li>
+<li>
+<p>If the new version driver image already exists, the image building will be skipped.</p>
+</li>
+</ul>
+<h3 id="3-stop-the-workload-on-worker-node">3. Stop the workload on worker node</h3>
+<p>For each worker node that users want to upgrade the driver, users are responsible for stopping the workloads that are accessing the AMD GPU driver kernel module before unloading the old version driver.</p>
+<h3 id="4-remove-old-driver-version-label-from-node-resource">4. Remove old driver version label from Node resource</h3>
+<p>After stopping all the AMD GPU driver related workloads, users could remove the label <code>kmm.node.kubernetes.io/version-module.&lt;deviceconfig-namespace&gt;.&lt;deviceconfig-name&gt;=oldDriverVersion</code> from Node resource. This step will trigger the uninstallation of the old version driver from the worker node.</p>
+<h3 id="5-perform-maintaince-on-the-worker-node">5. Perform maintaince on the worker node</h3>
+<p>After uninstalling the old version driver kernel module from worker node, users could perform any additional maintainance of the worker node for the driver upgrade if it is required.</p>
+<h3 id="6-add-new-driver-version-label-to-node-resource">6. Add new driver version label to Node resource</h3>
+<p>Add the new driver version label <code>kmm.node.kubernetes.io/version-module.&lt;deviceconfig-namespace&gt;.&lt;deviceconfig-name&gt;=newDriverVersion</code> to the Node resource, where the <code>newDriverVersion</code> should be equal to the field <code>driversVersion</code> that has been updated in step 2. This step will trigger the installation of new version driver to the worker node.</p>
+<blockquote>
+<p>[!NOTE]
+If users don't need to perform any additional maintainance in step 5, step 5 can be skipped and step 4 and 6 can be merged, which means users could directly update the driver version label of the Node resource, instead of removing and recreating the label.</p>
+</blockquote>
+<h3 id="7-bring-up-workload-on-worker-node">7. Bring up workload on worker node</h3>
+<p>After successfully installing the new version driver on worker node, users could bring up the AMD GPU related workload again on the worker node.</p>
+<blockquote>
+<p>[!WARNING]
+After step 2 the DeviceConfig custom resource has been upgraded to new driver version. During the driver upgrade of the cluster, if any worker node's ready status got reloaded (Ready -&gt; NotReady -&gt; Ready) unexpectedly (e.g. node reboot) and that worker node's driver version label hasn't been updated to new version. The old version driver won't be installed on the reloaded worker node. Users need to finish the upgrade steps on the reloaded worker node to install the new driver.</p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../secure_boot/" class="btn btn-neutral float-left" title="Secure Boot Driver Image"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/pensando/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../secure_boot/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

@@ -1,5 +1,8 @@
 # AMD GPU operator
 
+<img src="docs/docs/imgs/amd_logo.jpg" alt="AMD" style="width:220px; height:auto;">
+<img src="docs/docs/imgs/k8s_logo.png" alt="Kubernetes" style="width:100px; height:auto;">
+
   Explore the power of AMD Instinct GPU accelerators within your Kubernetes(k8s) cluster with the AMD GPU Operator. This documentation is your go-to resource to enable, configure, and run accelerated workloads with your AMD Instinct GPU accelerators. The AMD GPU Operator lets you seamlessly harness computing capabilities for machine learning, Generative AI, and GPU-accelerated applications.
 
 ## Developer Guidelines
@@ -19,7 +22,7 @@ Download the relased binary from [Helmify GitHub repo release page](https://gith
 4. Compile the project:
 Run ```make``` to generate the basic yaml files for CRD and build controller images
 
-5. Get an overview of the repository's [project layout](docs/project_layout.md)
+5. Get an overview of the repository's [project layout](docs/docs/project_layout.md)
 
 (Optional) If you did any customized change on the AMD GPU Operator, use the following steps to apply your modification and prepare a new image + helm charts:
 * Modify the registry related variables in ```Makefile```, use your own registry: 
@@ -437,6 +440,27 @@ LAST SEEN   TYPE      REASON         OBJECT                                     
 6m52s       Normal    Created        Pod/test-device-config-build-8jqdm                 Created container kaniko
 6m52s       Normal    Started        Pod/test-device-config-build-8jqdm                 Started container kaniko
 6m50s       Warning   BuildFailed    Module/test-device-config                          Build job failed for kernel 6.8.0-40-generic
+```
 
+## Deploy and Modify Documentation Website
+
+* Download mkdocs utilities
 
 ```
+python3 -m pip install mkdocs
+```
+
+* Build the website
+
+```
+cd docs
+ python3 -m mkdocs build
+```
+
+* Deploy the website 
+
+```
+python3 -m mkdocs serve --dev-addr localhost:2345
+```
+
+* Modify the markdown document, the website will be lively refreshed with latest change.
