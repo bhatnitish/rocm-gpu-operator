@@ -67,6 +67,10 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			Name:      "sys-volume",
 			MountPath: "/sys",
 		},
+		{
+			Name:      "pod-resources",
+			MountPath: "/var/lib/kubelet/pod-resources",
+		},
 	}
 
 	hostPathDirectory := v1.HostPathDirectory
@@ -86,6 +90,15 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
 					Path: "/sys",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "pod-resources",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/var/lib/kubelet/pod-resources",
 					Type: &hostPathDirectory,
 				},
 			},
