@@ -210,7 +210,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		kmlog.Info("skip driver install/uninstall")
 	}
 
-	kernelMappings, err := getKernelMappings(devConfig, isOpenshift, nodes)
+	kernelMappings, driversVersion, err := getKernelMappings(devConfig, isOpenshift, nodes)
 	if err != nil {
 		return err
 	}
@@ -237,42 +237,47 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		Version:        devConfig.Spec.DriversVersion,
 		KernelMappings: kernelMappings,
 	}
+	if mod.Spec.ModuleLoader.Container.Version == "" {
+		mod.Spec.ModuleLoader.Container.Version = driversVersion
+	}
 	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
 	mod.Spec.ImageRepoSecret = devConfig.Spec.ImageRepoSecret
 	mod.Spec.Selector = getNodeSelector(devConfig)
 	return nil
 }
 
-func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) ([]kmmv1beta1.KernelMapping, error) {
+func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) ([]kmmv1beta1.KernelMapping, string, error) {
 
 	inTreeModuleToRemove := ""
 
 	if nodes == nil || len(nodes.Items) == 0 {
-		return nil, fmt.Errorf("No nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
+		return nil, "", fmt.Errorf("No nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
 	}
 	kernelMappings := []kmmv1beta1.KernelMapping{}
 	kmSet := map[string]bool{}
+	var driversVersion string
 	for _, node := range nodes.Items {
-		km, err := getKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
+		km, ver, err := getKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
 		if err != nil {
-			return nil, fmt.Errorf("error constructing a kernel mapping for node: %s, err: %v", node.Name, err)
+			return nil, driversVersion, fmt.Errorf("error constructing a kernel mapping for node: %s, err: %v", node.Name, err)
 		}
 		if kmSet[km.Literal] {
 			continue
 		}
 		kernelMappings = append(kernelMappings, km)
 		kmSet[km.Literal] = true
+		driversVersion = ver
 	}
-	return kernelMappings, nil
+	return kernelMappings, driversVersion, nil
 }
 
-func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, error) {
+func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, string, error) {
 	driversVersion := devConfig.Spec.DriversVersion
 	driversImage := devConfig.Spec.DriversImage
 	var err error
 	osName, err := GetOSName(node, devConfig)
 	if err != nil {
-		return kmmv1beta1.KernelMapping{}, err
+		return kmmv1beta1.KernelMapping{}, "", err
 	}
 
 	if isOpenShift {
@@ -287,7 +292,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversVersion == "" {
 			driversVersion, err = getDefaultDriversVersion(node)
 			if err != nil {
-				return kmmv1beta1.KernelMapping{}, err
+				return kmmv1beta1.KernelMapping{}, "", err
 			}
 		}
 		if driversImage == "" {
@@ -331,7 +336,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 			},
 		},
 		Sign: kmmSign,
-	}, nil
+	}, driversVersion, nil
 }
 
 func addNodeInfoSuffixToImageTag(imgStr string, osName, driversVersion string) string {
