@@ -465,7 +465,7 @@ ifdef JOB_ID
 	@echo "Running in CI"
 	$(KUSTOMIZE) build /ws/builder/kernel-module-management/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 else
-	rm -rf /tmp/kmm && git clone https://github.com/pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm
+	rm -rf /tmp/kmm && git clone git@github.com:pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 	rm -rf /tmp/kmm
 endif
