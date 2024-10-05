@@ -489,3 +489,5 @@ clean-helm-openshift:
 clean-helm-k8s:
 	rm -rf $(shell pwd)/helm-charts-k8s
 
+copyrights:
+	GOFLAGS=-mod=mod go run tools/copyright/main.go
