@@ -490,4 +490,4 @@ clean-helm-k8s:
 	rm -rf $(shell pwd)/helm-charts-k8s
 
 copyrights:
-	GOFLAGS=-mod=mod go run tools/copyright/main.go
+	GOFLAGS=-mod=mod go run tools/build/copyright/main.go && ./tools/build/check-local-files.sh

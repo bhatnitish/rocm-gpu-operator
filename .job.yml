@@ -48,6 +48,12 @@ targets:
     owners: ["email:mharkara@amd.com"]
     area:
     sub-area:
+  copyright-checks:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make copyrights"]
+    owners: ["email:sajmera@amd.com"]
+    area:
+    sub-area:
+    feature:
 
 image:
   bind_dir: "/gpu-operator"
