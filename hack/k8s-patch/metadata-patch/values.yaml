@@ -60,3 +60,6 @@ nodeLabeller:
 metricsExporter:
   serviceAccount:
     annotations: {}
+global:
+  proxy:
+    env: {}

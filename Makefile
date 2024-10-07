@@ -367,6 +367,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	cp $(shell pwd)/hack/k8s-patch/template-patch/* $(shell pwd)/helm-charts-k8s/templates/
 	# Patching k8s helm chart kmm subchart
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
+	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/template-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/templates/
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..;
 	mkdir $(shell pwd)/helm-charts-k8s/crds
 	echo "moving crd yaml files to crds folder"
