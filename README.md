@@ -442,6 +442,34 @@ LAST SEEN   TYPE      REASON         OBJECT                                     
 6m50s       Warning   BuildFailed    Module/test-device-config                          Build job failed for kernel 6.8.0-40-generic
 ```
 
+## Setup HTTP Proxy
+
+In the Helm Chart, there is a section for users to specify the HTTP proxy configurations:
+
+```
+global:
+  proxy:
+    env: {}
+```
+the configuration could be applied in 2 ways:
+
+* Running ```helm install``` with ```--set``` options, for example:
+```
+--set global.proxy.env.HTTP_PROXY=http://myproxy.com:123  \
+--set global.proxy.env.HTTPS_PROXY=http://myproxy2.com:234 \
+--set global.proxy.env.NO_PROXY="10.1.2.3\,localhost"
+```
+
+* Prepare the values.yaml and added the following content to the yaml, then run helm install testRelease ./test.tgz -n testNamespace -f values.yaml:
+```
+global:
+  proxy:
+    env:
+      HTTP_PROXY: "http://myproxy.com:123"
+      HTTPS_PROXY: "http://myproxy2.com:234"
+      NO_PROXY: "10.1.2.3,localhost"
+```
+
 ## Deploy and Modify Documentation Website
 
 * Download mkdocs utilities
@@ -454,7 +482,7 @@ python3 -m pip install mkdocs
 
 ```
 cd docs
- python3 -m mkdocs build
+python3 -m mkdocs build
 ```
 
 * Deploy the website 
