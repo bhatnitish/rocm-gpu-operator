@@ -26,7 +26,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-09-27T05:25:33Z"
+    createdAt: "2024-10-05T04:39:54Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -73,6 +73,22 @@ spec:
         path: driversImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:driversImage
+      - description: driver image registry TLS setting for the container image
+        displayName: DriversImageRegistryTLS
+        path: driversImageRegistryTLS
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driversImageRegistryTLS
+      - description: If true, check if the container image already exists using plain
+          HTTP.
+        displayName: Insecure
+        path: driversImageRegistryTLS.insecure
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecure
+      - description: If true, skip any TLS server certificate validation
+        displayName: InsecureSkipTLSVerify
+        path: driversImageRegistryTLS.insecureSkipTLSVerify
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecureSkipTLSVerify
       - description: 'version of the drivers source code, can be used as part of image
           of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
           coreOS: el9-6.1.1'

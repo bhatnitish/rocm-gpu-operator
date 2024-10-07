@@ -69,6 +69,11 @@ type DeviceConfigSpec struct {
 	// +optional
 	DriversImage string `json:"driversImage,omitempty"`
 
+	// driver image registry TLS setting for the container image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DriversImageRegistryTLS",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:driversImageRegistryTLS"}
+	// +optional
+	DriversImageRegistryTLS RegistryTLS `json:"driversImageRegistryTLS,omitempty"`
+
 	// version of the drivers source code, can be used as part of image of dockerfile source image
 	// default value for different OS is: ubuntu: 6.1.3, coreOS: el9-6.1.1
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DriversVersion",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:driversVersion"}
@@ -121,6 +126,17 @@ type DeviceConfigSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RedhatSubscriptionPassword",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:redhatSubscriptionPassword"}
 	// +optional
 	RedhatSubscriptionPassword string `json:"redhatSubscriptionPassword,omitempty"`
+}
+
+type RegistryTLS struct {
+	// If true, check if the container image already exists using plain HTTP.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Insecure",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:insecure"}
+	// +optional
+	Insecure bool `json:"insecure,omitempty"`
+	// If true, skip any TLS server certificate validation
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="InsecureSkipTLSVerify",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:insecureSkipTLSVerify"}
+	// +optional
+	InsecureSkipTLSVerify bool `json:"insecureSkipTLSVerify,omitempty"`
 }
 
 type MetricsExporterSpec struct {

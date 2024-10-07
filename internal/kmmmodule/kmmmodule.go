@@ -332,6 +332,15 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		}
 	}
 
+	var registryTLS *kmmv1beta1.TLSOptions
+	if devConfig.Spec.DriversImageRegistryTLS.Insecure ||
+		devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify {
+		registryTLS = &kmmv1beta1.TLSOptions{
+			Insecure:              devConfig.Spec.DriversImageRegistryTLS.Insecure,
+			InsecureSkipTLSVerify: devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify,
+		}
+	}
+
 	return kmmv1beta1.KernelMapping{
 		Literal:              node.Status.NodeInfo.KernelVersion,
 		ContainerImage:       driversImage,
@@ -351,7 +360,8 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 				},
 			},
 		},
-		Sign: kmmSign,
+		Sign:        kmmSign,
+		RegistryTLS: registryTLS,
 	}, driversVersion, nil
 }
 
