@@ -29,7 +29,7 @@ copy_artifacts () {
 
 docker_build_push () {
     docker load -i /gpu-operator/amd-gpu-operator-latest.tar.gz
-    echo "FROM registry.test.pensando.io:5000/amd-gpu-operator:latest" | docker build --label HOURLY_TAG=$RELEASE -t "registry.test.pensando.io:5000/amd-gpu-operator:latest" -
+    docker inspect registry.test.pensando.io:5000/amd-gpu-operator:latest | grep "HOURLY"
     docker push registry.test.pensando.io:5000/amd-gpu-operator:latest
 }
 
