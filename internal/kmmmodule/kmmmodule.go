@@ -322,6 +322,15 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		repoURL = devConfig.Spec.RepoURL
 	}
 
+	var registryTLS *kmmv1beta1.TLSOptions
+	if devConfig.Spec.DriversImageRegistryTLS.Insecure ||
+		devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify {
+		registryTLS = &kmmv1beta1.TLSOptions{
+			Insecure:              devConfig.Spec.DriversImageRegistryTLS.Insecure,
+			InsecureSkipTLSVerify: devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify,
+		}
+	}
+
 	var kmmSign *kmmv1beta1.Sign
 	if devConfig.Spec.ImageSignKeySecret != nil &&
 		devConfig.Spec.ImageSignCertSecret != nil {
@@ -330,14 +339,8 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 			CertSecret:  devConfig.Spec.ImageSignCertSecret,
 			FilesToSign: getKmodsToSign(isOpenShift, node.Status.NodeInfo.KernelVersion),
 		}
-	}
-
-	var registryTLS *kmmv1beta1.TLSOptions
-	if devConfig.Spec.DriversImageRegistryTLS.Insecure ||
-		devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify {
-		registryTLS = &kmmv1beta1.TLSOptions{
-			Insecure:              devConfig.Spec.DriversImageRegistryTLS.Insecure,
-			InsecureSkipTLSVerify: devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify,
+		if registryTLS != nil {
+			kmmSign.UnsignedImageRegistryTLS = *registryTLS
 		}
 	}
 
