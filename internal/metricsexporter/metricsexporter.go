@@ -49,8 +49,14 @@ import (
 
 const (
 	defaultMetricsExporterImage = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
+	defaultKubeRbacProxyImage   = "quay.io/brancz/kube-rbac-proxy:v0.18.1"
 	servicePort                 = 5000
+	rbacServicePort             = 8443
+	nobodyUser                  = 65532
 	ExporterName                = "metrics-exporter"
+	KubeRbacName                = "kube-rbac-proxy"
+	defaultSAName               = "amd-gpu-operator-metrics-exporter"
+	kubeRbacSAName              = "amd-gpu-operator-metrics-exporter-rbac-proxy"
 )
 
 var metricsExporterLabelPair = []string{"app.kubernetes.io/name", ExporterName}
@@ -75,6 +81,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	if ds == nil {
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
 	}
+	mSpec := devConfig.Spec.MetricsExporter
 	containerVolumeMounts := []v1.VolumeMount{
 		{
 			Name:      "dev-volume",
@@ -122,13 +129,13 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		},
 	}
 
-	if devConfig.Spec.MetricsExporter.Config.Name != "" {
+	if mSpec.Config.Name != "" {
 		volumes = append(volumes, v1.Volume{
 			Name: "metrics-config-volume",
 			VolumeSource: v1.VolumeSource{
 				ConfigMap: &v1.ConfigMapVolumeSource{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: devConfig.Spec.MetricsExporter.Config.Name,
+						Name: mSpec.Config.Name,
 					},
 				},
 			},
@@ -146,21 +153,100 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	}
 	var nodeSelector map[string]string
 
-	if devConfig.Spec.MetricsExporter.Selector != nil {
-		nodeSelector = devConfig.Spec.MetricsExporter.Selector
+	if mSpec.Selector != nil {
+		nodeSelector = mSpec.Selector
 	} else {
 		nodeSelector = devConfig.Spec.Selector
 	}
 	nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 
-	svcPort := int32(servicePort)
-	if devConfig.Spec.MetricsExporter.Port > 0 {
-		svcPort = devConfig.Spec.MetricsExporter.Port
+	mxImage := defaultMetricsExporterImage
+	if mSpec.Image != "" {
+		mxImage = mSpec.Image
 	}
 
-	mxImage := defaultMetricsExporterImage
-	if devConfig.Spec.MetricsExporter.Image != "" {
-		mxImage = devConfig.Spec.MetricsExporter.Image
+	containers := []v1.Container{
+		{
+			Env: []v1.EnvVar{
+				{
+					Name: "DS_NODE_NAME",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{
+							FieldPath: "spec.nodeName",
+						},
+					},
+				},
+				{
+					Name:  "METRICS_EXPORTER_PORT",
+					Value: fmt.Sprintf("%v", int32(servicePort)),
+				},
+			},
+			Name:            ExporterName + "-container",
+			WorkingDir:      "/root",
+			Image:           mxImage,
+			SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+			VolumeMounts:    containerVolumeMounts,
+		},
+	}
+
+	serviceaccount := defaultSAName
+
+	if mSpec.RbacConfig.Enable {
+		// Bind service port to localhost only
+		containers[0].Args = []string{"--bind=127.0.0.1:" + fmt.Sprintf("%v", int32(servicePort))}
+
+		kubeImage := defaultKubeRbacProxyImage
+		if mSpec.RbacConfig.Image != "" {
+			kubeImage = mSpec.RbacConfig.Image
+		}
+
+		args := []string{
+			"--upstream=http://127.0.0.1:" + fmt.Sprintf("%v", int32(servicePort)),
+			"--logtostderr=true",
+			"--v=10",
+		}
+
+		volumeMounts := []v1.VolumeMount{}
+		if mSpec.RbacConfig.DisableHttps {
+			args = append(args, "--insecure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(rbacServicePort)))
+		} else {
+			args = append(args, "--secure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(rbacServicePort)))
+
+			// Load the tls-certs if provided
+			if mSpec.RbacConfig.Secret != nil {
+				volumes = append(volumes, v1.Volume{
+					Name: "tls-certs",
+					VolumeSource: v1.VolumeSource{
+						Secret: &v1.SecretVolumeSource{
+							SecretName: mSpec.RbacConfig.Secret.Name,
+						},
+					},
+				})
+
+				volumeMounts = append(volumeMounts, v1.VolumeMount{
+					Name:      "tls-certs",
+					MountPath: "/etc/tls",
+					ReadOnly:  true,
+				})
+
+				args = append(args, "--tls-cert-file=/etc/tls/tls.crt")
+				args = append(args, "--tls-private-key-file=/etc/tls/tls.key")
+			}
+		}
+
+		containers = append(containers, v1.Container{
+			Name:  KubeRbacName + "-container",
+			Image: kubeImage,
+			SecurityContext: &v1.SecurityContext{
+				RunAsUser:                pointer.Int64(nobodyUser),
+				AllowPrivilegeEscalation: pointer.Bool(false),
+			},
+			Args:         args,
+			VolumeMounts: volumeMounts,
+		})
+
+		// Provide elevated privilege only when rbac-proxy is enabled
+		serviceaccount = kubeRbacSAName
 	}
 
 	ds.Spec = appsv1.DaemonSetSpec{
@@ -170,43 +256,20 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 				Labels: matchLabels,
 			},
 			Spec: v1.PodSpec{
-				Containers: []v1.Container{
-					{
-						Env: []v1.EnvVar{
-							{
-								Name: "DS_NODE_NAME",
-								ValueFrom: &v1.EnvVarSource{
-									FieldRef: &v1.ObjectFieldSelector{
-										FieldPath: "spec.nodeName",
-									},
-								},
-							},
-							{
-								Name:  "METRICS_EXPORTER_PORT",
-								Value: fmt.Sprintf("%v", svcPort),
-							},
-						},
-						Name:            ExporterName + "-container",
-						WorkingDir:      "/root",
-						Image:           mxImage,
-						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
-						VolumeMounts:    containerVolumeMounts,
-					},
-				},
-
+				Containers:         containers,
 				PriorityClassName:  "system-node-critical",
 				NodeSelector:       nodeSelector,
-				ServiceAccountName: "amd-gpu-operator-metrics-exporter",
+				ServiceAccountName: serviceaccount,
 				Volumes:            volumes,
 			},
 		},
 	}
-
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
 }
 
 func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig *amdv1alpha1.DeviceConfig) error {
+	mSpec := devConfig.Spec.MetricsExporter
 	if svc == nil {
 		return fmt.Errorf("service  is not initialized, zero pointer")
 	}
@@ -217,21 +280,26 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		},
 	}
 
-	svcPort := int32(servicePort)
-	if devConfig.Spec.MetricsExporter.Port > 0 {
-		svcPort = devConfig.Spec.MetricsExporter.Port
+	targetPort := int32(servicePort)
+	if mSpec.RbacConfig.Enable {
+		targetPort = int32(rbacServicePort)
 	}
 
-	switch strings.ToLower(devConfig.Spec.MetricsExporter.ServiceType) {
+	clusterIPPort := int32(servicePort)
+	if mSpec.ClusterIPPort > 0 {
+		clusterIPPort = mSpec.ClusterIPPort
+	}
+
+	switch strings.ToLower(mSpec.ServiceType) {
 	case strings.ToLower(string(v1.ServiceTypeNodePort)):
 		svc.Spec.Type = v1.ServiceTypeNodePort
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyLocal
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,
-				Port:       svcPort,
-				TargetPort: intstr.FromInt32(svcPort),
-				NodePort:   devConfig.Spec.MetricsExporter.NodePort,
+				Port:       clusterIPPort,
+				TargetPort: intstr.FromInt32(targetPort),
+				NodePort:   mSpec.NodePort,
 			},
 		}
 	default:
@@ -239,8 +307,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,
-				Port:       svcPort,
-				TargetPort: intstr.FromInt32(svcPort),
+				Port:       clusterIPPort,
+				TargetPort: intstr.FromInt32(targetPort),
 			},
 		}
 

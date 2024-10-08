@@ -40,6 +40,14 @@ spec:
 
     # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
     nodePort: 32500
+
+    # Specify the kube-rbac-proxy config
+    rbacConfig:
+      # To enable/disable kube-rbac-proxy, disabled by default
+      enable: True
+
+      # To disable https (not recommended), enabled by default
+      disableHttps: False
   
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
