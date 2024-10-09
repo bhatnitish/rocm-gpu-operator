@@ -121,6 +121,7 @@ func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig
 	// put the KMM version label given by CR's driver version
 	// KMM operator will watch on the version label and manage the kmod upgrade
 	labelKey, labelVal := GetVersionLabelKV(devConfig)
+	logger := log.FromContext(ctx)
 	for _, node := range nodes.Items {
 		if _, ok := node.Labels[labelKey]; ok {
 			// version label was already put on the node object
@@ -128,6 +129,13 @@ func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig
 			// for 1->2 upgrade, we expect users to manually update the version label on Node resource to trigger ordered upgrade
 			// so if thee label was already there, controller won't update it
 			continue
+		}
+		if labelVal == "" {
+			defaultVersion, err := getDefaultDriversVersion(node)
+			if err != nil {
+				logger.Error(err, fmt.Sprintf("failed to get default version for node %+v err %+v", node.GetName(), err))
+			}
+			labelVal = defaultVersion
 		}
 		patch := map[string]interface{}{
 			"metadata": map[string]interface{}{
