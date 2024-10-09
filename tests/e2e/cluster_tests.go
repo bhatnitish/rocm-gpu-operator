@@ -53,9 +53,10 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			Namespace: s.ns,
 		},
 		Spec: v1alpha1.DeviceConfigSpec{
-
-			DriversImage:   fmt.Sprintf("registry.test.pensando.io:5000/e2e/%v", userInfo.Username),
-			DriversVersion: s.defaultDriverVersion,
+			Driver: v1alpha1.DriverSpec{
+				Image:   fmt.Sprintf("registry.test.pensando.io:5000/e2e/%v", userInfo.Username),
+				Version: s.defaultDriverVersion,
+			},
 			//SkipDrivers:    true,
 			MetricsExporter: v1alpha1.MetricsExporterSpec{
 				Enable:   true,
@@ -66,7 +67,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	}
 
 	if s.openshift {
-		devCfg.Spec.DriversVersion = "el9-6.1.1"
+		devCfg.Spec.Driver.Version = "el9-6.1.1"
 	}
 	return devCfg
 }
@@ -374,7 +375,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 
 	// upgrade
 	// update the CR's driver version config
-	devCfg.Spec.DriversVersion = "6.2"
+	devCfg.Spec.Driver.Version = "6.2"
 	s.patchDriversVersion(devCfg, c)
 	// update the node resources version labels
 	s.updateNodeDriverVersionLabel(devCfg, c)
@@ -424,7 +425,7 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	assert.NoError(c, err, "failed to remove rocm pods")
 
 	// upgrade by pushing new CR with new version
-	devCfg.Spec.DriversVersion = "6.2"
+	devCfg.Spec.Driver.Version = "6.2"
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)
@@ -746,7 +747,7 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 	log.Infof("TestEnableBlacklist")
 
 	devCfg := s.getDeviceConfig(c)
-	devCfg.Spec.BlacklistDrivers = true
+	devCfg.Spec.Driver.Blacklist = true
 
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
@@ -820,7 +821,7 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	// do not specify driver version
-	devCfg.Spec.DriversVersion = ""
+	devCfg.Spec.Driver.Version = ""
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)

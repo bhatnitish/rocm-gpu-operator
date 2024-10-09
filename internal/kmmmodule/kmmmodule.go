@@ -72,7 +72,7 @@ const (
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	defaultOcDriversVersion     = "el9-6.1.1"
-	defaultRepo                 = "https://repo.radeon.com"
+	defaultInstallerRepoURL     = "https://repo.radeon.com"
 )
 
 var (
@@ -80,8 +80,6 @@ var (
 	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/driversDockerfile.txt
 	buildOcDockerfile string
-	//go:embed dockerfiles/DockerfileTemplate.rhel
-	dockerfileTemplateRHEL string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -185,15 +183,18 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
 		}
 		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
-	case "rhel":
-		dockerfileTemplate = dockerfileTemplateRHEL
-		versionSplits := strings.Split(version, ".")
-		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$MAJOR_VERSION", versionSplits[0], -1)
-		if devConfig.Spec.RedhatSubscriptionUsername == "" || devConfig.Spec.RedhatSubscriptionPassword == "" {
-			return "", fmt.Errorf("Redhat subscription RedhatSubscriptionUsername and RedhatSubscriptionPassword required")
-		}
-		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_USERNAME", devConfig.Spec.RedhatSubscriptionUsername, -1)
-		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_PASSWORD", devConfig.Spec.RedhatSubscriptionPassword, -1)
+	// FIX ME
+	// add the RHEL back when it is fully supported
+	/*case "rhel":
+	dockerfileTemplate = dockerfileTemplateRHEL
+	versionSplits := strings.Split(version, ".")
+	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$MAJOR_VERSION", versionSplits[0], -1)
+	if devConfig.Spec.RedhatSubscriptionUsername == "" || devConfig.Spec.RedhatSubscriptionPassword == "" {
+		return "", fmt.Errorf("Redhat subscription RedhatSubscriptionUsername and RedhatSubscriptionPassword required")
+	}
+	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_USERNAME", devConfig.Spec.RedhatSubscriptionUsername, -1)
+	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_PASSWORD", devConfig.Spec.RedhatSubscriptionPassword, -1)
+	*/
 	default:
 		return "", fmt.Errorf("not supported OS: %s", os)
 	}
@@ -217,7 +218,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	args := &kmmv1beta1.ModprobeArgs{}
 	firmwarePath := imageFirmwarePath
 
-	if devConfig.Spec.SkipDrivers {
+	if !devConfig.Spec.Driver.Enable {
 		args = &kmmv1beta1.ModprobeArgs{
 			Load:   []string{"-n"},
 			Unload: []string{"-n"},
@@ -250,14 +251,14 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			Args:                args,
 			ModulesLoadingOrder: modLoadingOrder,
 		},
-		Version:        devConfig.Spec.DriversVersion,
+		Version:        devConfig.Spec.Driver.Version,
 		KernelMappings: kernelMappings,
 	}
 	if mod.Spec.ModuleLoader.Container.Version == "" {
 		mod.Spec.ModuleLoader.Container.Version = driversVersion
 	}
 	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
-	mod.Spec.ImageRepoSecret = devConfig.Spec.ImageRepoSecret
+	mod.Spec.ImageRepoSecret = devConfig.Spec.Driver.ImageRegistrySecret
 	mod.Spec.Selector = getNodeSelector(devConfig)
 	return nil
 }
@@ -288,8 +289,8 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, no
 }
 
 func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, string, error) {
-	driversVersion := devConfig.Spec.DriversVersion
-	driversImage := devConfig.Spec.DriversImage
+	driversVersion := devConfig.Spec.Driver.Version
+	driversImage := devConfig.Spec.Driver.Image
 	var err error
 	osName, err := GetOSName(node, devConfig)
 	if err != nil {
@@ -317,26 +318,26 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
 	}
 
-	repoURL := defaultRepo
-	if devConfig.Spec.RepoURL != "" {
-		repoURL = devConfig.Spec.RepoURL
+	repoURL := defaultInstallerRepoURL
+	if devConfig.Spec.Driver.AMDGPUInstallerRepoURL != "" {
+		repoURL = devConfig.Spec.Driver.AMDGPUInstallerRepoURL
 	}
 
 	var registryTLS *kmmv1beta1.TLSOptions
-	if devConfig.Spec.DriversImageRegistryTLS.Insecure ||
-		devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify {
+	if devConfig.Spec.Driver.ImageRegistryTLS.Insecure ||
+		devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify {
 		registryTLS = &kmmv1beta1.TLSOptions{
-			Insecure:              devConfig.Spec.DriversImageRegistryTLS.Insecure,
-			InsecureSkipTLSVerify: devConfig.Spec.DriversImageRegistryTLS.InsecureSkipTLSVerify,
+			Insecure:              devConfig.Spec.Driver.ImageRegistryTLS.Insecure,
+			InsecureSkipTLSVerify: devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify,
 		}
 	}
 
 	var kmmSign *kmmv1beta1.Sign
-	if devConfig.Spec.ImageSignKeySecret != nil &&
-		devConfig.Spec.ImageSignCertSecret != nil {
+	if devConfig.Spec.Driver.ImageSign.KeySecret != nil &&
+		devConfig.Spec.Driver.ImageSign.CertSecret != nil {
 		kmmSign = &kmmv1beta1.Sign{
-			KeySecret:   devConfig.Spec.ImageSignKeySecret,
-			CertSecret:  devConfig.Spec.ImageSignCertSecret,
+			KeySecret:   devConfig.Spec.Driver.ImageSign.KeySecret,
+			CertSecret:  devConfig.Spec.Driver.ImageSign.CertSecret,
 			FilesToSign: getKmodsToSign(isOpenShift, node.Status.NodeInfo.KernelVersion),
 		}
 		if registryTLS != nil {
@@ -499,11 +500,11 @@ func MapToLabelSelector(selector map[string]string) string {
 }
 
 func GetVersionLabelKV(devConfig *amdv1alpha1.DeviceConfig) (string, string) {
-	return fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name), devConfig.Spec.DriversVersion
+	return fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name), devConfig.Spec.Driver.Version
 }
 
 func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) {
-	devicePluginImage := devConfig.Spec.DevicePluginImage
+	devicePluginImage := devConfig.Spec.DevicePlugin.DevicePluginImage
 	if devicePluginImage == "" {
 		devicePluginImage = defaultDevicePluginImage
 	}

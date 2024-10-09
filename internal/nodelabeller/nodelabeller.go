@@ -112,7 +112,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 
 	initContainerCommand := []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
 
-	if devConfig.Spec.BlacklistDrivers {
+	if devConfig.Spec.Driver.Blacklist {
 		initContainerCommand = []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
 		initVolumeMounts = append(initVolumeMounts, v1.VolumeMount{
 			Name:      "etc-volume",
@@ -182,9 +182,9 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 }
 
 func getNodeLabellerImage(devConfig *amdv1alpha1.DeviceConfig) string {
-	if devConfig.Spec.NodeLabellerImage != "" {
+	if devConfig.Spec.DevicePlugin.NodeLabellerImage != "" {
 		// if the node labeller image is clearly specified, directly use the user provided image
-		return devConfig.Spec.NodeLabellerImage
+		return devConfig.Spec.DevicePlugin.NodeLabellerImage
 	} else if version := getDevicePluginVersion(devConfig); version != "" {
 		return rocmDevicePluginRepo + ":labeller-" + version
 	}
@@ -192,8 +192,8 @@ func getNodeLabellerImage(devConfig *amdv1alpha1.DeviceConfig) string {
 }
 
 func getDevicePluginVersion(devConfig *amdv1alpha1.DeviceConfig) string {
-	if strings.Contains(devConfig.Spec.DevicePluginImage, rocmDevicePluginRepo) {
-		imgInfo := strings.Split(devConfig.Spec.DevicePluginImage, rocmDevicePluginRepo)
+	if strings.Contains(devConfig.Spec.DevicePlugin.DevicePluginImage, rocmDevicePluginRepo) {
+		imgInfo := strings.Split(devConfig.Spec.DevicePlugin.DevicePluginImage, rocmDevicePluginRepo)
 		return strings.Replace(imgInfo[len(imgInfo)-1], ":", "", -1)
 	}
 	return ""

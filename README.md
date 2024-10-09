@@ -161,7 +161,7 @@ Following are the instructions to set container image registries as insecure. Th
 apiVersion: amd.com/v1alpha1
 kind: DeviceConfig  # The CR is named as DeviceConfig
 metadata:
-  name: test-device-config
+  name: test-deviceconfig
   namespace: kube-amd-gpu # the same namespace used for installation
 spec:
   # driversImage must be a valid image URL, registry must be reachable and repo:tag should be valid
@@ -174,7 +174,7 @@ spec:
   # devicePluginImage is the ROCM official device plugin image
   devicePluginImage: rocm/k8s-device-plugin
   # driversVersion specifies the ROCM driver version that will be used during build on the fly
-  driversVersion: 6.1.3
+  driversVersion: 6.2.1
   # imageRepoSecret specifies the secret to get access to private registry
   # remove this if your registry doesn't require credential to pull/push images
   imageRepoSecret:
@@ -188,7 +188,7 @@ spec:
 ### Check Custom Resource status
 Once the driver installation was successful, the status will be pushed back to CR status fields.
 ```
-kubectl get deviceconfigs -n <CR's namespace> test-device-config -oyaml
+kubectl get deviceconfigs -n <CR's namespace> test-deviceconfig -oyaml
 ```
 For example: 
 ```
@@ -199,16 +199,19 @@ metadata:
   finalizers:
   - amd.node.kubernetes.io/deviceconfig-finalizer
   generation: 1
-  name: test-device-config
+  name: test-deviceconfig
   namespace: kube-amd-gpu
   resourceVersion: "1851082"
   uid: 7b3100e5-4038-42fc-8077-b11e41451dcd
 spec:
-  devicePluginImage: rocm/k8s-device-plugin
-  driversImage: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3-6.5.0-44-generic
-  driversVersion: 6.1.3
-  imageRepoSecret:
-    name: docker-auth
+  driver:
+    image: my.registry.io/myUserName/myRepo
+    imageRegistrySecret:
+      name: docker-auth
+    version: "6.2.2"
+  devicePlugin:
+    devicePluginImage: rocm/k8s-device-plugin:latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
 status:
@@ -380,7 +383,7 @@ laptop ~ % kubectl delete -f rocminfo.yaml
 | image                      | metrics exporter image                                                                       | registry.test.pensando.io:5000/gpu-operator/rdcd-export:0.3                                | registry.test.pensando.io:5000/gpu-operator/rdcd-export:0.3                                                          |
 | config                     | metrics configurations (fields/labels)                                                       |                                                                                            |
 |                            |                                                                                              |                                                                                            |
-| name                       | configmap name to use     (kubectl create configmap <name> --from-file=examples/config.json) |                                                                                            |
+| name                       | configmap name to use     (kubectl create configmap <name> --from-file=examples/metricsExporter/config.json) |                                                                                            |
 |                            |                                                                                              |                                                                                            |
 | rbacConfig                 | kube-rbac-proxy configurations                                                               |                                                                                            |
 |                            |                                                                                              |                                                                                            |
@@ -420,12 +423,12 @@ if the amdgpu driver build fails, the build pod will be in error state
 gpu-operator$ kubectl get pods -n kube-amd-gpu
 NAME                                                             READY   STATUS    RESTARTS   AGE
 amd-gpu-operator-controller-manager-7d99f945fd-jcclc             1/1     Running   0          11h
-test-device-config-build-8jqdm                                   0/1     Error     0          3m11s
+test-deviceconfig-build-8jqdm                                   0/1     Error     0          3m11s
 
 ```
 pod logs contain more details
 ```
-gpu-operator$ kubectl logs -n kube-amd-gpu test-device-config-build-8jqdm
+gpu-operator$ kubectl logs -n kube-amd-gpu test-deviceconfig-build-8jqdm
 INFO[0000] Resolved base name ubuntu:22.04 to builder
 INFO[0000] Retrieving image manifest ubuntu:22.04
 INFO[0000] Retrieving image ubuntu:22.04 from registry index.docker.io
@@ -436,17 +439,17 @@ build error will be in events also
 ```
 gpu-operator$ kubectl events -n kube-amd-gpu
 LAST SEEN   TYPE      REASON         OBJECT                                             MESSAGE
-7m33s       Normal    Pulled         Pod/kmm-worker-genoa4-test-device-config           Container image "gcr.io/k8s-staging-kmm/kernel-module-management-worker:v20240618-v2.1.1" already present on machine
-7m33s       Normal    Created        Pod/kmm-worker-genoa4-test-device-config           Created container worker
-7m33s       Normal    Started        Pod/kmm-worker-genoa4-test-device-config           Started container worker
-7m33s       Normal    Killing        Pod/test-device-config-device-plugin-rgfsj-jqblb   Stopping container device-plugin
-7m33s       Normal    Killing        Pod/test-device-config-node-labeller-4bs8f         Stopping container node-labeller-container
-6m53s       Normal    Scheduled      Pod/test-device-config-build-8jqdm                 Successfully assigned kube-amd-gpu/test-device-config-build-8jqdm to genoa4
-6m53s       Normal    BuildCreated   Module/test-device-config                          Build created for kernel 6.8.0-40-generic
-6m52s       Normal    Pulled         Pod/test-device-config-build-8jqdm                 Container image "gcr.io/kaniko-project/executor:v1.23.2" already present on machine
-6m52s       Normal    Created        Pod/test-device-config-build-8jqdm                 Created container kaniko
-6m52s       Normal    Started        Pod/test-device-config-build-8jqdm                 Started container kaniko
-6m50s       Warning   BuildFailed    Module/test-device-config                          Build job failed for kernel 6.8.0-40-generic
+7m33s       Normal    Pulled         Pod/kmm-worker-genoa4-test-deviceconfig           Container image "gcr.io/k8s-staging-kmm/kernel-module-management-worker:v20240618-v2.1.1" already present on machine
+7m33s       Normal    Created        Pod/kmm-worker-genoa4-test-deviceconfig           Created container worker
+7m33s       Normal    Started        Pod/kmm-worker-genoa4-test-deviceconfig           Started container worker
+7m33s       Normal    Killing        Pod/test-deviceconfig-device-plugin-rgfsj-jqblb   Stopping container device-plugin
+7m33s       Normal    Killing        Pod/test-deviceconfig-node-labeller-4bs8f         Stopping container node-labeller-container
+6m53s       Normal    Scheduled      Pod/test-deviceconfig-build-8jqdm                 Successfully assigned kube-amd-gpu/test-deviceconfig-build-8jqdm to genoa4
+6m53s       Normal    BuildCreated   Module/test-deviceconfig                          Build created for kernel 6.8.0-40-generic
+6m52s       Normal    Pulled         Pod/test-deviceconfig-build-8jqdm                 Container image "gcr.io/kaniko-project/executor:v1.23.2" already present on machine
+6m52s       Normal    Created        Pod/test-deviceconfig-build-8jqdm                 Created container kaniko
+6m52s       Normal    Started        Pod/test-deviceconfig-build-8jqdm                 Started container kaniko
+6m50s       Warning   BuildFailed    Module/test-deviceconfig                          Build job failed for kernel 6.8.0-40-generic
 ```
 
 ## Setup HTTP Proxy

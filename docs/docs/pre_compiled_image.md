@@ -146,7 +146,7 @@ Use ```docker tag``` command to tag the newly built image
 
 ## Test prepared image
 
-In the DeviceConfig custom resource, configure ```driversImage``` field to the registry that is storing the prepared pre-compile images.
+In the DeviceConfig custom resource, configure ```driver.image``` field to the registry that is storing the prepared pre-compile images.
 
 For example, if users push the pre-compiled image to ```docker.io/username/amdgpu_driver_image:ubuntu-22.04-6.8.0-40-generic-6.1.3```, the DeviceConfig yaml should be:
 
@@ -154,21 +154,38 @@ For example, if users push the pre-compiled image to ```docker.io/username/amdgp
 apiVersion: amd.com/v1alpha1
 kind: DeviceConfig
 metadata:
-  name: test-device-config
+  name: test-deviceconfig
+  # it is highly recommended to use the namespace where AMD GPU Operator is running
   namespace: kube-amd-gpu
 spec:
-  # Specify driver image here
-  # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for users
-  driversImage: docker.io/username/amdgpu_driver_image
-  
-  # Specify the credential for users private registry if it requires credential to get pull/push access, users can create the docker-registry type secret by running command like:
-  # kubectl create secret docker-registry mySecret -n kube-amd-gpu --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
-  imageRepoSecret:
-    name: mySecret
+  driver:
+    # Specify driver image here
+    # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
+    # e.g. docker.io/myUserName/amdgpu-driver
+    image: my.registry.io/myUserName/myRepo
 
-  devicePluginImage: rocm/k8s-device-plugin:latest
-  nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
-  driversVersion: "6.1.3"
+    # Specify the credential for your private registry if it requires credential to get pull/push access
+    # you can create the docker-registry type secret by running command like:
+    # kubectl create secret docker-registry mySecret -n KMM-NameSpace --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
+    # Make sure you created the secret within the namespace that KMM operator is running
+    imageRegistrySecret:
+      name: docker-auth
+
+    # Specify the driver version
+    # when you need to upgrade the driver, just update this field
+    # we will unload the old version driver and load the new version driver
+    version: "6.1.3"
+
+  devicePlugin:
+    # Specify the device plugin image
+    # default value is rocm/k8s-device-plugin:latest
+    devicePluginImage: rocm/k8s-device-plugin:latest
+
+    # Specify the node labeller image
+    # default value is rocm/k8s-device-plugin:labeller-latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
+  # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
 ```

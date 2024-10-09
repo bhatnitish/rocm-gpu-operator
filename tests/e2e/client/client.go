@@ -122,8 +122,10 @@ func (c *deviceConfigsClient) PatchDriversVersion(devCfg *v1alpha1.DeviceConfig)
 	}
 
 	patch := map[string]interface{}{
-		"spec": map[string]string{
-			"driversVersion": devCfg.Spec.DriversVersion,
+		"spec": map[string]interface{}{
+			"driver": map[string]string{
+				"version": devCfg.Spec.Driver.Version,
+			},
 		},
 	}
 	patchBytes, _ := json.Marshal(patch)

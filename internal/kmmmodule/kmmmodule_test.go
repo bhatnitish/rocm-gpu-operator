@@ -93,6 +93,11 @@ var _ = Describe("setKMMModuleLoader", func() {
 				Namespace: "testns",
 				Name:      "testname",
 			},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Driver: amdv1alpha1.DriverSpec{
+					Enable: true,
+				},
+			},
 		}
 
 		expectedYAMLFile, err := os.ReadFile("testdata/module_loader_test.yaml")
@@ -137,11 +142,15 @@ var _ = Describe("setKMMModuleLoader", func() {
 				Name:      "testname",
 			},
 			Spec: amdv1alpha1.DeviceConfigSpec{
-				UseInTreeDrivers: false,
-				DriversImage:     "some driver image",
-				DriversVersion:   "some driver version",
-				Selector:         map[string]string{"some label": "some label value"},
-				ImageRepoSecret:  &v1.LocalObjectReference{Name: "image repo secret name"},
+				Driver: amdv1alpha1.DriverSpec{
+					Enable:  true,
+					Image:   "some driver image",
+					Version: "some driver version",
+					ImageRegistrySecret: &v1.LocalObjectReference{
+						Name: "image repo secret name",
+					},
+				},
+				Selector: map[string]string{"some label": "some label value"},
 			},
 		}
 
@@ -218,7 +227,9 @@ var _ = Describe("setKMMDevicePlugin", func() {
 
 		input := amdv1alpha1.DeviceConfig{
 			Spec: amdv1alpha1.DeviceConfigSpec{
-				DevicePluginImage: "some device plugin image",
+				DevicePlugin: amdv1alpha1.DevicePluginSpec{
+					DevicePluginImage: "some device plugin image",
+				},
 			},
 		}
 

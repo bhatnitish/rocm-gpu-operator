@@ -27,16 +27,45 @@ spec:
         name: modules.kmm.sigs.x-k8s.io
         version: v1beta1
       specDescriptors:
-      - description: blacklist amdgpu drivers on the host
-        displayName: BlacklistDrivers
-        path: blacklistDrivers
+      - description: device plugin
+        displayName: DevicePlugin
+        path: devicePlugin
         x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePlugin
       - description: device plugin image
         displayName: DevicePluginImage
-        path: devicePluginImage
+        path: devicePlugin.devicePluginImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: node labeller image
+        displayName: NodeLabellerImage
+        path: devicePlugin.nodeLabellerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage
+      - description: driver
+        displayName: Driver
+        path: driver
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driver
+      - description: radeon repo URL for fetching amdgpu installer if building driver
+          image on the fly installer URL is https://repo.radeon.com/amdgpu-install
+          by default
+        displayName: AMDGPUInstallerRepoURL
+        path: driver.amdgpuInstallerRepoURL
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:amdgpuInstallerRepoURL
+      - description: blacklist amdgpu drivers on the host
+        displayName: BlacklistDrivers
+        path: driver.blacklist
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers
+      - description: enable driver install. default value is true. disable is for
+          skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel
+          module
+        displayName: Enable
+        path: driver.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
       - description: defines image that includes drivers and firmware blobs, don't
           include tag since it will be fully managed by operator for vanilla k8s the
           default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod for OpenShift
@@ -44,51 +73,58 @@ spec:
           image tag will be in the format of <linux distro>-<release version>-<kernel
           version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1
           and ubuntu-22.04-5.15.0-94-generic-6.1.3
-        displayName: DriversImage
-        path: driversImage
+        displayName: Image
+        path: driver.image
         x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:driversImage
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: secrets used for pull/push images from/to private registry specified
+          in driversImage
+        displayName: ImageRegistrySecret
+        path: driver.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
       - description: driver image registry TLS setting for the container image
-        displayName: DriversImageRegistryTLS
-        path: driversImageRegistryTLS
+        displayName: ImageRegistryTLS
+        path: driver.imageRegistryTLS
         x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:driversImageRegistryTLS
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistryTLS
       - description: If true, check if the container image already exists using plain
           HTTP.
         displayName: Insecure
-        path: driversImageRegistryTLS.insecure
+        path: driver.imageRegistryTLS.insecure
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:insecure
       - description: If true, skip any TLS server certificate validation
         displayName: InsecureSkipTLSVerify
-        path: driversImageRegistryTLS.insecureSkipTLSVerify
+        path: driver.imageRegistryTLS.insecureSkipTLSVerify
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:insecureSkipTLSVerify
-      - description: 'version of the drivers source code, can be used as part of image
-          of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
-          coreOS: el9-6.1.1'
-        displayName: DriversVersion
-        path: driversVersion
+      - description: image signing config to sign the driver image when building driver
+          image on the fly image signing is required for installing driver on secure
+          boot enabled system
+        displayName: ImageSign
+        path: driver.imageSign
         x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:driversVersion
-      - description: pull secrets used for pull/push images from/to private registry
-          specified in driversImage
-        displayName: ImageRepoSecret
-        path: imageRepoSecret
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:imageRepoSecret
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageSign
       - description: ImageSignCertSecret the public key used to sign kernel modules
           within image necessary for secire boot enabled system
         displayName: ImageSignCertSecret
-        path: imageSignCertSecret
+        path: driver.imageSign.certSecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignCertSecret
       - description: ImageSignKeySecret the private key used to sign kernel modules
           within image necessary for secire boot enabled system
         displayName: ImageSignKeySecret
-        path: imageSignKeySecret
+        path: driver.imageSign.keySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: 'version of the drivers source code, can be used as part of image
+          of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
+          coreOS: el9-6.1.1'
+        displayName: Version
+        path: driver.version
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:version
       - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter
@@ -164,44 +200,12 @@ spec:
         path: metricsExporter.serviceType
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
-      - description: node labeller image
-        displayName: NodeLabellerImage
-        path: nodeLabellerImage
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage
-      - description: RedhatSubscriptionPassword is the password for redhat subscription
-          manager.
-        displayName: RedhatSubscriptionPassword
-        path: redhatSubscriptionPassword
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:redhatSubscriptionPassword
-      - description: RedhatSubscriptionUsername is the username for redhat subscription
-          manager.
-        displayName: RedhatSubscriptionUsername
-        path: redhatSubscriptionUsername
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:redhatSubscriptionUsername
-      - description: repo URL, https://repo.radeon.com/amdgpu-install by default
-        displayName: RepoURL
-        path: repoURL
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:repoURL
       - description: Selector describes on which nodes the GPU Operator should enable
           the GPU device.
         displayName: Selector
         path: selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
-      - description: skip driver install/uninstall
-        displayName: SkipDrivers
-        path: skipDrivers
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:skipDrivers
-      - description: if the in-tree driver should be used instead of OOT drivers
-        displayName: UseInTreeDrivers
-        path: useInTreeDrivers
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:useInTreeDrivers
       statusDescriptors:
       - description: number of the actually deployed and running pods
         displayName: AvailableNumber

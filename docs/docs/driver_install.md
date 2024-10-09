@@ -15,46 +15,37 @@ Rebooting the worker node is needed to apply the blacklist, after which users wo
 apiVersion: amd.com/v1alpha1
 kind: DeviceConfig
 metadata:
-  name: test-device-config
-  # make sure the namespace is where AMD GPU Operator is running
+  name: test-deviceconfig
+  # it is highly recommended to use the namespace where AMD GPU Operator is running
   namespace: kube-amd-gpu
 spec:
-  # Specify driver image here
-  # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
-  # e.g. docker.io/yan1996/amdgpu-driver
-  driversImage: my.registry.io/myUserName/myRepo
-  
-  # Specify the credential for your private registry if it requires credential to get pull/push access
-  # you can create the docker-registry type secret by running command like:
-  # kubectl create secret docker-registry mySecret -n KMM-NameSpace --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
-  # Make sure you created the secret within the namespace that KMM operator is running
-  imageRepoSecret:
-    name: mySecret
-  
-  # Specify the device plugin image
-  # default value is rocm/k8s-device-plugin:latest
-  devicePluginImage: rocm/k8s-device-plugin:latest
-  
-  # Specify the node labeller image
-  # default value is rocm/k8s-device-plugin:labeller-latest
-  nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
-  
-  # Specify the driver version
-  # when you need to upgrade the driver, just update this field
-  # we will unload the old version driver and load the new version driver
-  driversVersion: "6.1.3"
+  driver:
+    # Specify driver image here
+    # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
+    # e.g. docker.io/myUserName/amdgpu-driver
+    image: my.registry.io/myUserName/myRepo
 
-  # Specify the metrics exporter config
-  metricsExporter:
-    # To enable/disable the metrics exporter, disabled by default
-    enable: True
+    # Specify the credential for your private registry if it requires credential to get pull/push access
+    # you can create the docker-registry type secret by running command like:
+    # kubectl create secret docker-registry mySecret -n KMM-NameSpace --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
+    # Make sure you created the secret within the namespace that KMM operator is running
+    imageRegistrySecret:
+      name: docker-auth
 
-    # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
-    serviceType: "NodePort"
+    # Specify the driver version
+    # when you need to upgrade the driver, just update this field
+    # we will unload the old version driver and load the new version driver
+    version: "6.2.2"
 
-    # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
-    nodePort: 32500
-  
+  devicePlugin:
+    # Specify the device plugin image
+    # default value is rocm/k8s-device-plugin:latest
+    devicePluginImage: rocm/k8s-device-plugin:latest
+
+    # Specify the node labeller image
+    # default value is rocm/k8s-device-plugin:labeller-latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
@@ -86,7 +77,7 @@ spec:
 3. After creating the ```DeviceConfig``` custom resource, if everything works as expected:
     * The ```amdgpu`` driver kernel module would be installed on all selected worker nodes
     * device plugin and node labeller pods would be brought up on the worker nodes where the driver installation was successful.
-    * The installation status could be found in the status field of DeviceConfig resource. Use commands like ```kubectl get deviceconfigs test-device-config -n kube-amd-gpu -oyaml``` to get the current status of DeviceConfig resource. The example status would be:
+    * The installation status could be found in the status field of DeviceConfig resource. Use commands like ```kubectl get deviceconfigs test-deviceconfig -n kube-amd-gpu -oyaml``` to get the current status of DeviceConfig resource. The example status would be:
 ```
 status:
   devicePlugin:

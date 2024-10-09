@@ -46,67 +46,98 @@ spec:
             description: DeviceConfigSpec describes how the AMD GPU operator should
               enable AMD GPU device for customer's use.
             properties:
-              blacklistDrivers:
-                description: blacklist amdgpu drivers on the host
-                type: boolean
-              devicePluginImage:
-                description: device plugin image
-                type: string
-              driversImage:
-                description: defines image that includes drivers and firmware blobs,
-                  don't include tag since it will be fully managed by operator for vanilla
-                  k8s the default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod
-                  for OpenShift the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
-                  image tag will be in the format of <linux distro>-<release version>-<kernel
-                  version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1
-                  and ubuntu-22.04-5.15.0-94-generic-6.1.3
-                type: string
-              driversImageRegistryTLS:
-                description: driver image registry TLS setting for the container image
+              devicePlugin:
+                description: device plugin
                 properties:
-                  insecure:
-                    description: If true, check if the container image already exists
-                      using plain HTTP.
+                  devicePluginImage:
+                    description: device plugin image
+                    type: string
+                  nodeLabellerImage:
+                    description: node labeller image
+                    type: string
+                type: object
+              driver:
+                description: driver
+                properties:
+                  amdgpuInstallerRepoURL:
+                    description: radeon repo URL for fetching amdgpu installer if building
+                      driver image on the fly installer URL is https://repo.radeon.com/amdgpu-install
+                      by default
+                    type: string
+                  blacklist:
+                    description: blacklist amdgpu drivers on the host
                     type: boolean
-                  insecureSkipTLSVerify:
-                    description: If true, skip any TLS server certificate validation
+                  enable:
+                    default: true
+                    description: enable driver install. default value is true. disable
+                      is for skipping driver install/uninstall for dryrun or using in-tree
+                      amdgpu kernel module
                     type: boolean
-                type: object
-              driversVersion:
-                description: 'version of the drivers source code, can be used as part
-                  of image of dockerfile source image default value for different OS
-                  is: ubuntu: 6.1.3, coreOS: el9-6.1.1'
-                type: string
-              imageRepoSecret:
-                description: pull secrets used for pull/push images from/to private
-                  registry specified in driversImage
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                  image:
+                    description: defines image that includes drivers and firmware blobs,
+                      don't include tag since it will be fully managed by operator for
+                      vanilla k8s the default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod
+                      for OpenShift the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
+                      image tag will be in the format of <linux distro>-<release version>-<kernel
+                      version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1
+                      and ubuntu-22.04-5.15.0-94-generic-6.1.3
+                    type: string
+                  imageRegistrySecret:
+                    description: secrets used for pull/push images from/to private registry
+                      specified in driversImage
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  imageRegistryTLS:
+                    description: driver image registry TLS setting for the container
+                      image
+                    properties:
+                      insecure:
+                        description: If true, check if the container image already exists
+                          using plain HTTP.
+                        type: boolean
+                      insecureSkipTLSVerify:
+                        description: If true, skip any TLS server certificate validation
+                        type: boolean
+                    type: object
+                  imageSign:
+                    description: image signing config to sign the driver image when
+                      building driver image on the fly image signing is required for
+                      installing driver on secure boot enabled system
+                    properties:
+                      certSecret:
+                        description: ImageSignCertSecret the public key used to sign
+                          kernel modules within image necessary for secire boot enabled
+                          system
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      keySecret:
+                        description: ImageSignKeySecret the private key used to sign
+                          kernel modules within image necessary for secire boot enabled
+                          system
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  version:
+                    description: 'version of the drivers source code, can be used as
+                      part of image of dockerfile source image default value for different
+                      OS is: ubuntu: 6.1.3, coreOS: el9-6.1.1'
                     type: string
                 type: object
-                x-kubernetes-map-type: atomic
-              imageSignCertSecret:
-                description: ImageSignCertSecret the public key used to sign kernel
-                  modules within image necessary for secire boot enabled system
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              imageSignKeySecret:
-                description: ImageSignKeySecret the private key used to sign kernel
-                  modules within image necessary for secire boot enabled system
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
               metricsExporter:
                 description: metrics exporter
                 properties:
@@ -169,32 +200,12 @@ spec:
                       clusterIP by default
                     type: string
                 type: object
-              nodeLabellerImage:
-                description: node labeller image
-                type: string
-              redhatSubscriptionPassword:
-                description: RedhatSubscriptionPassword is the password for redhat subscription
-                  manager.
-                type: string
-              redhatSubscriptionUsername:
-                description: RedhatSubscriptionUsername is the username for redhat subscription
-                  manager.
-                type: string
-              repoURL:
-                description: repo URL, https://repo.radeon.com/amdgpu-install by default
-                type: string
               selector:
                 additionalProperties:
                   type: string
                 description: Selector describes on which nodes the GPU Operator should
                   enable the GPU device.
                 type: object
-              skipDrivers:
-                description: skip driver install/uninstall
-                type: boolean
-              useInTreeDrivers:
-                description: if the in-tree driver should be used instead of OOT drivers
-                type: boolean
             type: object
           status:
             description: DeviceConfigStatus defines the observed state of Module.
