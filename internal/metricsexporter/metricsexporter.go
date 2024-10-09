@@ -290,6 +290,9 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		clusterIPPort = mSpec.ClusterIPPort
 	}
 
+	trafficPolicyLocal := v1.ServiceInternalTrafficPolicyLocal
+	svc.Spec.InternalTrafficPolicy = &trafficPolicyLocal
+
 	switch strings.ToLower(mSpec.ServiceType) {
 	case strings.ToLower(string(v1.ServiceTypeNodePort)):
 		svc.Spec.Type = v1.ServiceTypeNodePort
