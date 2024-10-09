@@ -29,7 +29,13 @@ nav:
   - Specialized Networks:
     - HTTP Proxy: http_proxy.md
     - Air-Gapped Network: airgapped_network.md
-theme: readthedocs
+theme: 
+  name: readthedocs
+  highlightjs: true
+  hljs_languages:
+    - dockerfile
+    - shell
+    - yaml
 markdown_extensions:
   - admonition
 repo_url: https://github.com/pensando/gpu-operator
