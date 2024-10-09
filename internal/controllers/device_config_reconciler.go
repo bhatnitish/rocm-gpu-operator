@@ -70,7 +70,8 @@ const (
 
 // ModuleReconciler reconciles a Module object
 type DeviceConfigReconciler struct {
-	helper deviceConfigReconcilerHelperAPI
+	helper          deviceConfigReconcilerHelperAPI
+	podEventHandler podEventHandlerAPI
 }
 
 func NewDeviceConfigReconciler(
@@ -79,8 +80,10 @@ func NewDeviceConfigReconciler(
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter) *DeviceConfigReconciler {
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, metricsHandler)
+	podEventHandler := newPodEventHandler(client)
 	return &DeviceConfigReconciler{
-		helper: helper,
+		helper:          helper,
+		podEventHandler: podEventHandler,
 	}
 }
 
@@ -100,7 +103,11 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForNMC),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
-		Complete(r)
+		Watches(
+			&v1.Pod{},
+			r.podEventHandler,
+			builder.WithPredicates(PodLabelPredicate{}), // only watch for event from kmm builder pod
+		).Complete(r)
 }
 
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
@@ -124,6 +131,9 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=apps,resources=daemonsets/finalizers,verbs=create;get;update;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=services/finalizers,verbs=create;get;update;watch
+//+kubebuilder:rbac:groups=core,resources=pods,verbs=delete;get;list;watch
+//+kubebuilder:rbac:groups=core,resources=pods/status,verbs=delete;get;list;watch
+//+kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=delete;get;list;watch
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
