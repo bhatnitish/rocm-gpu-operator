@@ -424,13 +424,13 @@ func GetOSName(node v1.Node, devCfg *amdv1alpha1.DeviceConfig) (string, error) {
 var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string, error){
 	"ubuntu": ubuntuDefaultDriverVersionsMapper,
 	"rhel": func(f string) (string, error) {
-		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
+		return defaultOcDriversVersion, nil
 	},
 	"redhat": func(f string) (string, error) {
-		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
+		return defaultOcDriversVersion, nil
 	},
 	"red hat": func(f string) (string, error) {
-		return "6.1.3", nil // rocm 6.2 could trigger system reboot if we unload + load amdgpu again, let's use 6.1.3 as default version
+		return defaultOcDriversVersion, nil
 	},
 }
 
@@ -439,6 +439,9 @@ func ubuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
 	}
 	if strings.Contains(fullImageStr, "22.04") {
+		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
+	}
+	if strings.Contains(fullImageStr, "24.04") {
 		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
 	}
 	return "", errors.New("invalid ubuntu version, should be one of [20.04, 22.04]")
