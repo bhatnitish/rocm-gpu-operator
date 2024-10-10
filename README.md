@@ -164,23 +164,14 @@ metadata:
   name: test-deviceconfig
   namespace: kube-amd-gpu # the same namespace used for installation
 spec:
-  # driversImage must be a valid image URL, registry must be reachable and repo:tag should be valid
-  # if the registry needs credential to login, please configure it by:
-  # kubectl create secret docker-registry docker-auth -n kube-amd-gpu --docker-server=xxx --docker-username=xxx --docker-password=xxx
-  # and specify the secret name at imageRepoSecret
-  # if the tag exists, driver image will be directly pulled and directly used
-  # if the tag doesn't exist, driver image will be built on the fly and pushed back to the given image URL
-  driversImage: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3
-  # devicePluginImage is the ROCM official device plugin image
-  devicePluginImage: rocm/k8s-device-plugin
-  # driversVersion specifies the ROCM driver version that will be used during build on the fly
-  driversVersion: 6.2.1
-  # imageRepoSecret specifies the secret to get access to private registry
-  # remove this if your registry doesn't require credential to pull/push images
-  imageRepoSecret:
-    name: docker-auth
-  # selector specifies which node the CR will be applied
-  # by default feature.node.kubernetes.io/amd-gpu: "true" will apply the CR to all worker nodes where AMD GPU was detected by AMD PCI vendor ID 1002
+  driver:
+    version: 6.2.2
+    image: registry.test.pensando.io:5000/ubuntu:amdgpu-6.1.3
+    imageRegistrySecret:
+      name: docker-auth
+  devicePlugin:
+    devicePluginImage: rocm/k8s-device-plugin:latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
 ```

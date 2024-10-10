@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Vanilla Kubernetes - Helm Charts - AMD GPU OPERATOR</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Vanilla Kubernetes - Helm Charts";
+        var mkdocs_page_input_path = "vanilla_k8s_deploy_helm.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> AMD GPU OPERATOR
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../components/">Components</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Install</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Install Operator</a>
+    <ul class="current">
+                <li class="toctree-l2 current"><a class="reference internal current" href="./">Vanilla Kubernetes - Helm Charts</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#1-precheck">1. PreCheck</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-install">2. Install</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#21-install-cert-manager">2.1 Install Cert-Manager</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#22-install-amd-gpu-operator">2.2 Install AMD GPU Operator</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_helm/">OpenShift - Helm Charts</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_olm/">OpenShift - OLM bundle</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Deploy Driver</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../driver_install/">Install Driver</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../pre_compiled_image/">Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../secure_boot/">Secure Boot Driver Image</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Upgrade</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../operator_upgrade.md">Upgrade Operator</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_upgrade/">Upgrade Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../kernel_upgrade.md">Upgrade Kernel</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Uninstall</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../driver_unload.md">Unload Driver</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../operator_uninstall.md">Uninstall Operator</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="../troubleshoot.md">TroubleShooting</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../http_proxy.md">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../airgapped_network.md">Air-Gapped Network</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">AMD GPU OPERATOR</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Install &raquo;</li>
+          <li>Install Operator &raquo;</li>
+      <li>Vanilla Kubernetes - Helm Charts</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/vanilla_k8s_deploy_helm.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="deploy-amd-gpu-operator-on-kubernetes-cluster">Deploy AMD GPU Operator on Kubernetes Cluster</h1>
+<h2 id="1-precheck">1. PreCheck</h2>
+<p>The vanilla Kubernetes cluster should be up and running:
+  * All the Kubernetes system component pods should be running and in ready state
+  * The cluster CNI should also be configured properly.</p>
+<p>For example, in the following cluster, all default components are up and running and flannel is also installed to manage the Kubernetes network.</p>
+<pre><code>kube-flannel   kube-flannel-ds-7krtk                          1/1     Running   0              10d
+kube-flannel   kube-flannel-ds-hmrb7                          1/1     Running   24 (35h ago)   10d
+kube-system    coredns-7db6d8ff4d-644fp                       1/1     Running   0              2d20h
+kube-system    coredns-7db6d8ff4d-6mb9t                       1/1     Running   5 (35h ago)    2d20h
+kube-system    etcd-localhost.localdomain                     1/1     Running   2 (14d ago)    64d
+kube-system    kube-apiserver-localhost.localdomain           1/1     Running   2 (14d ago)    64d
+kube-system    kube-controller-manager-localhost.localdomain  1/1     Running   1 (14d ago)    64d
+kube-system    kube-proxy-cmqj7                               1/1     Running   0              64d
+kube-system    kube-proxy-xw87j                               1/1     Running   24 (35h ago)   10d
+kube-system    kube-scheduler-localhost.localdomain           1/1     Running   2 (14d ago)    64d
+</code></pre>
+<h2 id="2-install">2. Install</h2>
+<h3 id="21-install-cert-manager">2.1 Install Cert-Manager</h3>
+<p><a href="https://cert-manager.io/docs/">Cert-Manager</a> is an operator that helps manage the TLS certificate within the Kubernetes or OpenShift cluster. AMD GPU Operator is using it to generate certificate for securing the communication between the controller and webhook server.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Users could skip this step if the cluster already has Cert-Manager installed</p>
+</div>
+<p>Run the kubectl command to install the cert-manager operator into Kubernetes cluster:</p>
+<pre><code>helm repo add jetstack https://charts.jetstack.io --force-update 
+
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.15.1 --set crds.enabled=true 
+</code></pre>
+<p>After the installation, the cert-manager related resources should be deployed:</p>
+<pre><code>-bash-4.2$ kubectl get pods -n cert-manager
+NAME                                       READY   STATUS    RESTARTS      AGE
+cert-manager-84489bc478-qjwmw              1/1     Running   5 (36h ago)   2d21h
+cert-manager-cainjector-7477d56b47-v8nq8   1/1     Running   5 (36h ago)   2d21h
+cert-manager-webhook-6d5cb854fc-h6vbk      1/1     Running   5 (36h ago)   2d21h
+</code></pre>
+<h3 id="22-install-amd-gpu-operator">2.2 Install AMD GPU Operator</h3>
+<p>Download the helm chart of AMD GPU Operator (e.g. From GitHub), then run the <code>helm install</code> to install AMD GPU Operator:</p>
+<pre><code>helm install demo ./gpu-operator-0.0.1-k8s.tgz -n kube-amd-gpu --create-namespace 
+</code></pre>
+<p>The output of helm install would be:</p>
+<pre><code>NAME: demo
+LAST DEPLOYED: Mon Oct  7 23:09:48 2024
+NAMESPACE: kube-amd-gpu
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+</code></pre>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If users already have Node Feature Discovery (NFD) or Kernel Module Management (KMM) deployed in cluster, users can use these 2 options with helm install commands to skip the installation of those 2 dependency operators:<br>
+<code>--set node-feature-discovery.enabled=false</code><br>
+<code>--set kmm.enabled=false</code></p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>It is highly recommended to use the Kernel Module Management (KMM) images optimized and released by AMD, which is included in AMD GPU Operator release. If users don't skip installing KMM when doing helm install, the KMM with recommended image will be installed.</p>
+</div>
+<p>After the installation all the related pods should be running and in ready status:</p>
+<pre><code>kube-amd-gpu   demo-gpu-operator-controller-manager-6954b68958-ljthg   1/1     Running   0              62s
+kube-amd-gpu   demo-kmm-controller-59b85d48c4-f2hn4                    1/1     Running   0              62s
+kube-amd-gpu   demo-kmm-webhook-server-685b9db458-t5qp6                1/1     Running   0              62s
+kube-amd-gpu   demo-node-feature-discovery-gc-98776b45f-j2hvn          1/1     Running   0              62s
+kube-amd-gpu   demo-node-feature-discovery-master-9948b7b76-ncvnz      1/1     Running   0              62s
+kube-amd-gpu   demo-node-feature-discovery-worker-dhl7q                1/1     Running   0              62s
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../components/" class="btn btn-neutral float-left" title="Components"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../openshift_deploy_helm/" class="btn btn-neutral float-right" title="OpenShift - Helm Charts">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/pensando/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../components/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../openshift_deploy_helm/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-# Deploy AMD GPU Operator on OpenShift Cluster from Operator Lifecycle Manager (OLM)
+# Deploy AMD GPU Operator on OpenShift Cluster from Helm Chart
 
 ## 1. PreCheck
 The OpenShift cluster should be up and running as an assumption, the following operators should be enabled in order to properly deploy and use AMD GPU Operator.
@@ -13,18 +13,7 @@ openshift-service-ca-operator                      service-ca-operator-7d65f5495
 openshift-service-ca                               service-ca-585754fd76-9qz66                                       1/1     Running     6                35d
 ```
 
-* 1.2 Operator Lifecycle Manager (OLM)
-OLM will be used to install AMD GPU operator and all the dependencies operators by the OLM bundle.
-
-```
-[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -A | grep operator-lifecycle
-openshift-operator-lifecycle-manager               catalog-operator-566d45b946-q7btp                                 1/1     Running     8 (2d18h ago)    35d
-openshift-operator-lifecycle-manager               olm-operator-7869f849d4-pjt49                                     1/1     Running     6                35d
-openshift-operator-lifecycle-manager               package-server-manager-8bb964f86-wpwnl                            2/2     Running     13               35d
-openshift-operator-lifecycle-manager               packageserver-58bfc579b7-h2v5d                                    1/1     Running     6                35d
-```
-
-* 1.3 MachineConfig Operator 
+* 1.2 MachineConfig Operator 
 MachineConfig operator is required for configuring the blacklist on inbox amdgpu driver.
 
 ```
@@ -36,7 +25,7 @@ openshift-machine-config-operator                  machine-config-operator-86b67
 openshift-machine-config-operator                  machine-config-server-rghbg                                       1/1     Running     8                35d
 ```
 
-* 1.4 Cluster Image Registry Operator
+* 1.3 Cluster Image Registry Operator
 Cluster image registry operator is required to trigger the driver image build within OpenShift cluster, as well as storing driver image if users want to use OpenShift internal registry.
 
 ```
@@ -45,100 +34,78 @@ openshift-image-registry                           cluster-image-registry-operat
 openshift-image-registry                           node-ca-mdlvp                                                     1/1     Running     8                35d
 ```
 
-## 2. Install Dependencies
+## 2. Install
 
-### 2.1 Enable OpenShift Internal Image Registry
+### 2.1 Option 1 - Install everything from one Helm Chart
 
-Oepnshift Internal Image resitry need to be enabled if users want to build the driver image within the cluster. Use the following commands to enable it:
+Users could install all the AMD GPU Operator components and all dependencies from one helm chart bundle. Once the helm chart tgz file was downloaded, run the following command to install everything from one single Helm Chart.
 
-2.1.1 Check whether image registry was already running or not:
-
-Cluster image registry operator should be running after doing precheck, the pod ```cluster-image-registry-operator``` should be running within the cluster. If there is no worker pod named like ```image-registry-586cdfbb85-rlv84``` running under ```openshift-image-registry``` namespace, that means the image registry was not configured and enabled, users need to go through all the steps within 2.1 to enable the image registry.
 ```
-[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -A | grep image-registry
-openshift-image-registry                           cluster-image-registry-operator-66544d6c88-zw829                  1/1     Running     6                35d
-openshift-image-registry                           node-ca-mdlvp                                                     1/1     Running     8                35d
+helm install test ./gpu-operator-helm-openshift-0.0.1.tgz -n kube-amd-gpu --create-namespace
 ```
-
-2.1.2 Configure the storage of image registry: 
-
-Here image registry is using ```emptyDir``` as the storage configuration, users could change the storage configuration for their own usage.
+Example Output
 ```
-oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"emptyDir":{}}}}'
+NAME: test
+LAST DEPLOYED: Wed Oct  9 21:19:13 2024
+NAMESPACE: kube-amd-gpu
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
 ```
 
-2.1.3 Enable the internal image registry: 
+After the installation all the resources would be deployed into OpenShift cluster.
 ```
-oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}'
-```
-
-2.1.4 Make sure the image-registry pod is up and running: 
-
-The worker pod ```image-registry-586cdfbb85-rlv84``` is up and running
-```
-[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -n openshift-image-registry
-NAME                                               READY   STATUS      RESTARTS   AGE
-cluster-image-registry-operator-66544d6c88-zw829   1/1     Running     6          35d
-image-registry-586cdfbb85-rlv84                    1/1     Running     1          6d22h
-node-ca-mdlvp                                      1/1     Running     8          35d
-```
-Check the pod spec of the image registry worker pod, users could found the corresponding information of the image registry
-```
-[core@68-05-ca-a8-3d-c8 ~]$ oc get pod -n openshift-image-registry image-registry-586cdfbb85-rlv84 -oyaml | grep REGISTRY_OPENSHIFT_SERVER_ADDR -A 5
-    - name: REGISTRY_OPENSHIFT_SERVER_ADDR
-      value: image-registry.openshift-image-registry.svc:5000
-    - name: REGISTRY_HTTP_TLS_CERTIFICATE
-      value: /etc/secrets/tls.crt
-    - name: REGISTRY_HTTP_TLS_KEY
-      value: /etc/secrets/tls.key
+NAME                                                    READY   STATUS    RESTARTS   AGE
+nfd-master-67b568b89c-lvk9k                             1/1     Running   0          12m
+nfd-worker-nkrgl                                        1/1     Running   0          12m
+test-gpu-operator-controller-manager-56844b49b4-tk75f   1/1     Running   0          12m
+test-kmm-controller-78ddd75846-kxd8n                    1/1     Running   0          12m
+test-kmm-webhook-server-749cb8b565-ktbsp                1/1     Running   0          12m
+test-nfd-controller-manager-77764d98c5-h76pp            2/2     Running   0          12m
 ```
 
-### 2.2 Install Node Feature Discovery (NFD) Operator
+
+### 2.2 Option 2 - Install dependencies separately 
+
+Users could also install dependencies separatly, then install the AMD GPU Operator.
+
+##### 2.2.1 Install Node Feature Discovery (NFD) Operator
 
 Go to the OepnShift Web Console and select OperatorHub, search for the Node Feature Discovery operator, then install the ```RedHat``` version operator on users OpenShift cluster. 
 
 ![Install NFD Operator from OperatorHub](imgs/openshift-nfd.png)
 
-### 2.3 Install Kernel Module Management (KMM) Operator
+##### 2.2.2 Install Kernel Module Management (KMM) Operator
 
 Go to the OepnShift Web Console and select OperatorHub, search for the Kernel Module Management operator, then install the RedHat version ```without Hub label``` on users OpenShift cluster. 
 
 ![Install KMM Operator from OperatorHub](imgs/openshift-kmm.png)
 
 
-## 3. Install AMD GPU Operator
+##### 2.2.3 Install Operator
 
-Currently we haven’t published the AMD GPU operator to the OperatorHub, we need to use the Operator SDK to install / uninstall the AMD GPU Operator OLM bundle. 
-
-* Install the kubectl binary on dev/test environment 
-
-* Copy OpenShift cluster’s kubeconfig to ~/.kube/config at dev/test environment 
-
-* Run some kubectl command to confirm the access to OpenShift cluster from dev/test environment
-
-* Download Operator SDK: Go to https://sdk.operatorframework.io/docs/installation/ and follow the corresponding method to download operator SDK to users dev/test environment 
-
-* Deploy the OLM bundle 
+Users could install all the AMD GPU Operator components and skip installing dependencies that are already installed in the cluster. Once the helm chart tgz file was downloaded, run the following command to install everything from one single Helm Chart. The option ```--set nfd.enabled=false``` and ```--set kmm.enabled=false``` is used for skipping installation of Node Feature Discovery operator and Kernel Module Management operator, respectively.
 ```
-./bin/operator-sdk run bundle docker.io/yan1996/amd-gpu-operator-bundle:v0.0.1 --namespace=default 
+helm install test ./gpu-operator-helm-openshift-0.0.1.tgz -n kube-amd-gpu --create-namespace --set nfd.enabled=false --set kmm.enabled=false
 ```
-
-The OLM bundle image will be publicized as part of AMD GPU Operator release, the image URL may change and tag will be updated in the future.
-
-If users want to deploy the AMD GPU operator to another namespace, users have to create it before deploying the OLM bundle, e.g. ```kubectl create ns newNameSpace ```
-
-After deploying the OLM bundle users should see the operator’s controller manager up and running.
-
+Example Output
 ```
-[core@68-05-ca-a8-3d-c8 ~]$ oc get pods
-NAME                                                              READY   STATUS      RESTARTS   AGE
-4260741f535bd5993bfc2c0582f19f6046163396895c1880f4a35ed851gcvm5   0/1     Completed   0          3d2h
-amd-gpu-operator-controller-manager-556dbbf6f5-k9wvd              1/1     Running     1          3d2h
-docker-io-yan1996-amd-gpu-operator-bundle-v0-0-1                  1/1     Running     1          3d2h
+NAME: test
+LAST DEPLOYED: Wed Oct  9 21:19:13 2024
+NAMESPACE: kube-amd-gpu
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+After the installation AMD GPU Operator would be deployed into OpenShift cluster. The NFD and KMM operator would be running at the namespaces where users separately installed them.
+```
+NAME                                                    READY   STATUS    RESTARTS   AGE
+test-gpu-operator-controller-manager-56844b49b4-tk75f   1/1     Running   0          12m
 ```
 
-# 4. Create Custom Resource (CR)
-## 4.1 Create Node Feature Dsicovery Rule
+## 3. Create Custom Resource (CR)
+
+### 3.1 Create Node Feature Dsicovery Rule
 In order to detect which OpenShift worker node has AMD GPU hardware installed, the NFD operator could help users do the detection by searching among the PCI device list.
 
 Users could create this resource to the cluster, then AMD GPU PCI device could be detected by NFD operator, and corresponding worker node will be labeled as ```feature.node.kubernetes.io/amd-gpu: "true" ```
@@ -214,7 +181,7 @@ spec:
       feature.node.kubernetes.io/amd-gpu: "true"
 ```
 
-## 4.2 Create DeviceConfig
+### 3.2 Create DeviceConfig
 
 DeviceConfig is the custom resource for AMD GPU Operator, by creating the DeviceConfig the operator will be triggered to install AMD GPU driver.
 

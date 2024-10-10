@@ -6,7 +6,10 @@ After deploying the AMD GPU Operator and all dependencies successfully, users ar
 ```
 blacklist amdgpu
 ```
-Rebooting the worker node is needed to apply the blacklist, after which users would see the inbox ```amdgpu``` kernel module has been blacklisted.
+Rebooting the worker node is needed to apply the blacklist, after which users would see the inbox ```amdgpu``` kernel module has been blacklisted. Run this command after reboot to make sure that ```amdgpu``` was not loaded: ```lsmod | grep amdgpu```.
+
+!!! note
+    If users added ```blacklist amdgpu``` in the modprobe config but after reboot ```amdgpu``` is still loaded, ```sudo update-initramfs``` could be required to apply the new modprobe configuration.
 
 2. Users could save the custom resource into a YAML file and use ```kubectl apply -f deviceconfig.yaml``` to create the resource and trigger the operator to install drivers on worker nodes.
 
@@ -97,7 +100,8 @@ status:
 
 !!! warning
     
-    Uninstalling the AMD GPU driver by deleting the DeviceConfig requires all the resources when the same DeviceConfig got created, including the image registry, driver images, secret for the registry access. In that way, after the creation of DeviceConfig and successful installation of drivers, users need to make sure don't remove any driver image within the image registry, or any registry credential secret within the Kubernetes cluster. Any unexpected deletion of the resource could result in the failure of uninstalling the driver on worker nodes.
+    1. Uninstalling the AMD GPU driver by deleting the DeviceConfig requires all the resources when the same DeviceConfig got created, including the image registry, driver images, secret for the registry access. <br> In that way, after the creation of DeviceConfig and successful installation of drivers, users need to make sure don't remove any driver image within the image registry, or any registry credential secret within the Kubernetes cluster. Any unexpected deletion of the resource could result in the failure of uninstalling the driver on worker nodes. <br>
+    2. AMD GPU Operator needs to fully manage the lifecycle of ```amdgpu``` kernel module on the worker node, any manual operation (not performed via opeartor) to load / unload ```amdgpu``` kernel module on the worker node would interrupt the operator's workflow to manage the kernel module's state.
 
 
 

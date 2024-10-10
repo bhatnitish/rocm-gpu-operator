@@ -1,14 +1,7 @@
 site_name: AMD GPU OPERATOR
 nav:
   - Introduction: index.md
-  - Architecture:
-    - Components:
-      - Node Feature Discovery: nfd.md
-      - Kernel Module Management: kmm.md
-      - AMD GPU Operator: operator.md
-      - Device Plugin: device_plugin.md
-      - Node Labeller: node_labeller.md
-      - Metrics Exporter: metrics_exporter.md
+  - Components: components.md
   - Install:
     - Install Operator:
         - Vanilla Kubernetes - Helm Charts: vanilla_k8s_deploy_helm.md

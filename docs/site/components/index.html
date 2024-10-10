@@ -5,15 +5,15 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>Install AMD GPU Operator - AMD GPU OPERATOR</title>
+    <title>Components - AMD GPU OPERATOR</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
     
       <script>
         // Current page data
-        var mkdocs_page_name = "Install AMD GPU Operator";
-        var mkdocs_page_input_path = "operator_install.md";
+        var mkdocs_page_name = "Components";
+        var mkdocs_page_input_path = "components.md";
         var mkdocs_page_url = null;
       </script>
     
@@ -47,8 +47,22 @@
                 <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
                 </li>
               </ul>
-              <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../components/">Components</a>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="./">Components</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#amd-gpu-operator-controller-manager">AMD GPU Operator Controller Manager</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#node-feature-discovery-operator">Node Feature Discovery Operator</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kernel-module-management-operator">Kernel Module Management Operator</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#amd-gpu-device-plugin">AMD GPU Device Plugin</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#amd-gpu-node-labeller">AMD GPU Node Labeller</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#amd-gpu-deivce-metrics-exporter">AMD GPU Deivce Metrics Exporter</a>
+    </li>
+    </ul>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Install</span></p>
@@ -115,9 +129,9 @@
         <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
     <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
-      <li>Install AMD GPU Operator</li>
+      <li>Components</li>
     <li class="wy-breadcrumbs-aside">
-        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/operator_install.md"
+        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/components.md"
           class="icon icon-github"> Edit on GitHub</a>
     </li>
   </ul>
@@ -126,10 +140,40 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="install-amd-gpu-operator">Install AMD GPU Operator</h1>
+                <h1 id="amd-gpu-operator-components">AMD GPU Operator Components</h1>
+<p>AMD GPU Operator and its dependencies consist of multiple components to achieve their functionalities.</p>
+<h3 id="amd-gpu-operator-controller-manager">AMD GPU Operator Controller Manager</h3>
+<p>AMD GPU Operator controller manager is the controller for the operator's custom resource <code>DeviceConfig</code>. It is responsible to run the reconcile loop for watching <code>DeviceConfig</code> resource event and perform corresponding action to adjust the cluster to the desired state of the custom resource.</p>
+<p>From the <code>DeviceConfig</code> the controller would read the configuration and perform proper actions to trigger the AMD GPU driver kernel module installation / upgrade / uninstallation. When the driver was installed, the operator is also responsible for bringing up device plugin, node labeller and metrics exporter on the worker node so that the Kubernetes cluster could collect the system information from the driver-ready nodes.</p>
+<h3 id="node-feature-discovery-operator">Node Feature Discovery Operator</h3>
+<p><a href="https://github.com/kubernetes-sigs/node-feature-discovery">Node Feature Discovery Operator</a> (NFD) is an operator for detecting hardware and system configurations for Kubernetes cluster. AMD GPU Operator is using it to detect the AMD GPU hardware by the PCI vendor ID and device ID. Once detected the worker node will be labeled with <code>"feature.node.kubernetes.io/amd-gpu": "true</code> so that the label could be utilized to select all the worker nodes with AMD GPU hardware.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For OpenShift cluster, AMD GPU Operator is using <a href="https://github.com/openshift/cluster-nfd-operator">OpenShift version NFD Operator</a> which includes some optimization for OpenShift cluster from Red Hat to manipulate the Kubernetes-Sigs version NFD.</p>
+</div>
+<h3 id="kernel-module-management-operator">Kernel Module Management Operator</h3>
+<p><a href="https://github.com/kubernetes-sigs/kernel-module-management">Kernel Module Management Operator</a> (KMM) is an operator for managing out-of-tree kernel module of Kubernetes cluster, providing the functionality of loading / upgrading / unloading host kernel module by the containerized working process. AMD GPU Operator is using the KMM Operator by preparing all the necessary Kubernetes resources (e.g. secrets, configmaps, service accounts, etc.) then manipulate the KMM Operator to do corresponding driver kernel module operations (load / upgrade / unload).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For vanilla Kubernetes cluster, AMD GPU Operator is using AMD optimized version KMM Operator. It is highly recommended to install KMM Operator from AMD GPU Operator helm chart instead of installing orignal Kubernetes-Sigs KMM Operator separately.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For OpenShift cluster, AMD GPU Operator is using <a href="https://github.com/rh-ecosystem-edge/kernel-module-management">OpenShift version KMM Operator</a> which includes some optimization from Red Hat to provide better user experience on OpenShift cluster.</p>
+</div>
+<h3 id="amd-gpu-device-plugin">AMD GPU Device Plugin</h3>
+<p><a href="https://github.com/ROCm/k8s-device-plugin">AMD GPU Device Plugin</a> is a <a href="https://kubernetes.io/docs/concepts/cluster-administration/device-plugins/">Kubernetes device plugin</a> implementation that enables the registration of AMD GPU in a container cluster for compute workload. With the appropriate hardware and the plugin deployed in Kubernetes cluster, users will be able to run jobs that require AMD GPU.</p>
+<h3 id="amd-gpu-node-labeller">AMD GPU Node Labeller</h3>
+<p><a href="https://github.com/ROCm/k8s-device-plugin/blob/master/cmd/k8s-node-labeller/README.md">AMD GPU Node Labeller</a> is a tool that automatically labels nodes with GPU properties if a node has one or more AMD GPU installed. This tool leverage controller-runtime in the spirit of Custom Resource Definition (CRD) controller even though we do not define a Custom Resource.</p>
+<h3 id="amd-gpu-deivce-metrics-exporter">AMD GPU Deivce Metrics Exporter</h3>
+<p><a href="https://github.com/pensando/device-metrics-exporter">AMD GPU Device Metrics Exporter</a> is a tool that exports metrics from AMD GPUs to collectors like Prometheus.</p>
               
             </div>
           </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Introduction"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../vanilla_k8s_deploy_helm/" class="btn btn-neutral float-right" title="Vanilla Kubernetes - Helm Charts">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
 
   <hr/>
 
@@ -156,6 +200,10 @@
         </span>
     
     
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../vanilla_k8s_deploy_helm/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

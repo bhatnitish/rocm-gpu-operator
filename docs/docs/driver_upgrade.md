@@ -20,6 +20,11 @@ Example 2: Users select worker node with RedHat CoreOS 416.94 + linux kernel ```
 
 * If the new version driver image already exists, the image building will be skipped.
 
+!!! warning
+    After step 2 the DeviceConfig custom resource has been upgraded to new driver version. 
+    During the driver upgrade of the cluster, if any worker node's ready status got reloaded (Ready -> NotReady -> Ready) unexpectedly (e.g. node reboot / networking issue) and that worker node's driver version label hasn't been updated to new version. 
+    The old version driver won't be installed on the reloaded worker node. Users need to finish the upgrade steps on the reloaded worker node to install the new version driver.
+
 ### 3. Stop the workload on worker node
 
 For each worker node that users want to upgrade the driver, users are responsible for stopping the workloads that are accessing the AMD GPU driver kernel module before unloading the old version driver.
@@ -36,12 +41,10 @@ After uninstalling the old version driver kernel module from worker node, users 
 
 Add the new driver version label ```kmm.node.kubernetes.io/version-module.<deviceconfig-namespace>.<deviceconfig-name>=newDriverVersion``` to the Node resource, where the ```newDriverVersion``` should be equal to the field ```driversVersion``` that has been updated in step 2. This step will trigger the installation of new version driver to the worker node.
 
-> [!NOTE]
-> If users don't need to perform any additional maintainance in step 5, step 5 can be skipped and step 4 and 6 can be merged, which means users could directly update the driver version label of the Node resource, instead of removing and recreating the label.
+!!! note
+    If users don't need to perform any additional maintainance in step 5, step 5 can be skipped and step 4 and 6 can be merged, which means users could directly update the driver version label of the Node resource, instead of removing and recreating the label.
 
 ### 7. Bring up workload on worker node
 
 After successfully installing the new version driver on worker node, users could bring up the AMD GPU related workload again on the worker node.
 
-> [!WARNING]
-> After step 2 the DeviceConfig custom resource has been upgraded to new driver version. During the driver upgrade of the cluster, if any worker node's ready status got reloaded (Ready -> NotReady -> Ready) unexpectedly (e.g. node reboot) and that worker node's driver version label hasn't been updated to new version. The old version driver won't be installed on the reloaded worker node. Users need to finish the upgrade steps on the reloaded worker node to install the new driver.

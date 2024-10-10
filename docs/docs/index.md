@@ -11,7 +11,7 @@ Browse through the documents for Getting Started, Compatibility Matrix and lates
 
 ## Getting Started
 
-TBD
+Read the compatibility requirement and build your Kubernetes / OpenShift cluster, then go to the ```Install``` section to install the AMD GPU Operator.
 
 ## Release Notes
 
@@ -33,4 +33,4 @@ Check the latest release at [GitHub Release Page](https://github.com/pensando/gp
 
 ## Licenses and Contributing
 
-AMD GPU Operator source code is licensed under [Apache-2.0](https://github.com/pensando/gpu-operator/tree/main/?tab=Apache-2.0-1-ov-file#readme)
+AMD GPU Operator source code is licensed under [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0)

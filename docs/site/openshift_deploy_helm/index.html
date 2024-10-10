@@ -5,15 +5,15 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>OpenShift - OLM bundle - AMD GPU OPERATOR</title>
+    <title>OpenShift - Helm Charts - AMD GPU OPERATOR</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
     
       <script>
         // Current page data
-        var mkdocs_page_name = "OpenShift - OLM bundle";
-        var mkdocs_page_input_path = "openshift_deploy_olm.md";
+        var mkdocs_page_name = "OpenShift - Helm Charts";
+        var mkdocs_page_input_path = "openshift_deploy_helm.md";
         var mkdocs_page_url = null;
       </script>
     
@@ -57,25 +57,29 @@
     <ul class="current">
                 <li class="toctree-l2"><a class="reference internal" href="../vanilla_k8s_deploy_helm/">Vanilla Kubernetes - Helm Charts</a>
                 </li>
-                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_helm/">OpenShift - Helm Charts</a>
-                </li>
-                <li class="toctree-l2 current"><a class="reference internal current" href="./">OpenShift - OLM bundle</a>
+                <li class="toctree-l2 current"><a class="reference internal current" href="./">OpenShift - Helm Charts</a>
     <ul class="current">
     <li class="toctree-l3"><a class="reference internal" href="#1-precheck">1. PreCheck</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#2-install-dependencies">2. Install Dependencies</a>
+    <li class="toctree-l3"><a class="reference internal" href="#2-install">2. Install</a>
         <ul>
-    <li class="toctree-l4"><a class="reference internal" href="#21-enable-openshift-internal-image-registry">2.1 Enable OpenShift Internal Image Registry</a>
+    <li class="toctree-l4"><a class="reference internal" href="#21-option-1-install-everything-from-one-helm-chart">2.1 Option 1 - Install everything from one Helm Chart</a>
     </li>
-    <li class="toctree-l4"><a class="reference internal" href="#22-install-node-feature-discovery-nfd-operator">2.2 Install Node Feature Discovery (NFD) Operator</a>
-    </li>
-    <li class="toctree-l4"><a class="reference internal" href="#23-install-kernel-module-management-kmm-operator">2.3 Install Kernel Module Management (KMM) Operator</a>
+    <li class="toctree-l4"><a class="reference internal" href="#22-option-2-install-dependencies-separately">2.2 Option 2 - Install dependencies separately</a>
     </li>
         </ul>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#3-install-amd-gpu-operator">3. Install AMD GPU Operator</a>
+    <li class="toctree-l3"><a class="reference internal" href="#3-create-custom-resource-cr">3. Create Custom Resource (CR)</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#31-create-node-feature-dsicovery-rule">3.1 Create Node Feature Dsicovery Rule</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#32-create-deviceconfig">3.2 Create DeviceConfig</a>
+    </li>
+        </ul>
     </li>
     </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_olm/">OpenShift - OLM bundle</a>
                 </li>
     </ul>
                   </li>
@@ -133,9 +137,9 @@
     <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
           <li>Install &raquo;</li>
           <li>Install Operator &raquo;</li>
-      <li>OpenShift - OLM bundle</li>
+      <li>OpenShift - Helm Charts</li>
     <li class="wy-breadcrumbs-aside">
-        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/openshift_deploy_olm.md"
+        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/openshift_deploy_helm.md"
           class="icon icon-github"> Edit on GitHub</a>
     </li>
   </ul>
@@ -144,7 +148,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="deploy-amd-gpu-operator-on-openshift-cluster-from-operator-lifecycle-manager-olm">Deploy AMD GPU Operator on OpenShift Cluster from Operator Lifecycle Manager (OLM)</h1>
+                <h1 id="deploy-amd-gpu-operator-on-openshift-cluster-from-helm-chart">Deploy AMD GPU Operator on OpenShift Cluster from Helm Chart</h1>
 <h2 id="1-precheck">1. PreCheck</h2>
 <p>The OpenShift cluster should be up and running as an assumption, the following operators should be enabled in order to properly deploy and use AMD GPU Operator.
 They are enabled by-default for the Openshift cluster.</p>
@@ -157,17 +161,7 @@ openshift-service-ca-operator                      service-ca-operator-7d65f5495
 openshift-service-ca                               service-ca-585754fd76-9qz66                                       1/1     Running     6                35d
 </code></pre>
 <ul>
-<li>1.2 Operator Lifecycle Manager (OLM)
-OLM will be used to install AMD GPU operator and all the dependencies operators by the OLM bundle.</li>
-</ul>
-<pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -A | grep operator-lifecycle
-openshift-operator-lifecycle-manager               catalog-operator-566d45b946-q7btp                                 1/1     Running     8 (2d18h ago)    35d
-openshift-operator-lifecycle-manager               olm-operator-7869f849d4-pjt49                                     1/1     Running     6                35d
-openshift-operator-lifecycle-manager               package-server-manager-8bb964f86-wpwnl                            2/2     Running     13               35d
-openshift-operator-lifecycle-manager               packageserver-58bfc579b7-h2v5d                                    1/1     Running     6                35d
-</code></pre>
-<ul>
-<li>1.3 MachineConfig Operator 
+<li>1.2 MachineConfig Operator 
 MachineConfig operator is required for configuring the blacklist on inbox amdgpu driver.</li>
 </ul>
 <pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -A | grep machine-config
@@ -178,84 +172,61 @@ openshift-machine-config-operator                  machine-config-operator-86b67
 openshift-machine-config-operator                  machine-config-server-rghbg                                       1/1     Running     8                35d
 </code></pre>
 <ul>
-<li>1.4 Cluster Image Registry Operator
+<li>1.3 Cluster Image Registry Operator
 Cluster image registry operator is required to trigger the driver image build within OpenShift cluster, as well as storing driver image if users want to use OpenShift internal registry.</li>
 </ul>
 <pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -A | grep image-registry
 openshift-image-registry                           cluster-image-registry-operator-66544d6c88-zw829                  1/1     Running     6                35d
 openshift-image-registry                           node-ca-mdlvp                                                     1/1     Running     8                35d
 </code></pre>
-<h2 id="2-install-dependencies">2. Install Dependencies</h2>
-<h3 id="21-enable-openshift-internal-image-registry">2.1 Enable OpenShift Internal Image Registry</h3>
-<p>Oepnshift Internal Image resitry need to be enabled if users want to build the driver image within the cluster. Use the following commands to enable it:</p>
-<p>2.1.1 Check whether image registry was already running or not:</p>
-<p>Cluster image registry operator should be running after doing precheck, the pod <code>cluster-image-registry-operator</code> should be running within the cluster. If there is no worker pod named like <code>image-registry-586cdfbb85-rlv84</code> running under <code>openshift-image-registry</code> namespace, that means the image registry was not configured and enabled, users need to go through all the steps within 2.1 to enable the image registry.</p>
-<pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -A | grep image-registry
-openshift-image-registry                           cluster-image-registry-operator-66544d6c88-zw829                  1/1     Running     6                35d
-openshift-image-registry                           node-ca-mdlvp                                                     1/1     Running     8                35d
+<h2 id="2-install">2. Install</h2>
+<h3 id="21-option-1-install-everything-from-one-helm-chart">2.1 Option 1 - Install everything from one Helm Chart</h3>
+<p>Users could install all the AMD GPU Operator components and all dependencies from one helm chart bundle. Once the helm chart tgz file was downloaded, run the following command to install everything from one single Helm Chart.</p>
+<pre><code>helm install test ./gpu-operator-helm-openshift-0.0.1.tgz -n kube-amd-gpu --create-namespace
 </code></pre>
-<p>2.1.2 Configure the storage of image registry: </p>
-<p>Here image registry is using <code>emptyDir</code> as the storage configuration, users could change the storage configuration for their own usage.</p>
-<pre><code>oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{&quot;spec&quot;:{&quot;storage&quot;:{&quot;emptyDir&quot;:{}}}}'
+<p>Example Output</p>
+<pre><code>NAME: test
+LAST DEPLOYED: Wed Oct  9 21:19:13 2024
+NAMESPACE: kube-amd-gpu
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
 </code></pre>
-<p>2.1.3 Enable the internal image registry: </p>
-<pre><code>oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{&quot;spec&quot;:{&quot;managementState&quot;:&quot;Managed&quot;}}'
+<p>After the installation all the resources would be deployed into OpenShift cluster.</p>
+<pre><code>NAME                                                    READY   STATUS    RESTARTS   AGE
+nfd-master-67b568b89c-lvk9k                             1/1     Running   0          12m
+nfd-worker-nkrgl                                        1/1     Running   0          12m
+test-gpu-operator-controller-manager-56844b49b4-tk75f   1/1     Running   0          12m
+test-kmm-controller-78ddd75846-kxd8n                    1/1     Running   0          12m
+test-kmm-webhook-server-749cb8b565-ktbsp                1/1     Running   0          12m
+test-nfd-controller-manager-77764d98c5-h76pp            2/2     Running   0          12m
 </code></pre>
-<p>2.1.4 Make sure the image-registry pod is up and running: </p>
-<p>The worker pod <code>image-registry-586cdfbb85-rlv84</code> is up and running</p>
-<pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pods -n openshift-image-registry
-NAME                                               READY   STATUS      RESTARTS   AGE
-cluster-image-registry-operator-66544d6c88-zw829   1/1     Running     6          35d
-image-registry-586cdfbb85-rlv84                    1/1     Running     1          6d22h
-node-ca-mdlvp                                      1/1     Running     8          35d
-</code></pre>
-<p>Check the pod spec of the image registry worker pod, users could found the corresponding information of the image registry</p>
-<pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pod -n openshift-image-registry image-registry-586cdfbb85-rlv84 -oyaml | grep REGISTRY_OPENSHIFT_SERVER_ADDR -A 5
-    - name: REGISTRY_OPENSHIFT_SERVER_ADDR
-      value: image-registry.openshift-image-registry.svc:5000
-    - name: REGISTRY_HTTP_TLS_CERTIFICATE
-      value: /etc/secrets/tls.crt
-    - name: REGISTRY_HTTP_TLS_KEY
-      value: /etc/secrets/tls.key
-</code></pre>
-<h3 id="22-install-node-feature-discovery-nfd-operator">2.2 Install Node Feature Discovery (NFD) Operator</h3>
+<h3 id="22-option-2-install-dependencies-separately">2.2 Option 2 - Install dependencies separately</h3>
+<p>Users could also install dependencies separatly, then install the AMD GPU Operator.</p>
+<h5 id="221-install-node-feature-discovery-nfd-operator">2.2.1 Install Node Feature Discovery (NFD) Operator</h5>
 <p>Go to the OepnShift Web Console and select OperatorHub, search for the Node Feature Discovery operator, then install the <code>RedHat</code> version operator on users OpenShift cluster. </p>
 <p><img alt="Install NFD Operator from OperatorHub" src="../imgs/openshift-nfd.png" /></p>
-<h3 id="23-install-kernel-module-management-kmm-operator">2.3 Install Kernel Module Management (KMM) Operator</h3>
+<h5 id="222-install-kernel-module-management-kmm-operator">2.2.2 Install Kernel Module Management (KMM) Operator</h5>
 <p>Go to the OepnShift Web Console and select OperatorHub, search for the Kernel Module Management operator, then install the RedHat version <code>without Hub label</code> on users OpenShift cluster. </p>
 <p><img alt="Install KMM Operator from OperatorHub" src="../imgs/openshift-kmm.png" /></p>
-<h2 id="3-install-amd-gpu-operator">3. Install AMD GPU Operator</h2>
-<p>Currently we haven’t published the AMD GPU operator to the OperatorHub, we need to use the Operator SDK to install / uninstall the AMD GPU Operator OLM bundle. </p>
-<ul>
-<li>
-<p>Install the kubectl binary on dev/test environment </p>
-</li>
-<li>
-<p>Copy OpenShift cluster’s kubeconfig to ~/.kube/config at dev/test environment </p>
-</li>
-<li>
-<p>Run some kubectl command to confirm the access to OpenShift cluster from dev/test environment</p>
-</li>
-<li>
-<p>Download Operator SDK: Go to https://sdk.operatorframework.io/docs/installation/ and follow the corresponding method to download operator SDK to users dev/test environment </p>
-</li>
-<li>
-<p>Deploy the OLM bundle </p>
-</li>
-</ul>
-<pre><code>./bin/operator-sdk run bundle docker.io/yan1996/amd-gpu-operator-bundle:v0.0.1 --namespace=default 
+<h5 id="223-install-operator">2.2.3 Install Operator</h5>
+<p>Users could install all the AMD GPU Operator components and skip installing dependencies that are already installed in the cluster. Once the helm chart tgz file was downloaded, run the following command to install everything from one single Helm Chart. The option <code>--set nfd.enabled=false</code> and <code>--set kmm.enabled=false</code> is used for skipping installation of Node Feature Discovery operator and Kernel Module Management operator, respectively.</p>
+<pre><code>helm install test ./gpu-operator-helm-openshift-0.0.1.tgz -n kube-amd-gpu --create-namespace --set nfd.enabled=false --set kmm.enabled=false
 </code></pre>
-<p>The OLM bundle image will be publicized as part of AMD GPU Operator release, the image URL may change and tag will be updated in the future.</p>
-<p>If users want to deploy the AMD GPU operator to another namespace, users have to create it before deploying the OLM bundle, e.g. <code>kubectl create ns newNameSpace</code></p>
-<p>After deploying the OLM bundle users should see the operator’s controller manager up and running.</p>
-<pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get pods
-NAME                                                              READY   STATUS      RESTARTS   AGE
-4260741f535bd5993bfc2c0582f19f6046163396895c1880f4a35ed851gcvm5   0/1     Completed   0          3d2h
-amd-gpu-operator-controller-manager-556dbbf6f5-k9wvd              1/1     Running     1          3d2h
-docker-io-yan1996-amd-gpu-operator-bundle-v0-0-1                  1/1     Running     1          3d2h
+<p>Example Output</p>
+<pre><code>NAME: test
+LAST DEPLOYED: Wed Oct  9 21:19:13 2024
+NAMESPACE: kube-amd-gpu
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
 </code></pre>
-<h1 id="4-create-custom-resource-cr">4. Create Custom Resource (CR)</h1>
-<h2 id="41-create-node-feature-dsicovery-rule">4.1 Create Node Feature Dsicovery Rule</h2>
+<p>After the installation AMD GPU Operator would be deployed into OpenShift cluster. The NFD and KMM operator would be running at the namespaces where users separately installed them.</p>
+<pre><code>NAME                                                    READY   STATUS    RESTARTS   AGE
+test-gpu-operator-controller-manager-56844b49b4-tk75f   1/1     Running   0          12m
+</code></pre>
+<h2 id="3-create-custom-resource-cr">3. Create Custom Resource (CR)</h2>
+<h3 id="31-create-node-feature-dsicovery-rule">3.1 Create Node Feature Dsicovery Rule</h3>
 <p>In order to detect which OpenShift worker node has AMD GPU hardware installed, the NFD operator could help users do the detection by searching among the PCI device list.</p>
 <p>Users could create this resource to the cluster, then AMD GPU PCI device could be detected by NFD operator, and corresponding worker node will be labeled as <code>feature.node.kubernetes.io/amd-gpu: "true"</code></p>
 <pre><code>apiVersion: nfd.openshift.io/v1 
@@ -325,7 +296,7 @@ spec:
 <pre><code>[core@68-05-ca-a8-3d-c8 ~]$ oc get node -oyaml | grep &quot;amd-gpu&quot;
       feature.node.kubernetes.io/amd-gpu: &quot;true&quot;
 </code></pre>
-<h2 id="42-create-deviceconfig">4.2 Create DeviceConfig</h2>
+<h3 id="32-create-deviceconfig">3.2 Create DeviceConfig</h3>
 <p>DeviceConfig is the custom resource for AMD GPU Operator, by creating the DeviceConfig the operator will be triggered to install AMD GPU driver.</p>
 <p>For example:</p>
 <pre><code>apiVersion: amd.com/v1alpha1 
@@ -367,8 +338,8 @@ test-cr-node-labeller-tvf5q                                       1/1     Runnin
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../openshift_deploy_helm/" class="btn btn-neutral float-left" title="OpenShift - Helm Charts"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../driver_install/" class="btn btn-neutral float-right" title="Install Driver">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../vanilla_k8s_deploy_helm/" class="btn btn-neutral float-left" title="Vanilla Kubernetes - Helm Charts"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../openshift_deploy_olm/" class="btn btn-neutral float-right" title="OpenShift - OLM bundle">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -396,10 +367,10 @@ test-cr-node-labeller-tvf5q                                       1/1     Runnin
         </span>
     
     
-      <span><a href="../openshift_deploy_helm/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../vanilla_k8s_deploy_helm/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../driver_install/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../openshift_deploy_olm/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>
