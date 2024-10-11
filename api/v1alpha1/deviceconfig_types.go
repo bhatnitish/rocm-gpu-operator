@@ -146,6 +146,17 @@ type ImageSignSpec struct {
 	CertSecret *v1.LocalObjectReference `json:"certSecret,omitempty"`
 }
 
+// ServiceType string describes ingress methods for a service
+type ServiceType string
+
+const (
+	// ServiceTypeClusterIP to access inside the cluster
+	ServiceTypeClusterIP ServiceType = "ClusterIP"
+
+	// ServiceTypeNodePort to expose service to external
+	ServiceTypeNodePort ServiceType = "NodePort"
+)
+
 type MetricsExporterSpec struct {
 	// enable metrics exporter, disabled by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
@@ -165,7 +176,7 @@ type MetricsExporterSpec struct {
 	// ServiceType service type for metrics, clusterIP/NodePort, clusterIP by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceType"}
 	// +optional
-	ServiceType string `json:"serviceType,omitempty"`
+	SvcType ServiceType `json:"serviceType,omitempty"`
 
 	// NodePort is the external port for pulling metrics from outside the cluster, in the range 30000-32767 (assigned automatically by default)
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodePort",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodePort"}

@@ -34,8 +34,6 @@ package metricsexporter
 
 import (
 	"fmt"
-	"strings"
-
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
@@ -293,8 +291,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 	trafficPolicyLocal := v1.ServiceInternalTrafficPolicyLocal
 	svc.Spec.InternalTrafficPolicy = &trafficPolicyLocal
 
-	switch strings.ToLower(mSpec.ServiceType) {
-	case strings.ToLower(string(v1.ServiceTypeNodePort)):
+	switch mSpec.SvcType {
+	case amdv1alpha1.ServiceTypeNodePort:
 		svc.Spec.Type = v1.ServiceTypeNodePort
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyLocal
 		svc.Spec.Ports = []v1.ServicePort{
