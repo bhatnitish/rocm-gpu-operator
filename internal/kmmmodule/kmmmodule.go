@@ -73,6 +73,7 @@ const (
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	defaultOcDriversVersion     = "el9-6.1.1"
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
+	defaultInternalCDNURL       = "artifactory-cdn.amd.com"
 )
 
 var (
@@ -80,6 +81,8 @@ var (
 	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/driversDockerfile.txt
 	buildOcDockerfile string
+	//go:embed devdockerfiles/devdockerfile.txt
+	dockerfileDevTemplateUbuntu string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -191,6 +194,19 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
 		}
 		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
+
+		// trigger to pull the internal ROCM dev build
+		if strings.Contains(strings.ToLower(devConfig.Spec.Driver.AMDGPUInstallerRepoURL), defaultInternalCDNURL) {
+			dockerfileTemplate = dockerfileDevTemplateUbuntu
+			devBuildinfo := strings.Split(devConfig.Spec.Driver.AMDGPUInstallerRepoURL, " ")
+			if len(devBuildinfo) < 4 {
+				return "", fmt.Errorf("please provide internal build info, required 4 items: artifactory URL, installer deb file name, amdgpu build number and rocm build tag, got: %+v", devConfig.Spec.Driver.AMDGPUInstallerRepoURL)
+			}
+			devConfig.Spec.Driver.AMDGPUInstallerRepoURL = devBuildinfo[0]
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DEV_DEB", devBuildinfo[1], -1)
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$AMDGPU_BUILD", devBuildinfo[2], -1)
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$ROCM_BUILD", devBuildinfo[3], -1)
+		}
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
