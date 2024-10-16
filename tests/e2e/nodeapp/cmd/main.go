@@ -33,8 +33,12 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/pensando/gpu-operator/tests/e2e/utils"
 	"net/http"
 	"os"
 	"os/exec"
@@ -49,6 +53,47 @@ func fnHealth(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte("healthy"))
 	if err != nil {
 		log.Errorf("response write error: %v\n", err)
+	}
+}
+
+func fnRunCommand(w http.ResponseWriter, r *http.Request) {
+	var req utils.UserRequest
+	if r.Method != http.MethodPost {
+		_, err := w.Write([]byte("requires request type POST for cmd execution"))
+		if err != nil {
+			log.Errorf("response write error: %v\n", err)
+		}
+		return
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		if _, e := w.Write([]byte(fmt.Sprintf("command not found : %v", err))); e != nil {
+			log.Errorf("response write error: %v\n", e)
+		}
+		return
+	}
+	reqBody := req.Command
+	cmd := exec.Command("bash", "-c", string(reqBody))
+	output, _ := cmd.StdoutPipe()
+	if err := cmd.Start(); err != nil {
+		log.Errorf("Command %v failed to start with error: %v", string(reqBody), err)
+		return
+	}
+
+	var buffer bytes.Buffer
+	scanner := bufio.NewScanner(output)
+	for scanner.Scan() {
+		buffer.WriteString(scanner.Text())
+	}
+	if err := cmd.Wait(); err != nil {
+		if _, e := w.Write([]byte(fmt.Sprintf("Command %v did not complete with error: %v", string(reqBody), err))); e != nil {
+			log.Errorf("response write error: %v\n", e)
+		}
+		return
+	}
+
+	if _, e := w.Write(buffer.Bytes()); e != nil {
+		log.Errorf("response write error: %v\n", e)
 	}
 }
 
@@ -106,6 +151,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", fnHealth)
 	mux.HandleFunc("/reboot", fnReboot)
+	mux.HandleFunc("/runcommand", fnRunCommand)
 
 	// Create the HTTP server
 	server := &http.Server{

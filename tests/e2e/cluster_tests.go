@@ -94,6 +94,23 @@ func (s *E2ESuite) checkNFDWorkerStatus(ns string, c *C, workerName string) {
 	}, 5*time.Minute, 5*time.Second)
 }
 
+func (s *E2ESuite) verifyDevicePluginStatus(ns string, c *C) {
+	assert.Eventually(c, func() bool {
+		pods, err := s.clientSet.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Errorf("  failed to get device-plugin %v", err)
+			return false
+		}
+		for _, pod := range pods.Items {
+			if strings.Contains(pod.Name, utils.DevicePluginName(s.cfgName)) {
+				return true
+			}
+		}
+		log.Infof(" Device Plugin Not found for deviceconfig %v", s.cfgName)
+		return false
+	}, 5*time.Minute, 5*time.Second)
+}
+
 func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 	assert.Eventually(c, func() bool {
 		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), utils.NodeLabellerName(s.cfgName), metav1.GetOptions{})
@@ -313,6 +330,16 @@ func (s *E2ESuite) deleteDeviceConfig(c *C) {
 		}
 		return true
 	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
+	if s.noamdgpu {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.Driver.Enable = false
+	s.createDeviceConfig(devCfg, c)
+	s.verifyDevicePluginStatus(s.ns, c)
 }
 
 func (s *E2ESuite) TestDeployment(c *C) {

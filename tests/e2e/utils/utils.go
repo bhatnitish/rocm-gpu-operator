@@ -18,7 +18,9 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,6 +49,10 @@ const ClusterTypeOpenShift = "openshift"
 const ClusterTypeK8s = "kubernetes"
 
 var kubectl = "kubectl"
+
+type UserRequest struct {
+	Command string `json:"command"`
+}
 
 func init() {
 	c, err := exec.LookPath("kubectl")
@@ -422,6 +428,9 @@ func DelDaemonset(cl *kubernetes.Clientset, ns string, name string) error {
 	})
 }
 
+func DevicePluginName(cfgName string) string {
+	return cfgName + "-device-plugin"
+}
 func NodeLabellerName(cfgName string) string {
 	return cfgName + "-node-labeller"
 }
@@ -483,6 +492,49 @@ func RunCommand(command string) {
 	if err := cmd.Wait(); err != nil {
 		log.Errorf("Coammand %v did not complete with error: %v", command, err)
 	}
+}
+
+func RunCommandOnNode(ctx context.Context, cl *kubernetes.Clientset, nodeName, command string) (string, error) {
+
+	nodeip, err := GetNodeIP(ctx, cl, nodeName)
+	if err != nil {
+		log.Errorf("node %s: %s get error: %v", nodeName, nodeip, err)
+		return "", err
+	}
+
+	url := fmt.Sprintf("http://%s:8080/runcommand", nodeip)
+	client := &http.Client{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	var userReq UserRequest
+	userReq.Command = command
+	reqJSON, _ := json.Marshal(userReq)
+	reqBody := bytes.NewBuffer(reqJSON)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	log.Infof("resp status: %v error: %v", resp.Status, err)
+
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("node health status: %v", resp.Status)
+	}
+
+	return string(body), nil
 }
 
 func GetWorkerNodes(cl *kubernetes.Clientset) []*v1.Node {

@@ -13,7 +13,7 @@ checks:
 build:
 	go build -o nodeapp cmd/main.go
 
-docker-build:
+docker-build: build
 	rm -f id_rsa*
 	ssh-keygen -t rsa -b 4096 -C "" -N "" -f id_rsa
 	chmod +x docker-entrypoint.sh
