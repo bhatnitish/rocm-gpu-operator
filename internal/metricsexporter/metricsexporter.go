@@ -46,15 +46,14 @@ import (
 )
 
 const (
-	defaultMetricsExporterImage = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
-	defaultKubeRbacProxyImage   = "quay.io/brancz/kube-rbac-proxy:v0.18.1"
-	servicePort                 = 5000
-	rbacServicePort             = 8443
-	nobodyUser                  = 65532
-	ExporterName                = "metrics-exporter"
-	KubeRbacName                = "kube-rbac-proxy"
-	defaultSAName               = "amd-gpu-operator-metrics-exporter"
-	kubeRbacSAName              = "amd-gpu-operator-metrics-exporter-rbac-proxy"
+	defaultMetricsExporterImage       = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
+	defaultKubeRbacProxyImage         = "quay.io/brancz/kube-rbac-proxy:v0.18.1"
+	servicePort                 int32 = 5000
+	nobodyUser                        = 65532
+	ExporterName                      = "metrics-exporter"
+	KubeRbacName                      = "kube-rbac-proxy"
+	defaultSAName                     = "amd-gpu-operator-metrics-exporter"
+	kubeRbacSAName                    = "amd-gpu-operator-metrics-exporter-rbac-proxy"
 )
 
 var metricsExporterLabelPair = []string{"app.kubernetes.io/name", ExporterName}
@@ -163,6 +162,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		mxImage = mSpec.Image
 	}
 
+	port := servicePort
+	if mSpec.Port > 0 {
+		port = mSpec.Port
+	}
+
 	containers := []v1.Container{
 		{
 			Env: []v1.EnvVar{
@@ -175,8 +179,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 					},
 				},
 				{
-					Name:  "METRICS_EXPORTER_PORT",
-					Value: fmt.Sprintf("%v", int32(servicePort)),
+					Name: "METRICS_EXPORTER_PORT",
 				},
 			},
 			Name:            ExporterName + "-container",
@@ -190,8 +193,13 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	serviceaccount := defaultSAName
 
 	if mSpec.RbacConfig.Enable {
+		internalPort := servicePort
+		if internalPort == port {
+			internalPort = port - 1
+		}
 		// Bind service port to localhost only
-		containers[0].Args = []string{"--bind=127.0.0.1:" + fmt.Sprintf("%v", int32(servicePort))}
+		containers[0].Args = []string{"--bind=127.0.0.1:" + fmt.Sprintf("%v", int32(internalPort))}
+		containers[0].Env[1].Value = fmt.Sprintf("%v", internalPort)
 
 		kubeImage := defaultKubeRbacProxyImage
 		if mSpec.RbacConfig.Image != "" {
@@ -199,16 +207,16 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		}
 
 		args := []string{
-			"--upstream=http://127.0.0.1:" + fmt.Sprintf("%v", int32(servicePort)),
+			"--upstream=http://127.0.0.1:" + fmt.Sprintf("%v", int32(internalPort)),
 			"--logtostderr=true",
 			"--v=10",
 		}
 
 		volumeMounts := []v1.VolumeMount{}
 		if mSpec.RbacConfig.DisableHttps {
-			args = append(args, "--insecure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(rbacServicePort)))
+			args = append(args, "--insecure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(port)))
 		} else {
-			args = append(args, "--secure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(rbacServicePort)))
+			args = append(args, "--secure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(port)))
 
 			// Load the tls-certs if provided
 			if mSpec.RbacConfig.Secret != nil {
@@ -245,6 +253,8 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 
 		// Provide elevated privilege only when rbac-proxy is enabled
 		serviceaccount = kubeRbacSAName
+	} else {
+		containers[0].Env[1].Value = fmt.Sprintf("%v", port)
 	}
 
 	ds.Spec = appsv1.DaemonSetSpec{
@@ -278,14 +288,9 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		},
 	}
 
-	targetPort := int32(servicePort)
-	if mSpec.RbacConfig.Enable {
-		targetPort = int32(rbacServicePort)
-	}
-
-	clusterIPPort := int32(servicePort)
-	if mSpec.ClusterIPPort > 0 {
-		clusterIPPort = mSpec.ClusterIPPort
+	port := servicePort
+	if mSpec.Port > 0 {
+		port = mSpec.Port
 	}
 
 	trafficPolicyLocal := v1.ServiceInternalTrafficPolicyLocal
@@ -298,8 +303,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,
-				Port:       clusterIPPort,
-				TargetPort: intstr.FromInt32(targetPort),
+				Port:       port,
+				TargetPort: intstr.FromInt32(port),
 				NodePort:   mSpec.NodePort,
 			},
 		}
@@ -308,8 +313,8 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.Ports = []v1.ServicePort{
 			{
 				Protocol:   v1.ProtocolTCP,
-				Port:       clusterIPPort,
-				TargetPort: intstr.FromInt32(targetPort),
+				Port:       port,
+				TargetPort: intstr.FromInt32(port),
 			},
 		}
 

@@ -168,10 +168,10 @@ type MetricsExporterSpec struct {
 	// +optional
 	Image string `json:"image,omitempty"`
 
-	// ClusterIPPort is the internal port used for in-cluster access to pull metrics from the metrics-exporter (default 5000).
+	// Port is the internal port used for in-cluster and node access to pull metrics from the metrics-exporter (default 5000).
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Port",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:port"}
 	// +optional
-	ClusterIPPort int32 `json:"clusterIPPort,omitempty"`
+	Port int32 `json:"port,omitempty"`
 
 	// ServiceType service type for metrics, clusterIP/NodePort, clusterIP by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceType"}

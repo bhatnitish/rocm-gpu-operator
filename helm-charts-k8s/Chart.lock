@@ -6,4 +6,4 @@ dependencies:
   repository: file://./charts/kmm
   version: 0.0.1
 digest: sha256:1af1956a6bc0073bad4cc86d0a9f49a27f0362af810a2b5034881cc4cefb1cb0
-generated: "2024-10-10T01:23:20.032280097Z"
+generated: "2024-10-16T06:20:15.982577518Z"

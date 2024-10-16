@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-10-10T01:23:37Z"
+    createdAt: "2024-10-16T06:20:30Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -159,12 +159,6 @@ spec:
         path: metricsExporter
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter
-      - description: ClusterIPPort is the internal port used for in-cluster access
-          to pull metrics from the metrics-exporter (default 5000).
-        displayName: Port
-        path: metricsExporter.clusterIPPort
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:port
       - description: optional configuration for metrics
         displayName: Config
         path: metricsExporter.config
@@ -192,6 +186,12 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Port is the internal port used for in-cluster and node access
+          to pull metrics from the metrics-exporter (default 5000).
+        displayName: Port
+        path: metricsExporter.port
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:port
       - description: optional kube-rbac-proxy config to provide rbac services
         displayName: RbacConfig
         path: metricsExporter.rbacConfig
