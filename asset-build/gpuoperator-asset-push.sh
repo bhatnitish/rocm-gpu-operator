@@ -27,7 +27,7 @@ copy_artifacts () {
     ls -la $BUNDLE_DIR
 }
 
-docker_build_push () {
+docker_push_private () {
     docker load -i /gpu-operator/amd-gpu-operator-latest.tar.gz
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator:latest | grep "HOURLY"
     docker push registry.test.pensando.io:5000/amd-gpu-operator:latest
@@ -35,7 +35,7 @@ docker_build_push () {
 
 setup () {
     setup_dir
-    docker_build_push
+    docker_push_private
     copy_artifacts
 }
 
@@ -55,4 +55,7 @@ main () {
 }
 
 main
+
+# push final release to docker hub for public access
+./docker-push-public.sh
 exit 0
