@@ -22,7 +22,7 @@ For method 2, users could prepare a image signing key pair and registry the publ
 
 * Encode the key pair:
 ```
-cat my_signing_key.priv | base64 -w 0  > my_signing_key2.base64
+cat my_signing_key.priv | base64 -w 0  > my_signing_key.base64
 cat my_signing_key_pub.der | base64 -w 0 > my_signing_key_pub.base64
 ``` 
 Save the encoded string and put them into the secret later. 
@@ -33,20 +33,20 @@ Save the encoded string and put them into the secret later.
 apiVersion: v1
 kind: Secret
 metadata:
-name: my-signing-key-pub
-namespace: <operator namespace>
+  name: my-signing-key-pub
+  namespace: <operator namespace>
 type: Opaque
 data:
-cert: <base64 encoded secureboot public key>
+  cert: <base64 encoded secureboot public key>
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-name: my-signing-key
-namespace: <operator namespace>
+  name: my-signing-key
+  namespace: <operator namespace>
 type: Opaque
 data:
-key: <base64 encoded secureboot private key>
+  key: <base64 encoded secureboot private key>
 ```
     
 * Create the secrets: ```kubectl apply -f <secrets yaml file>```
@@ -58,10 +58,12 @@ metadata:
   ...
 spec:
   ...
-  imageSignKeySecret:
-    name: my-signing-key
-  imageSignCertSecret:
-    name: my-signing-key-pub
+  driver:
+    imageSign:
+      keySecret:
+        name: my-signing-key
+      certSecret:
+        name: my-signing-key-pub
 ```
 
 By following aforementioned steps, the operator would build the image within the cluster firstly, then sign the kernel module of the newly built image, ultimately use the newly built + signed image to load the AMD GPU driver kernel module on worker nodes.
@@ -69,6 +71,7 @@ By following aforementioned steps, the operator would build the image within the
 ### TroubleShooting
 
 If the KMM operator worker failed to load the kernel module due to errors like ```modprobe: ERROR: could not insert '<your kmod name>': Required key not available``` or ```modprobe: ERROR: could not insert 'amdgpu': Operation not permitted```, the possible situations could be:
+
 * The kernel modules within the driver image were not signed
 * The kernel modules were signed with wrong key
 * The public key was not registered within the worker node's MOK database correctly
