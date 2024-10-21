@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-10-16T06:20:30Z"
+    createdAt: "2024-10-21T19:19:19Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -66,6 +66,11 @@ spec:
         path: devicePlugin.devicePluginImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: node labeller image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: devicePlugin.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
       - description: node labeller image
         displayName: NodeLabellerImage
         path: devicePlugin.nodeLabellerImage
@@ -180,6 +185,11 @@ spec:
         path: metricsExporter.image
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: metrics exporter image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: metricsExporter.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
       - description: NodePort is the external port for pulling metrics from outside
           the cluster, in the range 30000-32767 (assigned automatically by default)
         displayName: NodePort

@@ -190,6 +190,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		},
 	}
 
+	imagePullSecrets := []v1.LocalObjectReference{}
+	if mSpec.ImageRegistrySecret != nil {
+		imagePullSecrets = append(imagePullSecrets, *mSpec.ImageRegistrySecret)
+	}
+
 	serviceaccount := defaultSAName
 
 	if mSpec.RbacConfig.Enable {
@@ -269,6 +274,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 				NodeSelector:       nodeSelector,
 				ServiceAccountName: serviceaccount,
 				Volumes:            volumes,
+				ImagePullSecrets:   imagePullSecrets,
 			},
 		},
 	}

@@ -42,9 +42,21 @@ spec:
                 properties:
                   devicePluginImage:
                     description: device plugin image
+                    pattern: ^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
                     type: string
+                  imageRegistrySecret:
+                    description: node labeller image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
                   nodeLabellerImage:
                     description: node labeller image
+                    pattern: ^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
                     type: string
                 type: object
               driver:
@@ -72,6 +84,7 @@ spec:
                       image tag will be in the format of <linux distro>-<release version>-<kernel
                       version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1
                       and ubuntu-22.04-5.15.0-94-generic-6.1.3
+                    pattern: ^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
                     type: string
                   imageRegistrySecret:
                     description: secrets used for pull/push images from/to private
@@ -145,14 +158,28 @@ spec:
                     type: boolean
                   image:
                     description: metrics exporter image
+                    pattern: ^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
                     type: string
+                  imageRegistrySecret:
+                    description: metrics exporter image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
                   nodePort:
                     description: NodePort is the external port for pulling metrics
                       from outside the cluster, in the range 30000-32767 (assigned
                       automatically by default)
                     format: int32
+                    maximum: 32767
+                    minimum: 30000
                     type: integer
                   port:
+                    default: 5000
                     description: Port is the internal port used for in-cluster and
                       node access to pull metrics from the metrics-exporter (default
                       5000).
@@ -169,6 +196,7 @@ spec:
                         type: boolean
                       image:
                         description: kube-rbac-proxy image
+                        pattern: ^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
                         type: string
                       secret:
                         description: certificate secret to mount in kube-rbac container
@@ -188,8 +216,12 @@ spec:
                       exporter
                     type: object
                   serviceType:
+                    default: ClusterIP
                     description: ServiceType service type for metrics, clusterIP/NodePort,
                       clusterIP by default
+                    enum:
+                    - ClusterIP
+                    - NodePort
                     type: string
                 type: object
               selector:

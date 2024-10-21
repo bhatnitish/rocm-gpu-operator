@@ -101,6 +101,7 @@ type DriverSpec struct {
 	// example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1 and ubuntu-22.04-5.15.0-94-generic-6.1.3
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
 
 	// driver image registry TLS setting for the container image
@@ -124,12 +125,19 @@ type DevicePluginSpec struct {
 	// device plugin image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage"}
 	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	DevicePluginImage string `json:"devicePluginImage,omitempty"`
 
 	// node labeller image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage"}
 	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	NodeLabellerImage string `json:"nodeLabellerImage,omitempty"`
+
+	// node labeller image registry secret used to pull/push images
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
 }
 
 type ImageSignSpec struct {
@@ -166,21 +174,32 @@ type MetricsExporterSpec struct {
 	// metrics exporter image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
+
+	// metrics exporter image registry secret used to pull/push images
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
 
 	// Port is the internal port used for in-cluster and node access to pull metrics from the metrics-exporter (default 5000).
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Port",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:port"}
 	// +optional
+	// +kubebuilder:default=5000
 	Port int32 `json:"port,omitempty"`
 
 	// ServiceType service type for metrics, clusterIP/NodePort, clusterIP by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceType"}
 	// +optional
+	// +kubebuilder:validation:Enum=ClusterIP;NodePort
+	// +kubebuilder:default=ClusterIP
 	SvcType ServiceType `json:"serviceType,omitempty"`
 
 	// NodePort is the external port for pulling metrics from outside the cluster, in the range 30000-32767 (assigned automatically by default)
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodePort",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodePort"}
 	// +optional
+	// +kubebuilder:validation:Minimum=30000
+	// +kubebuilder:validation:Maximum=32767
 	NodePort int32 `json:"nodePort,omitempty"`
 
 	// optional configuration for metrics
@@ -209,6 +228,7 @@ type KubeRbacConfig struct {
 	// kube-rbac-proxy image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
 
 	// disable https protecting the proxy endpoint

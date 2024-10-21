@@ -139,6 +139,10 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
+	imagePullSecrets := []v1.LocalObjectReference{}
+	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
+		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
+	}
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
@@ -173,6 +177,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				NodeSelector:       devConfig.Spec.Selector,
 				ServiceAccountName: "amd-gpu-operator-node-labeller",
 				Volumes:            volumes,
+				ImagePullSecrets:   imagePullSecrets,
 			},
 		},
 	}
