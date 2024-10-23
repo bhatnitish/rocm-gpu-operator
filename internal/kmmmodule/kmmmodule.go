@@ -38,6 +38,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/utils/pointer"
 	"regexp"
 	"sort"
 	"strings"
@@ -90,6 +93,7 @@ type KMMModuleAPI interface {
 	SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error
 	SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type kmmModule struct {
@@ -231,8 +235,109 @@ func (km *kmmModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.
 	if err != nil {
 		return fmt.Errorf("failed to set KMM Module: %v", err)
 	}
-	setKMMDevicePlugin(mod, devConfig)
 	return controllerutil.SetControllerReference(devConfig, mod, km.scheme)
+}
+
+func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error {
+	var devicePluginImage string
+
+	if devConfig.Spec.DevicePlugin.DevicePluginImage == "" {
+		devicePluginImage = defaultDevicePluginImage
+	} else {
+		devicePluginImage = devConfig.Spec.DevicePlugin.DevicePluginImage
+
+	}
+	hostPathDirectory := v1.HostPathDirectory
+
+	if ds == nil {
+		return fmt.Errorf("daemon set is not initialized, zero pointer")
+	}
+
+	nodeSelector := map[string]string{}
+	if devConfig.Spec.Driver.Enable {
+		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+	} else {
+		nodeSelector = devConfig.Spec.Selector
+	}
+
+	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
+	ds.Spec = appsv1.DaemonSetSpec{
+		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
+		Template: v1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: matchLabels,
+			},
+			Spec: v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Name:            "driver-init",
+						Image:           "busybox:1.36",
+						Command:         []string{"sh", "-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						VolumeMounts: []v1.VolumeMount{
+							{
+								Name:      "sys",
+								MountPath: "/sys",
+							},
+						},
+					},
+				},
+				Containers: []v1.Container{
+					{
+
+						Env: []v1.EnvVar{
+							{
+								Name: "DS_NODE_NAME",
+								ValueFrom: &v1.EnvVarSource{
+									FieldRef: &v1.ObjectFieldSelector{
+										FieldPath: "spec.nodeName",
+									},
+								},
+							},
+						},
+						Name:            "device-plugin",
+						WorkingDir:      "/root",
+						Image:           devicePluginImage,
+						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						VolumeMounts: []v1.VolumeMount{
+							{
+								Name:      "kubelet-device-plugins",
+								MountPath: "/var/lib/kubelet/device-plugins",
+							},
+							{
+								Name:      "sys",
+								MountPath: "/sys",
+							},
+						},
+					},
+				},
+				PriorityClassName:  "system-node-critical",
+				NodeSelector:       nodeSelector,
+				ServiceAccountName: "amd-gpu-operator-kmm-device-plugin",
+				Volumes: []v1.Volume{
+					{
+						Name: "kubelet-device-plugins",
+						VolumeSource: v1.VolumeSource{
+							HostPath: &v1.HostPathVolumeSource{
+								Path: "/var/lib/kubelet/device-plugins",
+								Type: &hostPathDirectory,
+							},
+						},
+					},
+					{
+						Name: "sys",
+						VolumeSource: v1.VolumeSource{
+							HostPath: &v1.HostPathVolumeSource{
+								Path: "/sys",
+								Type: &hostPathDirectory,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return controllerutil.SetControllerReference(devConfig, ds, km.scheme)
 }
 
 func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) error {

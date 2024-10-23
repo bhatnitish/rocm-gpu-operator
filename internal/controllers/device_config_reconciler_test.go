@@ -282,10 +282,20 @@ var _ = Describe("finalizeDeviceConfig", func() {
 			Name:      devConfigName,
 			Namespace: devConfigNamespace,
 		},
+		Spec: amdv1alpha1.DeviceConfigSpec{
+			Driver: amdv1alpha1.DriverSpec{
+				Enable: true,
+			},
+		},
 	}
 
 	nodeLabellerNN := types.NamespacedName{
 		Name:      devConfigName + "-node-labeller",
+		Namespace: devConfigNamespace,
+	}
+
+	devPluginNN := types.NamespacedName{
+		Name:      devConfigName + "-device-plugin",
 		Namespace: devConfigNamespace,
 	}
 
@@ -310,6 +320,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 			},
 		}
 
+		kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1)
 		kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2)
 		kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(fmt.Errorf("some error"))
 
@@ -347,6 +358,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(nil),
 			kubeClient.EXPECT().Delete(ctx, gomock.Any()).Return(nil),
@@ -366,6 +378,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(fmt.Errorf("some error")),
 		)
@@ -387,6 +400,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "moduleName")),
 			kubeClient.EXPECT().Patch(ctx, expectedDevConfig, gomock.Any()).Return(nil),
@@ -416,6 +430,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Do(
 				func(_ interface{}, _ interface{}, mod *kmmv1beta1.Module, _ ...client.GetOption) {
@@ -452,6 +467,11 @@ var _ = Describe("handleKMMModule", func() {
 			Name:      devConfigName,
 			Namespace: devConfigNamespace,
 		},
+		Spec: amdv1alpha1.DeviceConfigSpec{
+			Driver: amdv1alpha1.DriverSpec{
+				Enable: true,
+			},
+		},
 	}
 
 	It("KMM Module does not exist", func() {
@@ -464,6 +484,7 @@ var _ = Describe("handleKMMModule", func() {
 		gomock.InOrder(
 			kubeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "whatever")),
 			kmmHelper.EXPECT().SetKMMModuleAsDesired(ctx, newMod, devConfig, testNodeList).Return(nil),
+
 			kubeClient.EXPECT().Create(ctx, gomock.Any()).Return(nil),
 		)
 

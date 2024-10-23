@@ -175,9 +175,13 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("start KMM reconciliation")
-	err = r.helper.handleKMMModule(ctx, devConfig, nodes)
-	if err != nil {
+	if err = r.helper.handleKMMModule(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
+	logger.Info("start device-plugin reconciliation")
+	if err = r.helper.handleDevicePlugin(ctx, devConfig, nodes); err != nil {
+		return res, fmt.Errorf("failed to handle device-plugin for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
 	logger.Info("start kmm mod version label reconciliation")
@@ -213,6 +217,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
@@ -272,24 +277,35 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
-	kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
-	if err != nil {
-		return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
-			types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
-	}
-	if kmmModuleObj != nil {
-		devConfig.Status = amdv1alpha1.DeviceConfigStatus{
-			DevicePlugin: amdv1alpha1.DeploymentStatus{
-				NodesMatchingSelectorNumber: kmmModuleObj.Status.DevicePlugin.NodesMatchingSelectorNumber,
-				DesiredNumber:               kmmModuleObj.Status.DevicePlugin.DesiredNumber,
-				AvailableNumber:             kmmModuleObj.Status.DevicePlugin.AvailableNumber,
-			},
-			Drivers: amdv1alpha1.DeploymentStatus{
+	if devConfig.Spec.Driver.Enable {
+		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
+		if err != nil {
+			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
+				types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
+		}
+		if kmmModuleObj != nil {
+			devConfig.Status.Drivers = amdv1alpha1.DeploymentStatus{
 				NodesMatchingSelectorNumber: kmmModuleObj.Status.ModuleLoader.DesiredNumber,
 				DesiredNumber:               kmmModuleObj.Status.ModuleLoader.DesiredNumber,
 				AvailableNumber:             kmmModuleObj.Status.ModuleLoader.AvailableNumber,
-			},
+			}
 		}
+	}
+
+	devPlDs := appsv1.DaemonSet{}
+	dsName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-device-plugin",
+	}
+
+	if err := dcrh.client.Get(ctx, dsName, &devPlDs); err == nil {
+		devConfig.Status.DevicePlugin = amdv1alpha1.DeploymentStatus{
+			NodesMatchingSelectorNumber: devPlDs.Status.NumberAvailable,
+			DesiredNumber:               devPlDs.Status.DesiredNumberScheduled,
+			AvailableNumber:             devPlDs.Status.NumberAvailable,
+		}
+	} else {
+		return fmt.Errorf("failed to fetch device-plugin %+v: %+v", dsName, err)
 	}
 
 	if devConfig.Spec.MetricsExporter.Enable {
@@ -311,8 +327,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 	}
 
 	// fetch latest node modules config, push their status back to DeviceConfig's status fields
-	err = dcrh.updateDeviceConfigNodeStatus(ctx, devConfig, nodes)
-	if err != nil {
+	if err := dcrh.updateDeviceConfigNodeStatus(ctx, devConfig, nodes); err != nil {
 		return err
 	}
 
@@ -431,8 +446,25 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		return err
 	}
 
-	nlDS := appsv1.DaemonSet{}
+	devPl := appsv1.DaemonSet{}
 	namespacedName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-device-plugin",
+	}
+
+	if err := dcrh.client.Get(ctx, namespacedName, &devPl); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get device-plugin daemonset %s: %v", namespacedName, err)
+		}
+	} else {
+		logger.Info("deleting device-plugin daemonset", "daemonset", namespacedName)
+		if err := dcrh.client.Delete(ctx, &devPl); err != nil {
+			return fmt.Errorf("failed to delete device-plugin daemonset %s: %v", namespacedName, err)
+		}
+	}
+
+	nlDS := appsv1.DaemonSet{}
+	namespacedName = types.NamespacedName{
 		Namespace: devConfig.Namespace,
 		Name:      devConfig.Name + "-node-labeller",
 	}
@@ -529,14 +561,48 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 		},
 	}
 	logger := log.FromContext(ctx)
-	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
-		return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig, nodes)
-	})
 
-	if err == nil {
-		logger.Info("Reconciled KMM Module", "name", kmmMod.Name, "result", opRes)
+	if devConfig.Spec.Driver.Enable {
+		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
+			return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig, nodes)
+		})
+
+		if err == nil {
+			logger.Info("Reconciled KMM Module", "name", kmmMod.Name, "result", opRes)
+		}
+		return err
+	} else {
+		mod := kmmv1beta1.Module{}
+		namespacedName := types.NamespacedName{
+			Namespace: devConfig.Namespace,
+			Name:      devConfig.Name,
+		}
+
+		if err := dcrh.client.Get(ctx, namespacedName, &mod); err == nil {
+			logger.Info("deleting KMM Module", "module", namespacedName)
+			if err := dcrh.client.Delete(ctx, &mod); err != nil {
+				return fmt.Errorf("failed to delete the requested Module: %s: %v", namespacedName, err)
+			}
+		}
 	}
-	return err
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	logger := log.FromContext(ctx)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-device-plugin"},
+	}
+
+	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
+		return dcrh.kmmHandler.SetDevicePluginAsDesired(ds, devConfig)
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("Reconciled device-plugin", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
