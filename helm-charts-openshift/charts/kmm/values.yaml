@@ -16,6 +16,7 @@ controller:
       repository: quay.io/edge-infrastructure/kernel-module-management-operator
       tag: release-2.1
     imagePullPolicy: Always
+    imagePullSecrets: ""
     resources:
       limits:
         cpu: 500m
@@ -23,8 +24,13 @@ controller:
       requests:
         cpu: 10m
         memory: 64Mi
-  nodeSelector:
-    node-role.kubernetes.io/master: ""
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
@@ -68,6 +74,13 @@ nodeLabeller:
     annotations: {}
 webhookServer:
   replicas: 1
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
   webhookServer:
     args:
     - --config=controller_config.yaml
@@ -83,6 +96,7 @@ webhookServer:
       repository: quay.io/edge-infrastructure/kernel-module-management-webhook-server
       tag: latest
     imagePullPolicy: Always
+    imagePullSecrets: ""
     resources:
       limits:
         cpu: 500m

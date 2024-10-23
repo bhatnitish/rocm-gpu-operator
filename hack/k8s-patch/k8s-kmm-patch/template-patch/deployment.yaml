@@ -27,19 +27,24 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
+      {{- if .Values.controller.nodeAffinity.nodeSelectorTerms }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
+            {{- range .Values.controller.nodeAffinity.nodeSelectorTerms }}
             - matchExpressions:
-              - key: node-role.kubernetes.io/control-plane
-                operator: Exists
-            - matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-            - matchExpressions:
-              - key: kmm.node.kubernetes.io/control-plane
-                operator: Exists
+              - key: {{ .key }}
+                operator: {{ .operator }}
+                {{- if .values }}
+                values:
+                {{- range .values }}
+                - {{ . }}
+                {{- end }}
+                {{- end}}
+            {{- end }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.controller.nodeSelector | nindent 8 }}
       containers:
       - args: {{- toYaml .Values.controller.manager.args | nindent 8 }}
         env:
@@ -55,6 +60,18 @@ spec:
           value: {{ quote .Values.controller.manager.env.relatedImageSign }}
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
+        {{- if .Values.controller.manager.env.relatedImageBuildPullSecret }}
+        - name: RELATED_IMAGE_BUILD_PULL_SECRET
+          value: {{ .Values.controller.manager.env.relatedImageBuildPullSecret }}
+        {{- end}}
+        {{- if .Values.controller.manager.env.relatedImageSignPullSecret }}
+        - name: RELATED_IMAGE_SIGN_PULL_SECRET
+          value: {{ .Values.controller.manager.env.relatedImageSignPullSecret }}
+        {{- end}}
+        {{- if .Values.controller.manager.env.relatedImageWorkerPullSecret }}
+        - name: RELATED_IMAGE_WORKER_PULL_SECRET
+          value: {{ .Values.controller.manager.env.relatedImageWorkerPullSecret }}
+        {{- end}}
         {{- if .Values.global.proxy.env | default dict}}
         {{- range $key, $value := .Values.global.proxy.env }}
         - name: {{ $key }}
@@ -63,6 +80,11 @@ spec:
         {{- end }}
         image: {{ .Values.controller.manager.image.repository }}:{{ .Values.controller.manager.image.tag
           | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.controller.manager.imagePullPolicy }}
+        {{- if .Values.controller.manager.imagePullSecret }}
+        imagePullSecrets:
+        - name: {{ .Values.controller.manager.imagePullSecret }}
+        {{- end}}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -132,19 +154,24 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: webhook-server
     spec:
+      {{- if .Values.webhookServer.nodeAffinity.nodeSelectorTerms }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
+            {{- range .Values.webhookServer.nodeAffinity.nodeSelectorTerms }}
             - matchExpressions:
-              - key: node-role.kubernetes.io/control-plane
-                operator: Exists
-            - matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-            - matchExpressions:
-              - key: kmm.node.kubernetes.io/control-plane
-                operator: Exists
+              - key: {{ .key }}
+                operator: {{ .operator }}
+                {{- if .values }}
+                values:
+                {{- range .values }}
+                - {{ . }}
+                {{- end }}
+                {{- end}}
+            {{- end }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.webhookServer.nodeSelector | nindent 8 }}
       containers:
       - args: {{- toYaml .Values.webhookServer.webhookServer.args | nindent 8 }}
         env:
@@ -158,6 +185,11 @@ spec:
         {{- end }}
         image: {{ .Values.webhookServer.webhookServer.image.repository }}:{{ .Values.webhookServer.webhookServer.image.tag
           | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.webhookServer.webhookServer.imagePullPolicy }}
+        {{- if .Values.webhookServer.webhookServer.imagePullSecret }}
+        imagePullSecrets:
+        - name: {{ .Values.webhookServer.webhookServer.imagePullSecret }}
+        {{- end}}
         livenessProbe:
           httpGet:
             path: /healthz

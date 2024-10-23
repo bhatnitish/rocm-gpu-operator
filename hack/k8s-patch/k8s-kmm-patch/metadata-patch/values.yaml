@@ -8,10 +8,14 @@ controller:
       relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
       relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:dev
       relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:dev
+      relatedImageBuildPullSecret: ""
+      relatedImageSignPullSecret: ""
+      relatedImageWorkerPullSecret: ""
     image:
       repository: registry.test.pensando.io:5000/kernel-module-management-operator
       tag: dev
     imagePullPolicy: Always
+    imagePullSecrets: ""
     resources:
       limits:
         cpu: 500m
@@ -19,6 +23,13 @@ controller:
       requests:
         cpu: 10m
         memory: 64Mi
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
@@ -47,6 +58,13 @@ managerConfig:
       firmwareHostPath: /var/lib/firmware
 webhookServer:
   replicas: 1
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
   webhookServer:
     args:
     - --config=controller_config.yaml
@@ -59,6 +77,7 @@ webhookServer:
       repository: registry.test.pensando.io:5000/kernel-module-management-webhook-server
       tag: dev
     imagePullPolicy: Always
+    imagePullSecrets: ""
     resources:
       limits:
         cpu: 500m

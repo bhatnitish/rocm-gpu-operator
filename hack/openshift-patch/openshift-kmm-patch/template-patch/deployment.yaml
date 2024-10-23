@@ -27,6 +27,24 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
+      {{- if .Values.controller.nodeAffinity.nodeSelectorTerms }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            {{- range .Values.controller.nodeAffinity.nodeSelectorTerms }}
+            - matchExpressions:
+              - key: {{ .key }}
+                operator: {{ .operator }}
+                {{- if .values }}
+                values:
+                {{- range .values }}
+                - {{ . }}
+                {{- end }}
+                {{- end}}
+            {{- end }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.controller.nodeSelector | nindent 8 }}
       containers:
       - args: {{- toYaml .Values.controller.manager.args | nindent 8 }}
         command:
@@ -49,6 +67,10 @@ spec:
         image: {{ .Values.controller.manager.image.repository }}:{{ .Values.controller.manager.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.controller.manager.imagePullPolicy }}
+        {{- if .Values.controller.manager.imagePullSecret }}
+        imagePullSecrets:
+        - name: {{ .Values.controller.manager.imagePullSecret }}
+        {{- end}}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -76,7 +98,6 @@ spec:
         - mountPath: /controller_config.yaml
           name: manager-config
           subPath: controller_config.yaml
-      nodeSelector: {{- toYaml .Values.controller.nodeSelector | nindent 8 }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -134,19 +155,24 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: webhook-server
     spec:
+      {{- if .Values.webhookServer.nodeAffinity.nodeSelectorTerms }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
+            {{- range .Values.webhookServer.nodeAffinity.nodeSelectorTerms }}
             - matchExpressions:
-              - key: node-role.kubernetes.io/control-plane
-                operator: Exists
-            - matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-            - matchExpressions:
-              - key: kmm.node.kubernetes.io/control-plane
-                operator: Exists
+              - key: {{ .key }}
+                operator: {{ .operator }}
+                {{- if .values }}
+                values:
+                {{- range .values }}
+                - {{ . }}
+                {{- end }}
+                {{- end}}
+            {{- end }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.webhookServer.nodeSelector | nindent 8 }}
       containers:
       - args: {{- toYaml .Values.webhookServer.webhookServer.args | nindent 8 }}
         env:
@@ -155,6 +181,10 @@ spec:
         image: {{ .Values.webhookServer.webhookServer.image.repository }}:{{ .Values.webhookServer.webhookServer.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.webhookServer.webhookServer.imagePullPolicy }}
+        {{- if .Values.webhookServer.webhookServer.imagePullSecret }}
+        imagePullSecrets:
+        - name: {{ .Values.webhookServer.webhookServer.imagePullSecret }}
+        {{- end}}
         livenessProbe:
           httpGet:
             path: /healthz

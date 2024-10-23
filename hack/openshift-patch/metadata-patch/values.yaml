@@ -13,6 +13,7 @@ controllerManager:
       repository: registry.test.pensando.io:5000/amd-gpu-operator
       tag: dev
     imagePullPolicy: Always
+    imagePullSecrets: ""
     resources:
       limits:
         cpu: 500m
@@ -20,6 +21,14 @@ controllerManager:
       requests:
         cpu: 10m
         memory: 64Mi
+  nodeSelector:
+    node-role.kubernetes.io/master: ""
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
