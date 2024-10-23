@@ -1,27 +1,35 @@
-site_name: AMD GPU OPERATOR
+site_name: AMD GPU Operator
 nav:
-  - Introduction: index.md
-  - Components: components.md
-  - Install:
-    - Install Operator:
-        - Vanilla Kubernetes - Helm Charts: vanilla_k8s_deploy_helm.md
-        - OpenShift - Helm Charts: openshift_deploy_helm.md
-        - OpenShift - OLM bundle: openshift_deploy_olm.md
-    - Deploy Driver:
-      - Install Driver: driver_install.md
-      - Pre-Compiled Driver Image: pre_compiled_image.md
-      - Secure Boot Driver Image: secure_boot.md
-  - Upgrade:
-    - Upgrade Operator: operator_upgrade.md
-    - Upgrade Driver: driver_upgrade.md
-    - Upgrade Kernel: kernel_upgrade.md
-  - Uninstall:
-    - Unload Driver: driver_unload.md
-    - Uninstall Operator: operator_uninstall.md
-  - TroubleShooting: troubleshoot.md
-  - Specialized Networks:
-    - HTTP Proxy: http_proxy.md
-    - Air-Gapped Network: airgapped_network.md
+  - Home: index.md
+  - Getting Started:
+    - Overview: overview.md
+  - User Guide:
+    - Installation:
+        - Kubernetes (Helm): installation/kubernetes-helm.md
+        - OpenShift (Helm): installation/openshift-helm.md
+        - OpenShift (OLM): installation/openshift-olm.md  
+    - Configuration: configuration.md
+    - Usage: usage.md
+    - GPU Driver Management:
+      - Installation: drivers/installation.md
+      - Using a Pre-Compiled Driver: drivers/precompiled-driver.md
+      - Secure Boot: drivers/secure-boot.md
+      - Upgrade: drivers/upgrading.md
+      - Uninstallation: drivers/uninstallation.md
+    - Upgrades:
+      - Operator Upgrade: upgrades/operator.md
+      - Kernel: upgrades/kernel.md
+    - Uninstallation:
+      - Driver: drivers/uninstallation.md
+      - Operator: installation/uninstall.md
+    - Troubleshooting: troubleshooting.md      
+  - Advanced Topics:
+    - HTTP Proxy: advanced/http-proxy.md
+    - Air-Gapped Installation: advanced/airgapped-install.md
+  - Contributing:
+    - Developer Guide: contributing/developer-guide.md
+    - Documentation Standards: contributing/documentation-standards.md
+
 theme: 
   name: readthedocs
   highlightjs: true
@@ -29,8 +37,24 @@ theme:
     - dockerfile
     - shell
     - yaml
+
 markdown_extensions:
   - admonition
-repo_url: https://github.com/pensando/gpu-operator
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ROCm/gpu-operator
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/rocm/gpu-operator
+
+repo_url: https://github.com/ROCm/gpu-operator
 edit_uri: blob/main/docs/docs/
 copyright: Copyright © 2024-2025, Advanced Micro Devices, Inc.

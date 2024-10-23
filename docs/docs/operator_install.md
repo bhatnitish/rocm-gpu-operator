@@ -1,1 +1,0 @@
-# Install AMD GPU Operator

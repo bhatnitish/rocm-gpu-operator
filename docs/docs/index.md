@@ -1,36 +1,51 @@
-# Welcome to AMD GPU Operator Documentation
+# AMD GPU Operator Documentation
 
 <img src="imgs/amd_logo.jpg" alt="AMD" style="width:220px; height:auto;">
 <img src="imgs/k8s_logo.png" alt="Kubernetes" style="width:100px; height:auto;">
 
-Explore the power of AMD Instinct GPU accelerators within your Kubernetes(k8s) cluster with the AMD GPU Operator. This documentation is your go-to resource to enable, configure, and run accelerated workloads with your AMD Instinct GPU accelerators. The AMD GPU Operator lets you seamlessly harness computing capabilities for machine learning, Generative AI, and GPU-accelerated applications.
+The AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
 
-## About this documentation
+## Features
 
-Browse through the documents for Getting Started, Compatibility Matrix and latest Release Notes.
+- Automated driver installation and management
+- Easy deployment of the AMD GPU device plugin
+- Metrics collection and export
+- Support for both vanilla Kubernetes and OpenShift environments
+- Simplified GPU resource allocation for containers
+- Automatic worker node labeling for GPU-enabled nodes
 
-## Getting Started
+## Compatibility
 
-Read the compatibility requirement and build your Kubernetes / OpenShift cluster, then go to the ```Install``` section to install the AMD GPU Operator.
+- **Kubernetes**: 1.30.0+
+- **OpenShift**: 4.10+
+- Please refer to the [ROCM documentaiton](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
 
-## Release Notes
+## Prerequisites
 
-Check the latest release at [GitHub Release Page](https://github.com/pensando/gpu-operator/releases).
+- Helm v3.2.0+
+- `kubectl` or `oc` CLI tool configured to access your cluster
 
-## Compatibility Matrix
+## Quick Start
 
-* Platform Support:
+- Add the Helm repository:
 
-    TBD
+```bash
+helm repo add rocm https://rocm.github.io/gpu-operator
+helm repo update
+```
 
-* ROCM DKMS Driver Compatability Matrix: 
+- Install the AMD GPU Operator:
 
-    Please refer to the [ROCM official website](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for ROCM driver.
+```bash
+helm install amd-gpu-operator rocm/gpu-operator-helm --namespace kube-amd-gpu --create-namespace
+```
 
-* Kubernetes Compatability:
+- Verify the installation:
 
-    TBD
+```bash
+kubectl get pods -n kube-amd-gpu
+```
 
-## Licenses and Contributing
+## Support
 
-AMD GPU Operator source code is licensed under [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0)
+For bugs and feature requests, please file an issue on our [GitHub Issues](https://github.com/ROCm/gpu-operator/issues) page.
