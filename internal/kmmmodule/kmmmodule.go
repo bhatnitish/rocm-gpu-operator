@@ -242,21 +242,13 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	args := &kmmv1beta1.ModprobeArgs{}
 	firmwarePath := imageFirmwarePath
 
-	if !devConfig.Spec.Driver.Enable {
-		args = &kmmv1beta1.ModprobeArgs{
-			Load:   []string{"-n"},
-			Unload: []string{"-n"},
-		}
-		firmwarePath = ""
-		kmlog.Info("skip driver install/uninstall")
-	}
-
 	kernelMappings, driversVersion, err := getKernelMappings(devConfig, isOpenshift, nodes)
 	if err != nil {
 		return err
 	}
 
 	var modLoadingOrder []string
+	var moduleName = gpuDriverModuleName
 	if !isOpenshift {
 		// specify this order fror k8s in order to make sure amdttm and amdkcl was properly cleaned up after deletion of CR
 		// module will be loaded in this order: amdkcl, amdttm, amdgpu
@@ -268,9 +260,20 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		}
 	}
 
+	if !devConfig.Spec.Driver.Enable {
+		args = &kmmv1beta1.ModprobeArgs{
+			Load:   []string{"-n"},
+			Unload: []string{"-n"},
+		}
+		firmwarePath = ""
+		modLoadingOrder = nil
+		kmlog.Info("skip driver install/uninstall")
+		moduleName = "dummy"
+	}
+
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
 		Modprobe: kmmv1beta1.ModprobeSpec{
-			ModuleName:          gpuDriverModuleName,
+			ModuleName:          moduleName,
 			FirmwarePath:        firmwarePath,
 			Args:                args,
 			ModulesLoadingOrder: modLoadingOrder,
