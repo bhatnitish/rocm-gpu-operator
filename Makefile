@@ -71,6 +71,10 @@ KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
 KMM_WEBHOOK_IMG_NAME ?= registry.test.pensando.io:5000/kernel-module-management-webhook-server
 KMM_OPERATOR_IMG_NAME ?= registry.test.pensando.io:5000/kernel-module-management-operator
 
+# CICD test image
+TEST_CONTAINER_URL ?= registry.test.pensando.io:5000/pensando/gpu-op
+TEST_CONTAINER_VERSION ?=1.0
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -495,3 +499,13 @@ clean-helm-k8s:
 
 copyrights:
 	GOFLAGS=-mod=mod go run tools/build/copyright/main.go && ./tools/build/check-local-files.sh
+
+docker/install_box:
+	@if [ ! -x /usr/local/bin/box ]; then echo "Installing box, sudo is required"; curl -sSL pm.test.pensando.io/tools/box-builder/install.sh | sudo bash; fi
+
+docker/build-test-container: docker/install_box
+	BOX_INCLUDE_ENV="FLATTEN" FLATTEN=1 box -n -t '${TEST_CONTAINER_URL}:${TEST_CONTAINER_VERSION}' box-deps.rb
+
+docker/release-test-container:
+	docker push '${TEST_CONTAINER_URL}:${TEST_CONTAINER_VERSION}'
+

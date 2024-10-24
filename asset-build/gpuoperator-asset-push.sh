@@ -35,7 +35,6 @@ docker_push_private () {
 
 setup () {
     setup_dir
-    docker_push_private
     copy_artifacts
 }
 
@@ -52,6 +51,9 @@ upload () {
 main () {
   setup
   upload
+
+  # docker push need happen after asset-push in case docker is not fully started yet
+  docker_push_private
 }
 
 main
