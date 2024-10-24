@@ -101,7 +101,7 @@ type DriverSpec struct {
 	// example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1 and ubuntu-22.04-5.15.0-94-generic-6.1.3
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
 
 	// driver image registry TLS setting for the container image
@@ -125,13 +125,13 @@ type DevicePluginSpec struct {
 	// device plugin image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage"}
 	// +optional
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	DevicePluginImage string `json:"devicePluginImage,omitempty"`
 
 	// node labeller image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage"}
 	// +optional
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	NodeLabellerImage string `json:"nodeLabellerImage,omitempty"`
 
 	// node labeller image registry secret used to pull/push images
@@ -174,7 +174,7 @@ type MetricsExporterSpec struct {
 	// metrics exporter image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
 
 	// metrics exporter image registry secret used to pull/push images
@@ -228,7 +228,7 @@ type KubeRbacConfig struct {
 	// kube-rbac-proxy image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]+([._-][a-z0-9]+)*)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
 
 	// disable https protecting the proxy endpoint
