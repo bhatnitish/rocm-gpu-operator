@@ -207,6 +207,7 @@ var _ = Describe("setKMMDevicePlugin", func() {
 			"-c",
 			"while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done; ./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5",
 		}
+		expectedMod.Spec.DevicePlugin.Container.ImagePullPolicy = v1.PullAlways
 
 		setKMMDevicePlugin(&mod, &input)
 
@@ -242,6 +243,7 @@ var _ = Describe("setKMMDevicePlugin", func() {
 		Expect(err).To(BeNil())
 
 		expectedMod.Spec.DevicePlugin.Container.Image = "some device plugin image"
+		expectedMod.Spec.DevicePlugin.Container.ImagePullPolicy = v1.PullAlways
 		expectedMod.Spec.DevicePlugin.Container.Command = []string{"sh"}
 		expectedMod.Spec.DevicePlugin.Container.Args = []string{
 			"-c",

@@ -38,12 +38,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/utils/pointer"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/utils/pointer"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
@@ -70,8 +71,9 @@ const (
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
 	kmmNodeVersionLabelTemplate    = "kmm.node.kubernetes.io/version-module.%s.%s"
-	defaultDevicePluginImage       = "rocm/k8s-device-plugin:latest"
-	defaultOcDriversImageTemplate  = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
+	// check the device plugin image tags here: https://hub.docker.com/r/rocm/k8s-device-plugin/tags
+	defaultDevicePluginImage      = "rocm/k8s-device-plugin:1.31.0.0"
+	defaultOcDriversImageTemplate = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	defaultOcDriversVersion     = "el9-6.1.1"
@@ -298,6 +300,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name:            "device-plugin",
 						WorkingDir:      "/root",
 						Image:           devicePluginImage,
+						ImagePullPolicy: v1.PullAlways,
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
@@ -647,9 +650,10 @@ func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceCon
 	mod.Spec.DevicePlugin = &kmmv1beta1.DevicePluginSpec{
 		ServiceAccountName: "amd-gpu-operator-kmm-device-plugin",
 		Container: kmmv1beta1.DevicePluginContainerSpec{
-			Command: []string{"sh"},
-			Args:    []string{"-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done; ./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5"},
-			Image:   devicePluginImage,
+			Command:         []string{"sh"},
+			Args:            []string{"-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 1 ;done; ./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5"},
+			Image:           devicePluginImage,
+			ImagePullPolicy: v1.PullAlways,
 			VolumeMounts: []v1.VolumeMount{
 				{
 					Name:      "sys",

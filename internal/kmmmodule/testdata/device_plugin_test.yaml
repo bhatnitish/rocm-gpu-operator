@@ -7,7 +7,7 @@ spec:
   devicePlugin:
     serviceAccountName: "amd-gpu-operator-kmm-device-plugin"
     container:
-      image: rocm/k8s-device-plugin:latest
+      image: rocm/k8s-device-plugin:1.31.0.0
       volumeMounts:
       - name: sys
         mountPath: /sys
