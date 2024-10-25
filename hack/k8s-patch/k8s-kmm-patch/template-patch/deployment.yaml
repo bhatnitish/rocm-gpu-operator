@@ -81,9 +81,9 @@ spec:
         image: {{ .Values.controller.manager.image.repository }}:{{ .Values.controller.manager.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.controller.manager.imagePullPolicy }}
-        {{- if .Values.controller.manager.imagePullSecret }}
+        {{- if .Values.controller.manager.imagePullSecrets }}
         imagePullSecrets:
-        - name: {{ .Values.controller.manager.imagePullSecret }}
+        - name: {{ .Values.controller.manager.imagePullSecrets }}
         {{- end}}
         livenessProbe:
           httpGet:
@@ -186,9 +186,9 @@ spec:
         image: {{ .Values.webhookServer.webhookServer.image.repository }}:{{ .Values.webhookServer.webhookServer.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.webhookServer.webhookServer.imagePullPolicy }}
-        {{- if .Values.webhookServer.webhookServer.imagePullSecret }}
+        {{- if .Values.webhookServer.webhookServer.imagePullSecrets }}
         imagePullSecrets:
-        - name: {{ .Values.webhookServer.webhookServer.imagePullSecret }}
+        - name: {{ .Values.webhookServer.webhookServer.imagePullSecrets }}
         {{- end}}
         livenessProbe:
           httpGet:

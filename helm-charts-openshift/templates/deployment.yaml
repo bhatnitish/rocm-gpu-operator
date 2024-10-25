@@ -57,9 +57,9 @@ spec:
         image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.controllerManager.manager.imagePullPolicy }}
-        {{- if .Values.controllerManager.manager.imagePullSecret }}
+        {{- if .Values.controllerManager.manager.imagePullSecrets }}
         imagePullSecrets:
-        - name: {{ .Values.controllerManager.manager.imagePullSecret }}
+        - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
         {{- end}}
         livenessProbe:
           httpGet:
