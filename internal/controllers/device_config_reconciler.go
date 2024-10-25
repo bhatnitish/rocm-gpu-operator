@@ -616,10 +616,27 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Cont
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+
+	if !devConfig.Spec.DevicePlugin.EnableNodeLabeller {
+		existingDS := &appsv1.DaemonSet{}
+		existingDSMetadata := types.NamespacedName{
+			Namespace: devConfig.Namespace,
+			Name:      devConfig.Name + "-node-labeller",
+		}
+		if err := dcrh.client.Get(ctx, existingDSMetadata, existingDS); err == nil {
+			logger.Info("disabling node labeller, deleting existing node labeller daemonset", "daemonset", existingDSMetadata.Name)
+			if err := dcrh.client.Delete(ctx, existingDS); err != nil {
+				return fmt.Errorf("failed to delete existing node labeller daemonset %s: %v", existingDSMetadata.Name, err)
+			}
+		}
+		logger.Info("Skip handling node labeller as it is disbaled", "namespace", devConfig.Namespace, "name", devConfig.Name)
+		return nil
+	}
+
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-node-labeller"},
 	}
-	logger := log.FromContext(ctx)
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
 		return dcrh.nlHandler.SetNodeLabellerAsDesired(ds, devConfig)
 	})

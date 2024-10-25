@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-10-24T18:04:22Z"
+    createdAt: "2024-10-24T22:49:53Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -66,6 +66,11 @@ spec:
         path: devicePlugin.devicePluginImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: enable or disable the node labeller
+        displayName: EnableNodeLabeller
+        path: devicePlugin.enableNodeLabeller
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enableNodeLabeller
       - description: node labeller image registry secret used to pull/push images
         displayName: ImageRegistrySecret
         path: devicePlugin.imageRegistrySecret

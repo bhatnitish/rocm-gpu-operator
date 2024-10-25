@@ -37,6 +37,11 @@ spec:
         path: devicePlugin.devicePluginImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: enable or disable the node labeller
+        displayName: EnableNodeLabeller
+        path: devicePlugin.enableNodeLabeller
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enableNodeLabeller
       - description: node labeller image registry secret used to pull/push images
         displayName: ImageRegistrySecret
         path: devicePlugin.imageRegistrySecret

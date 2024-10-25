@@ -138,6 +138,12 @@ type DevicePluginSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
 	// +optional
 	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+
+	// enable or disable the node labeller
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="EnableNodeLabeller",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enableNodeLabeller"}
+	// +optional
+	// +kubebuilder:default=true
+	EnableNodeLabeller bool `json:"enableNodeLabeller,omitempty"`
 }
 
 type ImageSignSpec struct {

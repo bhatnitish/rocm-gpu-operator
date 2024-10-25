@@ -595,6 +595,11 @@ var _ = Describe("handleNodeLabeller", func() {
 			Name:      devConfigName,
 			Namespace: devConfigNamespace,
 		},
+		Spec: amdv1alpha1.DeviceConfigSpec{
+			DevicePlugin: amdv1alpha1.DevicePluginSpec{
+				EnableNodeLabeller: true,
+			},
+		},
 	}
 
 	It("NodeLabeller DaemonSet does not exist", func() {
