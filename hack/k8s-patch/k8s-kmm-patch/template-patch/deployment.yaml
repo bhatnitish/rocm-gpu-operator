@@ -81,10 +81,6 @@ spec:
         image: {{ .Values.controller.manager.image.repository }}:{{ .Values.controller.manager.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.controller.manager.imagePullPolicy }}
-        {{- if .Values.controller.manager.imagePullSecrets }}
-        imagePullSecrets:
-        - name: {{ .Values.controller.manager.imagePullSecrets }}
-        {{- end}}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -109,6 +105,10 @@ spec:
         - mountPath: /controller_config.yaml
           name: manager-config
           subPath: controller_config.yaml
+      {{- if .Values.controller.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controller.manager.imagePullSecrets }}
+      {{- end}}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "kmm.fullname" . }}-controller
@@ -186,10 +186,6 @@ spec:
         image: {{ .Values.webhookServer.webhookServer.image.repository }}:{{ .Values.webhookServer.webhookServer.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.webhookServer.webhookServer.imagePullPolicy }}
-        {{- if .Values.webhookServer.webhookServer.imagePullSecrets }}
-        imagePullSecrets:
-        - name: {{ .Values.webhookServer.webhookServer.imagePullSecrets }}
-        {{- end}}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -218,6 +214,10 @@ spec:
         - mountPath: /controller_config.yaml
           name: manager-config
           subPath: controller_config.yaml
+      {{- if .Values.controller.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controller.manager.imagePullSecrets }}
+      {{- end}}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "kmm.fullname" . }}-controller

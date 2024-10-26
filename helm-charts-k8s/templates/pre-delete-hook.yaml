@@ -28,5 +28,9 @@ spec:
                 echo "No DeviceConfigs resources found. Proceeding with uninstallation."
                 exit 0
               fi
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end}}
       restartPolicy: Never
 # Run helm uninstall with --no-hooks to bypass the pre-delete hook 

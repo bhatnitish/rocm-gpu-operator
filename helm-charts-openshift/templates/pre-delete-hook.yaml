@@ -31,6 +31,10 @@ spec:
                 echo "No DeviceConfigs resources found. Proceeding with uninstallation."
                 exit 0
               fi
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end}}
       restartPolicy: Never
 
 ---
@@ -62,4 +66,8 @@ spec:
             - -c
             - |
               kubectl delete nodefeaturediscoveries --all -n {{ .Release.Namespace }}
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end}}
       restartPolicy: Never
