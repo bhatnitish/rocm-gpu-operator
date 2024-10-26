@@ -3,6 +3,14 @@
 if [ -z $RELEASE ]
 then
   echo "RELEASE is not set, return"
+
+  if [ -z ${DOCKERHUB_TOKEN-} ]
+  then
+      echo "DOCKERHUB_TOKEN is not set"
+  else
+      echo "DOCKERHUB_TOKEN is set"
+  fi
+      
   exit 0
 fi
 
@@ -27,10 +35,19 @@ copy_artifacts () {
     ls -la $BUNDLE_DIR
 }
 
-docker_push_private () {
+docker_push () {
     docker load -i /gpu-operator/amd-gpu-operator-latest.tar.gz
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator:latest | grep "HOURLY"
     docker push registry.test.pensando.io:5000/amd-gpu-operator:latest
+
+    # push final release to docker hub for public access
+    if [ -z $DOCKERHUB_TOKEN ]
+    then
+      echo "DOCKERHUB_TOKEN is not set"
+    else
+      docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
+      docker push amdpsdo/gpu-operator:latest
+    fi
 }
 
 setup () {
@@ -53,11 +70,9 @@ main () {
   upload
 
   # docker push need happen after asset-push in case docker is not fully started yet
-  docker_push_private
+  docker_push
 }
 
 main
 
-# push final release to docker hub for public access
-./docker-push-public.sh
 exit 0
