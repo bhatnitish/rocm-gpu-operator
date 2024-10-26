@@ -45,6 +45,7 @@ docker_push () {
     then
       echo "DOCKERHUB_TOKEN is not set"
     else
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest amdpsdo/gpu-operator:latest
       docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
       docker push amdpsdo/gpu-operator:latest
     fi
