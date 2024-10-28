@@ -32,19 +32,6 @@ spec:
     # default value is rocm/k8s-device-plugin:labeller-latest
     nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
         
-  metricsExporter:
-    # To enable/disable the metrics exporter, disabled by default
-    enable: True
-
-    # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
-    serviceType: "NodePort"
-
-    # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
-    nodePort: 32500
-
-    # image location
-    image: "amd/exporter:v1"
-
   # Specify the metrics exporter config
   metricsExporter:
      # To enable/disable the metrics exporter, disabled by default
