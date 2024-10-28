@@ -267,12 +267,14 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		containers[0].Env[1].Value = fmt.Sprintf("%v", port)
 	}
 
+	gracePeriod := int64(1)
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: matchLabels,
 			},
+
 			Spec: v1.PodSpec{
 				InitContainers: []v1.Container{
 					{
@@ -288,12 +290,13 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 						},
 					},
 				},
-				Containers:         containers,
-				PriorityClassName:  "system-node-critical",
-				NodeSelector:       nodeSelector,
-				ServiceAccountName: serviceaccount,
-				Volumes:            volumes,
-				ImagePullSecrets:   imagePullSecrets,
+				Containers:                    containers,
+				PriorityClassName:             "system-node-critical",
+				NodeSelector:                  nodeSelector,
+				ServiceAccountName:            serviceaccount,
+				Volumes:                       volumes,
+				ImagePullSecrets:              imagePullSecrets,
+				TerminationGracePeriodSeconds: &gracePeriod,
 			},
 		},
 	}
