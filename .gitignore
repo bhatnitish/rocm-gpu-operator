@@ -3,3 +3,4 @@
 /*gpu-operator*.tgz
 /helm-charts-k8s/charts/*.tgz
 /helm-charts-openshift/charts/*.tgz
+*.out

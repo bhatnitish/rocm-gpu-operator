@@ -256,10 +256,11 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	}
 
 	nodeSelector := map[string]string{}
+	for key, val := range devConfig.Spec.Selector {
+		nodeSelector[key] = val
+	}
 	if devConfig.Spec.Driver.Enable {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
-	} else {
-		nodeSelector = devConfig.Spec.Selector
 	}
 
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}

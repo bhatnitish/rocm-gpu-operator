@@ -34,6 +34,7 @@ package metricsexporter
 
 import (
 	"fmt"
+
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
@@ -155,7 +156,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	} else {
 		nodeSelector = devConfig.Spec.Selector
 	}
-	nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+
+	// only use module ready label as node selector when KMM driver is enabled
+	if devConfig.Spec.Driver.Enable {
+		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+	}
 
 	mxImage := defaultMetricsExporterImage
 	if mSpec.Image != "" {
@@ -269,6 +274,20 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 				Labels: matchLabels,
 			},
 			Spec: v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Name:            "driver-init",
+						Image:           "busybox:1.36",
+						Command:         []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						VolumeMounts: []v1.VolumeMount{
+							{
+								Name:      "sys-volume",
+								MountPath: "/host-sys",
+							},
+						},
+					},
+				},
 				Containers:         containers,
 				PriorityClassName:  "system-node-critical",
 				NodeSelector:       nodeSelector,

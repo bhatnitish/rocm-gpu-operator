@@ -534,6 +534,11 @@ var _ = Describe("handleBuildConfigMap", func() {
 			Name:      devConfigName,
 			Namespace: devConfigNamespace,
 		},
+		Spec: amdv1alpha1.DeviceConfigSpec{
+			Driver: amdv1alpha1.DriverSpec{
+				Enable: true,
+			},
+		},
 	}
 
 	It("BuildConfig does not exist", func() {
@@ -613,7 +618,7 @@ var _ = Describe("handleNodeLabeller", func() {
 			kubeClient.EXPECT().Create(ctx, gomock.Any()).Return(nil),
 		)
 
-		err := dcrh.handleNodeLabeller(ctx, devConfig)
+		err := dcrh.handleNodeLabeller(ctx, devConfig, testNodeList)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -632,7 +637,7 @@ var _ = Describe("handleNodeLabeller", func() {
 			nodeLabellerHelper.EXPECT().SetNodeLabellerAsDesired(existingDS, devConfig).Return(nil),
 		)
 
-		err := dcrh.handleNodeLabeller(ctx, devConfig)
+		err := dcrh.handleNodeLabeller(ctx, devConfig, testNodeList)
 		Expect(err).ToNot(HaveOccurred())
 	})
 })

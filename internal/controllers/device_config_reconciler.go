@@ -191,7 +191,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("start node labeller reconciliation")
-	err = r.helper.handleNodeLabeller(ctx, devConfig)
+	err = r.helper.handleNodeLabeller(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to handle node labeller for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
@@ -220,7 +220,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
-	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
@@ -333,15 +333,17 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 
 	// get the latest version of object right before update
 	// to avoid issue "the object has been modified; please apply your changes to the latest version and try again"
-	latestObj, err := dcrh.getRequestedDeviceConfig(ctx, types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
-	if err != nil {
-		return err
-	}
-	devConfig.Status.DeepCopyInto(&latestObj.Status)
-	if err := dcrh.client.Status().Update(ctx, latestObj); err != nil {
-		return err
-	}
-	return nil
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latestObj, err := dcrh.getRequestedDeviceConfig(ctx, types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
+		if err != nil {
+			return err
+		}
+		devConfig.Status.DeepCopyInto(&latestObj.Status)
+		if err := dcrh.client.Status().Update(ctx, latestObj); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (dcrh *deviceConfigReconcilerHelper) getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error) {
@@ -367,7 +369,9 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 		nmc := kmmv1beta1.NodeModulesConfig{}
 		err := dcrh.client.Get(ctx, types.NamespacedName{Name: node.Name}, &nmc)
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("failed to fetch NMC for node %+v", node.Name))
+			if !k8serrors.IsNotFound(err) {
+				logger.Error(err, fmt.Sprintf("failed to fetch NMC for node %+v", node.Name))
+			}
 			continue
 		}
 		if nmc.Status.Modules != nil {
@@ -442,16 +446,19 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Co
 func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
+	// finalize metrics exporter and metrics service
+	// this should be removed firstly
+	// because the exporter is using processes that could occupy the gpu driver
 	if err := dcrh.finalizeMetricsExporter(ctx, devConfig); err != nil {
 		return err
 	}
 
+	// finalize device plugin
 	devPl := appsv1.DaemonSet{}
 	namespacedName := types.NamespacedName{
 		Namespace: devConfig.Namespace,
 		Name:      devConfig.Name + "-device-plugin",
 	}
-
 	if err := dcrh.client.Get(ctx, namespacedName, &devPl); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return fmt.Errorf("failed to get device-plugin daemonset %s: %v", namespacedName, err)
@@ -463,6 +470,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		}
 	}
 
+	// finalize node labeller
 	nlDS := appsv1.DaemonSet{}
 	namespacedName = types.NamespacedName{
 		Namespace: devConfig.Namespace,
@@ -480,6 +488,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		}
 	}
 
+	// finalize KMM CR of managing out-of-tree kernel module
 	mod := kmmv1beta1.Module{}
 	namespacedName = types.NamespacedName{
 		Namespace: devConfig.Namespace,
@@ -487,18 +496,29 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 	if err := dcrh.client.Get(ctx, namespacedName, &mod); err != nil {
 		if k8serrors.IsNotFound(err) {
-			logger.Info("module already deleted, removing finalizer", "module", namespacedName)
+			// if KMM module CR is not found
+			if devConfig.Spec.Driver.Enable {
+				logger.Info("module already deleted, removing finalizer", "module", namespacedName)
+			} else {
+				// driver disabled mode won't have KMM CR created
+				// but it still requries the removal of node labels
+				if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
+					logger.Error(err, "failed to update node labels")
+				}
+			}
 			devConfigCopy := devConfig.DeepCopy()
 			controllerutil.RemoveFinalizer(devConfig, deviceConfigFinalizer)
 			return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
 		}
+		// other types of error occurred
 		return fmt.Errorf("failed to get the requested Module %s: %v", namespacedName, err)
 	}
+
+	// if KMM module CR is found
 	logger.Info("deleting KMM Module", "module", namespacedName)
 	if err := dcrh.client.Delete(ctx, &mod); err != nil {
 		return fmt.Errorf("failed to delete the requested Module: %s: %v", namespacedName, err)
 	}
-
 	if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
 		logger.Error(err, "failed to update node labels")
 	}
@@ -507,8 +527,13 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	logger := log.FromContext(ctx)
+	if !devConfig.Spec.Driver.Enable {
+		logger.Info("skip handling build config map as KMM driver mode is disabled")
+		return nil
+	}
 	if nodes == nil || len(nodes.Items) == 0 {
-		return fmt.Errorf("No nodes found for the label selector %s", kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
+		return fmt.Errorf("no nodes found for the label selector %s", kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
 	}
 
 	savedCMName := map[string]bool{}
@@ -531,7 +556,6 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 			},
 		}
 
-		logger := log.FromContext(ctx)
 		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, buildDockerfileCM, func() error {
 			return dcrh.kmmHandler.SetBuildConfigMapAsDesired(buildDockerfileCM, devConfig)
 		})
@@ -571,20 +595,11 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 			logger.Info("Reconciled KMM Module", "name", kmmMod.Name, "result", opRes)
 		}
 		return err
-	} else {
-		mod := kmmv1beta1.Module{}
-		namespacedName := types.NamespacedName{
-			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name,
-		}
-
-		if err := dcrh.client.Get(ctx, namespacedName, &mod); err == nil {
-			logger.Info("deleting KMM Module", "module", namespacedName)
-			if err := dcrh.client.Delete(ctx, &mod); err != nil {
-				return fmt.Errorf("failed to delete the requested Module: %s: %v", namespacedName, err)
-			}
-		}
 	}
+	logger.Info("skip handling KMM module as KMM driver mode is disabled")
+	// if driver mode switched from enable to disable
+	// we won't delete the existing KMM module
+
 	return nil
 }
 
@@ -608,17 +623,20 @@ func (dcrh *deviceConfigReconcilerHelper) handleDevicePlugin(ctx context.Context
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// label corresponding node with given kmod version
 	// so that KMM could manage the upgrade by watching the node's version label change
-	err := dcrh.kmmHandler.SetNodeVersionLabelAsDesired(ctx, devConfig, nodes)
-	if err != nil {
-		return fmt.Errorf("failed to update node version label for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
+	if devConfig.Spec.Driver.Enable {
+		err := dcrh.kmmHandler.SetNodeVersionLabelAsDesired(ctx, devConfig, nodes)
+		if err != nil {
+			return fmt.Errorf("failed to update node version label for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
+		}
 	}
 	return nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
 	if !devConfig.Spec.DevicePlugin.EnableNodeLabeller {
+		// deleting existing node labeller daemonset if it exists
 		existingDS := &appsv1.DaemonSet{}
 		existingDSMetadata := types.NamespacedName{
 			Namespace: devConfig.Namespace,
@@ -630,7 +648,12 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 				return fmt.Errorf("failed to delete existing node labeller daemonset %s: %v", existingDSMetadata.Name, err)
 			}
 		}
-		logger.Info("Skip handling node labeller as it is disbaled", "namespace", devConfig.Namespace, "name", devConfig.Name)
+		// clean up node labeller's label when node labeller is disabled
+		// if no label need to be removed, updateNodeLabels won't send request
+		if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, false); err != nil {
+			logger.Error(err, "failed to remove node labeller's labels when node labeller is disabled")
+		}
+		logger.Info("skip handling node labeller as it is disbaled", "namespace", devConfig.Namespace, "name", devConfig.Name)
 		return nil
 	}
 
@@ -742,8 +765,8 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 				}
 			}
 
-			// 1. use PATCH instead of UPDATE
-			//    to minimize the resource usage, compared to update the whole Node resource
+			// use PATCH instead of UPDATE
+			// to minimize the resource usage, compared to update the whole Node resource
 			if updated {
 				logger.Info(fmt.Sprintf("updating node-labeller labels in %v", nodeObj.Name))
 				return dcrh.client.Patch(ctx, nodeObj, client.MergeFrom(nodeObjCopy))
