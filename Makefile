@@ -5,8 +5,7 @@ include dev.env
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the PROJECT_VERSION as arg of the bundle target (e.g make bundle PROJECT_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export PROJECT_VERSION=0.0.2)
-PROJECT_VERSION ?= 0.0.1
-
+PROJECT_VERSION ?= 1.0.0
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/deviceconfig_example.yaml config/default/kustomization.yaml
 CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
@@ -15,11 +14,11 @@ OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-c
 
 ifdef OPENSHIFT
 $(info selected openshift)
-GPU_OPERATOR_CHART ?= ./helm-charts-openshift/gpu-operator-helm-openshift-0.0.1.tgz
+GPU_OPERATOR_CHART ?= ./helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
 KUBECTL_CMD=oc
 HELM_OC_CMD=--set platform=openshift
 else
-GPU_OPERATOR_CHART ?= ./helm-charts-k8s/gpu-operator-helm-k8s-0.0.1.tgz
+GPU_OPERATOR_CHART ?= ./helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
 $(info selected k8s)
 KUBECTL_CMD=kubectl
 endif
@@ -161,12 +160,6 @@ manifests: controller-gen update-registry ## Generate ClusterRole and CustomReso
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./internal/controllers" output:rbac:artifacts:config=config/rbac
 
-.PHONY: update-oc-yaml update-kube-yaml
-update-oc-yaml:
-	sed -i 's/kube-amd-gpu/openshift-amd-gpu/' ${YAML_FILES}
-update-kube-yaml:
-	sed -i 's/openshift-amd-gpu/kube-amd-gpu/' ${YAML_FILES}
-
 .PHONY: generate
 generate: controller-gen mockgen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -273,7 +266,6 @@ kustomize: ## Download kustomize locally if necessary.
 	@if [ ! -f ${KUSTOMIZE} ]; then \
 		BINDIR=$(shell pwd)/bin ./hack/download-kustomize; \
 	fi
-
 
 # go-get-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -384,7 +376,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	rm $(shell pwd)/helm-charts-k8s/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
-	mv $(shell pwd)/helm-charts-k8s/gpu-operator-0.0.1.tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-0.0.1.tgz
+	mv $(shell pwd)/helm-charts-k8s/gpu-operator-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
 
 .PHONY: helm-openshift
 helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
@@ -395,6 +387,7 @@ helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshif
 	cp $(shell pwd)/hack/openshift-patch/template-patch/*.yaml $(shell pwd)/helm-charts-openshift/templates/
 	# Patching openshift helm chart nfd subchart
 	cp $(shell pwd)/hack/openshift-patch/openshift-nfd-patch/crds/* $(shell pwd)/helm-charts-openshift/charts/nfd/crds/
+	cp $(shell pwd)/hack/openshift-patch/openshift-nfd-patch/metadata-patch/* $(shell pwd)/helm-charts-openshift/charts/nfd/
 	# Patching openshift helm chart kmm subchart
 	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/template-patch/* $(shell pwd)/helm-charts-openshift/charts/kmm/templates/
 	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-openshift/charts/kmm/
@@ -411,7 +404,7 @@ helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshif
 	rm $(shell pwd)/helm-charts-openshift/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/ --destination ./helm-charts-openshift
-	mv $(shell pwd)/helm-charts-openshift/gpu-operator-0.0.1.tgz $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-0.0.1.tgz
+	mv $(shell pwd)/helm-charts-openshift/gpu-operator-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
 
 .PHONY: helm-install
 helm-install:
@@ -451,6 +444,7 @@ helm-uninstall-k8s:
 gen-nfd-charts-openshift:
 	rm -rf /tmp/nfd && git clone https://github.com/openshift/cluster-nfd-operator /tmp/nfd; cd /tmp/nfd; git checkout release-4.16
 	$(KUSTOMIZE) build /tmp/nfd/config/default | $(HELMIFY) helm-charts-openshift/charts/nfd
+	cp $(shell pwd)/hack/openshift-patch/openshift-nfd-patch/metadata-patch/Chart.yaml $(shell pwd)/helm-charts-openshift/charts/nfd/
 	mkdir helm-charts-openshift/charts/nfd/crds
 	@for file in $(OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-openshift/charts/nfd -s templates/$$file > helm-charts-openshift/charts/nfd/crds/$$file; \
@@ -461,6 +455,7 @@ gen-nfd-charts-openshift:
 gen-kmm-charts-openshift:
 	rm -rf /tmp/kmm && git clone https://github.com/rh-ecosystem-edge/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout release-2.1
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-openshift/charts/kmm
+	cp $(shell pwd)/hack/openshift-patch/openshift-kmm-patch/metadata-patch/Chart.yaml $(shell pwd)/helm-charts-openshift/charts/kmm/
 	mkdir helm-charts-openshift/charts/kmm/crds
 	@for file in $(OPENSHIFT_KMM_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-openshift/charts/kmm -s templates/$$file > helm-charts-openshift/charts/kmm/crds/$$file; \
@@ -477,6 +472,7 @@ else
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 	rm -rf /tmp/kmm
 endif
+	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/Chart.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
 	mkdir helm-charts-k8s/charts/kmm/crds
 	@for file in $(K8S_KMM_CRD_YAML_FILES); do \
 		helm template amd-gpu helm-charts-k8s/charts/kmm -s templates/$$file > helm-charts-k8s/charts/kmm/crds/$$file; \

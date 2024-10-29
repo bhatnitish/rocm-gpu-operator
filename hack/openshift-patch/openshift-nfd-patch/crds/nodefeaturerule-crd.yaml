@@ -7,10 +7,10 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
   labels:
-    helm.sh/chart: nfd-0.1.0
+    helm.sh/chart: nfd-1.0.0
     app.kubernetes.io/name: nfd
     app.kubernetes.io/instance: amd-gpu
-    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/version: "v4.16"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: nfd.openshift.io

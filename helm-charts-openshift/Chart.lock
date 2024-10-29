@@ -1,9 +1,9 @@
 dependencies:
 - name: nfd
   repository: file://./charts/nfd
-  version: 0.1.0
+  version: 1.0.0
 - name: kmm
   repository: file://./charts/kmm
-  version: 0.0.1
-digest: sha256:8103512317d0e871e1679e10a3d41553d1cc230b0248f3df4f3a8ad72a54c255
-generated: "2024-10-25T20:55:05.521473143Z"
+  version: 1.0.0
+digest: sha256:cbdd157a75bd0b555ff38317670a6221c887c3c78244ddabb726d5ea669002bc
+generated: "2024-10-29T00:58:44.30954232Z"
