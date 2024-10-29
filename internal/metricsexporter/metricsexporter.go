@@ -312,6 +312,7 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 
 	svc.Spec = v1.ServiceSpec{
 		Selector: map[string]string{
+			"daemonset-name":            devConfig.Name,
 			metricsExporterLabelPair[0]: metricsExporterLabelPair[1],
 		},
 	}
