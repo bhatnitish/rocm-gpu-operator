@@ -18,7 +18,7 @@ keywords:
   - deep learning
   - monitoring
 
-kubeVersion: ">= 1.30.0-0"
+kubeVersion: ">= 1.29.0-0"
 version: v1.0.0
 appVersion: "v1.0.0"
 
