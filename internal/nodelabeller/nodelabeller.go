@@ -85,6 +85,10 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 			Name:      "sys-volume",
 			MountPath: "/host-sys",
 		},
+		{
+			Name:      "etc-volume",
+			MountPath: "/host-etc",
+		},
 	}
 
 	hostPathDirectory := v1.HostPathDirectory
@@ -108,17 +112,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				},
 			},
 		},
-	}
-
-	initContainerCommand := []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
-
-	if devConfig.Spec.Driver.Blacklist {
-		initContainerCommand = []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
-		initVolumeMounts = append(initVolumeMounts, v1.VolumeMount{
-			Name:      "etc-volume",
-			MountPath: "/host-etc",
-		})
-		volumes = append(volumes, v1.Volume{
+		{
 			Name: "etc-volume",
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
@@ -126,7 +120,20 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 					Type: &hostPathDirectory,
 				},
 			},
-		})
+		},
+	}
+
+	initContainerCommand := []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
+
+	// if users want to apply the blacklist, init container will add the amdgpu to the blacklist
+	if devConfig.Spec.Driver.Blacklist {
+		initContainerCommand = []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
+	}
+
+	// if users disabled the KMM driver, or disabled the blacklist
+	// init container will remove any hanging amdgpu blacklist entry from the list
+	if !devConfig.Spec.Driver.Blacklist {
+		initContainerCommand = []string{"sh", "-c", "rm -f /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
 	}
 
 	initContainers := []v1.Container{
