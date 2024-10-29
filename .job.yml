@@ -18,10 +18,10 @@ builds:
 
   build-gpu-operator-k8s:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
-               IMAGE_TAG=latest PROJECT_VERSION=1.0.0 make helm"]
+               IMAGE_TAG=latest PROJECT_VERSION=v1.0.0 make helm"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
-     - /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-1.0.0.tgz
+     - /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
@@ -29,10 +29,10 @@ builds:
 
   build-gpu-operator-openshift:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
-               IMAGE_TAG=latest OPENSHIFT=1 PROJECT_VERSION=1.0.0 make helm"]
+               IMAGE_TAG=latest OPENSHIFT=1 PROJECT_VERSION=v1.0.0 make helm"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
-     - /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-1.0.0.tgz
+     - /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-v1.0.0.tgz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management

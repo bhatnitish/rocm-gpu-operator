@@ -4,6 +4,6 @@ description: A Helm chart for deploying Kernel Module Management for AMD GPU Ope
 type: application
 
 kubeVersion: ">= 1.18.0-0"
-version: 1.0.0
+version: v1.0.0
 appVersion: "v20240618-v2.1.1"
 

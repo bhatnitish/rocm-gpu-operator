@@ -19,8 +19,8 @@ keywords:
   - monitoring
 
 kubeVersion: ">= 1.30.0-0"
-version: 1.0.0
-appVersion: "1.0.0"
+version: v1.0.0
+appVersion: "v1.0.0"
 
 dependencies:
 - name: node-feature-discovery
@@ -28,6 +28,6 @@ dependencies:
   repository: "https://kubernetes-sigs.github.io/node-feature-discovery/charts"
   condition: node-feature-discovery.enabled
 - name: kmm
-  version: 1.0.0
+  version: v1.0.0
   repository: "file://./charts/kmm"
   condition: kmm.enabled

@@ -10,7 +10,7 @@ metadata:
   labels:
     app.kubernetes.io/component: kmm
     app.kubernetes.io/part-of: kmm
-    helm.sh/chart: kmm-1.0.0
+    helm.sh/chart: kmm-v1.0.0
     app.kubernetes.io/name: kmm
     app.kubernetes.io/instance: amd-gpu
     app.kubernetes.io/version: "v20240618-v2.1.1"

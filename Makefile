@@ -5,7 +5,7 @@ include dev.env
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the PROJECT_VERSION as arg of the bundle target (e.g make bundle PROJECT_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export PROJECT_VERSION=0.0.2)
-PROJECT_VERSION ?= 1.0.0
+PROJECT_VERSION ?= v1.0.0
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/deviceconfig_example.yaml config/default/kustomization.yaml
 CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
@@ -56,8 +56,8 @@ DOCKER_CONTAINER_IMG = $(IMAGE_NAME)-$(IMAGE_TAG)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(PROJECT_VERSION)
-INDEX_IMG := $(IMAGE_TAG_BASE)-index:v$(PROJECT_VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(PROJECT_VERSION)
+INDEX_IMG := $(IMAGE_TAG_BASE)-index:$(PROJECT_VERSION)
 BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle
 
 HOURLY_TAG_LABEL ?= latest
@@ -94,7 +94,7 @@ endif
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(PROJECT_VERSION) $(BUNDLE_METADATA_OPTS)
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(shell echo $(PROJECT_VERSION) | sed 's/^v//') $(BUNDLE_METADATA_OPTS)
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
@@ -291,7 +291,7 @@ operator-sdk:
 .PHONY: bundle-build
 bundle-build: operator-sdk manifests kustomize
 	rm -fr ./bundle
-	VERSION=$(PROJECT_VERSION) ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
+	VERSION=$(shell echo $(PROJECT_VERSION) | sed 's/^v//') ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
 	OPERATOR_SDK="${OPERATOR_SDK}" \

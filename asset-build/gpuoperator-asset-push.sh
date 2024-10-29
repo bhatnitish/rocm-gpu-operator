@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROJECT_VERSION ?= 1.0.0
+PROJECT_VERSION=${PROJECT_VERSION:-v1.0.0}
 
 if [ -z $RELEASE ]
 then
@@ -28,9 +28,9 @@ copy_artifacts () {
     # copy gpu-opertar container image
     cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/
     # copy k8s helm package
-    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v$PROJECT_VERSION.tgz  $BUNDLE_DIR/
+    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/
     # copy openshift helm package
-    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-v$PROJECT_VERSION.tgz  $BUNDLE_DIR/
+    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/
     # copy gpuuperator bundle package
     cp /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/
     # list the artifacts copied out

@@ -9,10 +9,10 @@ metadata:
   labels:
     app.kubernetes.io/component: amd-gpu
     app.kubernetes.io/part-of: amd-gpu
-    helm.sh/chart: gpu-operator-1.0.0
+    helm.sh/chart: gpu-operator-v1.0.0
     app.kubernetes.io/name: gpu-operator
     app.kubernetes.io/instance: amd-gpu
-    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/version: "v1.0.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: amd.com

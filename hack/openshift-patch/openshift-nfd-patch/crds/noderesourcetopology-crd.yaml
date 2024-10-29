@@ -8,7 +8,7 @@ metadata:
     api-approved.kubernetes.io: https://github.com/kubernetes/enhancements/pull/1870
     controller-gen.kubebuilder.io/version: v0.11.2
   labels:
-    helm.sh/chart: nfd-1.0.0
+    helm.sh/chart: nfd-v1.0.0
     app.kubernetes.io/name: nfd
     app.kubernetes.io/instance: amd-gpu
     app.kubernetes.io/version: "v4.16"
