@@ -170,8 +170,10 @@ for node in ${NODES}; do
 	GPUAGENT_LOGS="gpu-agent.log gpu-agent-api.log gpu-agent-err.log"
 	mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-agent
 	for l in ${GPUAGENT_LOGS}; do
-		pod=$(basename $EXPORTER_PODS)
-		${KUBECTL} cp ${GPUOPER_NS}/${pod}:"/run/$l" ${TECH_SUPPORT_FILE}/${node}/gpu-agent/$l >/dev/null || true
+		for expod in ${EXPORTER_PODS}; do
+			pod=$(basename ${expod})
+			${KUBECTL} cp ${GPUOPER_NS}/${pod}:"/run/$l" ${TECH_SUPPORT_FILE}/${node}/gpu-agent/$l >/dev/null || true
+		done
 	done
 
 	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator")
@@ -181,7 +183,7 @@ for node in ${NODES}; do
 
 	# node logs
 	${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} | grep node-debugger-${node} | xargs -r -n1 ${KUBECTL} delete
-	${KUBECTL} debug node/${node} -q --profile=sysadmin --image=busybox -- sh -c "sleep infinity"
+	${KUBECTL} debug node/${node} -q --image=busybox -- sh -c "sleep infinity"
 	dbgpod=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} | grep node-debugger-${node})
 	# wait for the debug pod
 	${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
