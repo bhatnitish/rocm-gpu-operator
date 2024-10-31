@@ -95,9 +95,9 @@ rm -rf ${TECH_SUPPORT_FILE}
 mkdir -p ${TECH_SUPPORT_FILE}
 ${KUBECTL} version >${TECH_SUPPORT_FILE}/kubectl.txt || die "${KUBECTL} failed"
 
-NFD_NS=$(${KUBECTL} get pods -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
-KMM_NS=$(${KUBECTL} get pods -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
-GPUOPER_NS=$(${KUBECTL} get pods -A -l app.kubernetes.io/name=gpu-operator | awk '{ print $1 }' | sort -u | head -n1)
+NFD_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
+KMM_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
+GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator | awk '{ print $1 }' | sort -u | head -n1)
 
 echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS" >${TECH_SUPPORT_FILE}/namespace.txt
 log "NFD_NAMESPACE:$NFD_NS"
