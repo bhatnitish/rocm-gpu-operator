@@ -359,6 +359,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-k8s
 	# Patching k8s helm chart metadata
 	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/
+	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.md $(shell pwd)/helm-charts-k8s/
 	# Patching k8s helm chart template
 	cp $(shell pwd)/hack/k8s-patch/template-patch/* $(shell pwd)/helm-charts-k8s/templates/
 	# Removing OpenShift related rbac from vanilla k8s helm charts
