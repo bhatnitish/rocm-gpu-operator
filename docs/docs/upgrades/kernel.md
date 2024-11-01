@@ -1,3 +1,16 @@
+- [Kernel Upgrade Guide](#kernel-upgrade-guide)
+  - [Prerequisites](#prerequisites)
+  - [Pre-upgrade Validation](#pre-upgrade-validation)
+    - [PreFlight Validation (Optional)](#preflight-validation-optional)
+  - [Upgrade Process](#upgrade-process)
+    - [1. Prepare the Node](#1-prepare-the-node)
+    - [2. Upgrade the Kernel](#2-upgrade-the-kernel)
+    - [3. Reboot the Node](#3-reboot-the-node)
+    - [4. Re-enable Node Scheduling](#4-re-enable-node-scheduling)
+  - [Verification](#verification)
+  - [Troubleshooting](#troubleshooting)
+
+
 # Kernel Upgrade Guide
 
 The AMD GPU Operator supports kernel upgrades on cluster nodes running AMD GPUs. This guide provides detailed instructions for safely upgrading the kernel while maintaining GPU functionality.

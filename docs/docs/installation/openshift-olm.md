@@ -1,3 +1,21 @@
+- [Deploying AMD GPU Operator on OpenShift Using OLM](#deploying-amd-gpu-operator-on-openshift-using-olm)
+  - [Prerequisites](#prerequisites)
+    - [Required Operators](#required-operators)
+      - [Service CA Operator](#service-ca-operator)
+      - [Operator Lifecycle Manager (OLM)](#operator-lifecycle-manager-olm)
+      - [MachineConfig Operator](#machineconfig-operator)
+      - [Cluster Image Registry Operator](#cluster-image-registry-operator)
+    - [Configure Internal Registry](#configure-internal-registry)
+  - [Installation](#installation)
+    - [1. Install Required Dependencies](#1-install-required-dependencies)
+    - [2. Install AMD GPU Operator](#2-install-amd-gpu-operator)
+  - [Configuration](#configuration)
+    - [1. Create Node Feature Discovery Rule](#1-create-node-feature-discovery-rule)
+    - [2. Create blacklist (for installing out-of-tree kernel module)](#2-create-blacklist-for-installing-out-of-tree-kernel-module)
+    - [3. Create DeviceConfig](#3-create-deviceconfig)
+  - [Uninstallation](#uninstallation)
+
+
 # Deploying AMD GPU Operator on OpenShift Using OLM
 
 This guide explains how to deploy the AMD GPU Operator on OpenShift using the Operator Lifecycle Manager (OLM).
@@ -80,19 +98,23 @@ oc get pods -n openshift-image-registry
 
 ### 1. Install Required Dependencies
 
-#### Install Node Feature Discovery (NFD) Operator
+* Install Node Feature Discovery (NFD) Operator
 
 1. Navigate to the OpenShift Web Console
 2. Go to OperatorHub
 3. Search for "Node Feature Discovery"
 4. Select and install the RedHat version of the operator
 
-#### Install Kernel Module Management (KMM) Operator
+![Node Feature Discovery](../imgs/openshift-nfd.png)
+
+* Install Kernel Module Management (KMM) Operator
 
 1. Navigate to the OpenShift Web Console
 2. Go to OperatorHub
 3. Search for "Kernel Module Management"
 4. Select and install the RedHat version (without Hub label)
+
+![Kernel Module Management](../imgs/openshift-kmm.png)
 
 ### 2. Install AMD GPU Operator
 
@@ -173,7 +195,34 @@ Verify the NFD label is applied:
 oc get node -o yaml | grep "amd-gpu"
 ```
 
-### 2. Create DeviceConfig
+### 2. Create blacklist (for installing out-of-tree kernel module)
+
+Create a Machine Config Operator custom resource to add `amdgpu` kernel module into the modprobe blacklist, here is an example of custom resource `MachineConfig`, please set `master` for the label `machineconfiguration.openshift.io/role` if you run Single Node OpenShift or `worker` in other scenarios with dedicated controllers.
+
+!!! warning "Node will reboot"
+    After adding `amdgpu` kernel module to blacklist by using `MachineConfig` custom resource, the Machine Config Operator will automatically reboot selected nodes.
+
+```yaml
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: amdgpu-module-blacklist
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: "/etc/modprobe.d/amdgpu-blacklist.conf"
+          mode: 420
+          overwrite: true
+          contents:
+            source: "data:text/plain;base64,YmxhY2tsaXN0IGFtZGdwdQo="
+```
+
+### 3. Create DeviceConfig
 
 Create a DeviceConfig CR to trigger the GPU driver installation:
 
@@ -184,8 +233,10 @@ metadata:
   name: test-cr
   namespace: default
 spec:
-  devicePluginImage: rocm/k8s-device-plugin:latest
-  driversVersion: el9-6.1.1
+  driver:
+    enable: true
+    image: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
+    version: el9-6.1.1
   selector:
     "feature.node.kubernetes.io/amd-gpu": "true"
 ```
@@ -209,3 +260,8 @@ oc get pods | grep test-cr
 # Verify GPU resource labels
 oc get node -o json | grep amd.com
 ```
+
+## Uninstallation
+
+Please refer to the [Uninstallation](../uninstallation/uninstallation.md) document for uninstalling related resources.
+

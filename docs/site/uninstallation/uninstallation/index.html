@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Uninstallation - AMD GPU Operator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Uninstallation";
+        var mkdocs_page_input_path = "uninstallation/uninstallation.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> AMD GPU Operator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../overview/">Overview</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-helm/">OpenShift (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-olm/">OpenShift (OLM)</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Custom Resource</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/installation/">Installation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/precompiled-driver/">Using Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/secure-boot/">Secure Boot</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/upgrading/">Driver Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/operator/">Operator Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Uninstallation</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#uninstall-custom-resource">Uninstall Custom Resource</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#uninstall-helm-charts">Uninstall Helm Charts</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#uninstall-olm-bundle">Uninstall OLM Bundle</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#uninstall-custom-resource-definition">Uninstall Custom Resource Definition</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/http-proxy/">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/airgapped-install/">Air-Gapped Installation</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation-standards/">Documentation Standards</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">AMD GPU Operator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>User Guide &raquo;</li>
+      <li>Uninstallation</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/uninstallation/uninstallation.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <ul>
+<li><a href="#uninstallation">Uninstallation</a><ul>
+<li><a href="#uninstall-custom-resource">Uninstall Custom Resource</a></li>
+<li><a href="#uninstall-helm-charts">Uninstall Helm Charts</a></li>
+<li><a href="#uninstall-olm-bundle">Uninstall OLM Bundle</a></li>
+<li><a href="#uninstall-custom-resource-definition">Uninstall Custom Resource Definition</a></li>
+</ul>
+</li>
+</ul>
+<h1 id="uninstallation">Uninstallation</h1>
+<p>To remove the operator and related resources, you need to follow specific sequence to remove them.</p>
+<ol>
+<li><code>DeviceConfig</code> custom resources</li>
+<li>Helm Charts or OLM bundle</li>
+<li>Custom resource definition</li>
+</ol>
+<h3 id="uninstall-custom-resource">Uninstall Custom Resource</h3>
+<p>To delete the <code>Deviceconfig</code>, you can use either one of the methods:
+* use existing YAML file: <code>kubectl delete -f deviceconfigs.yaml</code>
+* query the cluster and delete by resource metadata: 
+  <code>kubectl delete deviceconfigs &lt;your-deviceconfig-name&gt; -n kube-amd-gpu</code>
+* simply remove all deviceconfigs in the namespace:
+  <code>kubectl delete deviceconfigs --all -n kube-amd-gpu</code></p>
+<p>Once the deletion was triggered, if out-of-tree driver was previously installed by AMD GPU operator, it will trigger KMM to send worker pods to selected nodes and start to unload the <code>amdgpu</code> kernel module. </p>
+<p>The delete request won't finish immediately, instead it will wait for the unload confirmation from all selected worker nodes, then finish the deletion of the <code>DeviceConfig</code> resource.</p>
+<p>If delete request gets stuck for too long, you may need to check the status of KMM worker pods, if any error happened please check the worker pod error logs:</p>
+<p><code>kubectl logs kmm-worker -n kube-amd-gpu</code></p>
+<p>or refer to <a href="../../troubleshooting/">Troubleshooting</a> document to find the solution.</p>
+<h3 id="uninstall-helm-charts">Uninstall Helm Charts</h3>
+<pre><code class="language-bash">helm uninstall amd-gpu-operator -n kube-amd-gpu
+</code></pre>
+<p>By default the helm uninstall command will call a pre-delete hook to check if there is any <code>DeviceConfig</code> custom resources existing in the cluster. If you forget to remove all the <code>DeviceConfig</code> custom resources, the pre-delete hook will stop the helm uninstall process. In that situation, please delete all existing <code>DeviceConfig</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Uninstall without hook</p>
+<p>The pre-delete hook is using the operator controller image to run kubectl for checking existing <code>DeviceConfig</code>, if you want to skip the pre-delete hook, you can run helm uninstall command with <code>--no-hooks</code> option, in that way the Helm Charts will be immediately uninstalled but may have risk that some <code>DeviceConfig</code> resources still remain in the cluster.</p>
+</div>
+<h3 id="uninstall-olm-bundle">Uninstall OLM Bundle</h3>
+<ul>
+<li>Web Console:</li>
+</ul>
+<p>If you installed AMD GPU operator by the OperatorHub webconsole, you can go back to the webconsole and use the console to uninstall the OLM bundle</p>
+<ul>
+<li>OpenShift CLI:</li>
+</ul>
+<p>Please use CLI to delete the subscription and CSV resource for AMD GPU operator. The example commands are:</p>
+<pre><code class="language-bash">oc delete subscription amd-gpu-operator -n openshift-operators
+oc delete clusterserviceversion amd-gpu-operator.v1.0.0 -n openshift-operators
+</code></pre>
+<h3 id="uninstall-custom-resource-definition">Uninstall Custom Resource Definition</h3>
+<p>By default Helm Charts won't uninstall the CRDs for users, so you may need to manually clean up CRDs after uninstalling the Helm Charts. To list all existing CRDs, run this command:</p>
+<pre><code class="language-bash">-bash-4.2$ kubectl get crds
+NAME                                     CREATED AT
+certificaterequests.cert-manager.io      2024-08-20T00:29:12Z
+certificates.cert-manager.io             2024-08-20T00:29:12Z
+challenges.acme.cert-manager.io          2024-08-20T00:29:12Z
+clusterissuers.cert-manager.io           2024-08-20T00:29:12Z
+deviceconfigs.amd.com                    2024-10-29T19:39:37Z
+issuers.cert-manager.io                  2024-08-20T00:29:12Z
+modules.kmm.sigs.x-k8s.io                2024-10-29T19:39:37Z
+nodefeaturegroups.nfd.k8s-sigs.io        2024-10-29T19:39:37Z
+nodefeaturerules.nfd.k8s-sigs.io         2024-10-29T19:39:37Z
+nodefeatures.nfd.k8s-sigs.io             2024-10-29T19:39:37Z
+nodemodulesconfigs.kmm.sigs.x-k8s.io     2024-10-29T19:39:37Z
+orders.acme.cert-manager.io              2024-08-20T00:29:12Z
+preflightvalidations.kmm.sigs.x-k8s.io   2024-10-29T22:53:39Z
+</code></pre>
+<p>then use kubectl to delete CRDs that need to be deleted:</p>
+<pre><code class="language-bash">kubectl delete crds deviceconfigs.amd.com
+</code></pre>
+<div class="admonition warning">
+<p class="admonition-title">Think more before removing all CRDs</p>
+<p>If the CRDs of cert-manager, NFD and KMM are being used by other operators other than AMD GPU operator, deleting those CRDs may affect other operators, in that scenario please evaluate the risk of removing those dependency CRDs. </p>
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../usage/" class="btn btn-neutral float-left" title="Usage"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../troubleshooting/" class="btn btn-neutral float-right" title="Troubleshooting">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../../usage/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../troubleshooting/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

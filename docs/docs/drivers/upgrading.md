@@ -1,3 +1,17 @@
+- [AMD GPU Driver Upgrade Guide](#amd-gpu-driver-upgrade-guide)
+  - [Overview](#overview)
+  - [Step-by-Step Upgrade Process](#step-by-step-upgrade-process)
+    - [1. Check Current Driver Version](#1-check-current-driver-version)
+    - [2. Update DeviceConfig](#2-update-deviceconfig)
+      - [Image Tag Format](#image-tag-format)
+    - [3. Stop Workloads](#3-stop-workloads)
+    - [4. Update Node Labels](#4-update-node-labels)
+      - [Option A: Direct Update (Recommended)](#option-a-direct-update-recommended)
+      - [Option B: Remove and Add (If maintenance is needed)](#option-b-remove-and-add-if-maintenance-is-needed)
+    - [5. Restart Workloads](#5-restart-workloads)
+  - [Verification](#verification)
+
+
 # AMD GPU Driver Upgrade Guide
 
 This guide walks through the process of upgrading AMD GPU drivers on worker nodes.

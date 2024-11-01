@@ -1,3 +1,15 @@
+- [Secure Boot Configuration Guide](#secure-boot-configuration-guide)
+  - [Overview](#overview)
+  - [Prerequisites](#prerequisites)
+  - [Configuration Methods](#configuration-methods)
+    - [Method 1: Pre-signed Driver Images](#method-1-pre-signed-driver-images)
+    - [Method 2: Operator-managed Signing](#method-2-operator-managed-signing)
+  - [Troubleshooting](#troubleshooting)
+    - [Verification Steps](#verification-steps)
+  - [Best Practices](#best-practices)
+  - [Additional Resources](#additional-resources)
+
+
 # Secure Boot Configuration Guide
 
 This guide explains how to configure the AMD GPU Operator for systems with Secure Boot enabled.

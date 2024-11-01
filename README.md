@@ -17,13 +17,13 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 ## Compatibility
 
 - **ROCm DKMS Compatibility**: Please refer to the [ROCM official website](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for ROCM driver.
-- **Kubernetes**: 1.30.0+
-- **OpenShift**: 4.10+
+- **Kubernetes**: 1.29.0+
+- **OpenShift**: 4.16+
 
 ## Prerequisites
 
-- Kubernetes (v1.30.0+) or OpenShift (4.10+)
-- Helm v3.2.0+ (for Method 1)
+- Kubernetes (v1.29.0+) or OpenShift (4.16+)
+- Helm v3.2.0+
 - `kubectl` or `oc` CLI tool configured to access your cluster
 
 ## Quick Start
@@ -48,6 +48,12 @@ kubectl get pods -n kube-amd-gpu
 ```
 
 For more detailed installation instructions and configuration options, please refer to our [Installation Guide](docs/installation.md).
+
+## Developer Guide
+
+For developers, please refer to our [Developer Guide](docs/docs/development/developer-guide.md) to get instructions about:
+* Setup development environment
+* Apply customized change to build Helm charts and container images
 
 ## Documentation
 

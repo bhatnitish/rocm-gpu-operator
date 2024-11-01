@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Air-Gapped Installation - AMD GPU Operator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Air-Gapped Installation";
+        var mkdocs_page_input_path = "specialized_networks/airgapped-install.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> AMD GPU Operator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../overview/">Overview</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-helm/">OpenShift (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-olm/">OpenShift (OLM)</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Custom Resource</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/installation/">Installation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/precompiled-driver/">Using Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/secure-boot/">Secure Boot</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/upgrading/">Driver Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/operator/">Operator Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../uninstallation/uninstallation/">Uninstallation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../http-proxy/">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Air-Gapped Installation</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#required-images">Required Images</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#required-rpmdeb-packages">Required RPM/DEB Packages</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#rhelcentos">RHEL/CentOS:</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#ubuntu">Ubuntu:</a>
+    </li>
+        </ul>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#installation-steps">Installation Steps</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-mirror-required-images">1. Mirror Required Images</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-configure-internal-package-repository">2. Configure Internal Package Repository</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-install-cert-manager">3. Install Cert-Manager</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-install-amd-gpu-operator">4. Install AMD GPU Operator</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-configure-deviceconfig">5. Configure DeviceConfig</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verification">Verification</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#collecting-logs">Collecting Logs</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#additional-considerations">Additional Considerations</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation-standards/">Documentation Standards</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">AMD GPU Operator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Specialized Networks &raquo;</li>
+      <li>Air-Gapped Installation</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/specialized_networks/airgapped-install.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <ul>
+<li><a href="#amd-gpu-operator-air-gapped-installation-guide">AMD GPU Operator Air-gapped Installation Guide</a></li>
+<li><a href="#prerequisites">Prerequisites</a><ul>
+<li><a href="#required-images">Required Images</a></li>
+<li><a href="#required-rpmdeb-packages">Required RPM/DEB Packages</a></li>
+<li><a href="#rhelcentos">RHEL/CentOS:</a></li>
+<li><a href="#ubuntu">Ubuntu:</a></li>
+</ul>
+</li>
+<li><a href="#installation-steps">Installation Steps</a><ul>
+<li><a href="#1-mirror-required-images">1. Mirror Required Images</a></li>
+<li><a href="#2-configure-internal-package-repository">2. Configure Internal Package Repository</a></li>
+<li><a href="#3-install-cert-manager">3. Install Cert-Manager</a></li>
+<li><a href="#4-install-amd-gpu-operator">4. Install AMD GPU Operator</a></li>
+<li><a href="#5-configure-deviceconfig">5. Configure DeviceConfig</a></li>
+</ul>
+</li>
+<li><a href="#verification">Verification</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a><ul>
+<li><a href="#collecting-logs">Collecting Logs</a></li>
+</ul>
+</li>
+<li><a href="#additional-considerations">Additional Considerations</a></li>
+</ul>
+<h1 id="amd-gpu-operator-air-gapped-installation-guide">AMD GPU Operator Air-gapped Installation Guide</h1>
+<div class="admonition warning">
+<p class="admonition-title">TESTING NEEDED</p>
+<p>These steps have not been yet been tested. These steps need to be validated.</p>
+</div>
+<p>This guide explains how to install the AMD GPU Operator in an air-gapped environment where the Kubernetes cluster has no external network connectivity.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Kubernetes v1.29.0+ or OpenShift 4.16+</li>
+<li>Helm v3.2.0+</li>
+<li>Access to an internal container registry</li>
+</ul>
+<h3 id="required-images">Required Images</h3>
+<p>The following images must be mirrored to your internal registry:</p>
+<pre><code class="language-bash"># Core Operator Images
+rocm/gpu-operator:&lt;version&gt;
+rocm/gpu-operator-bundle:&lt;version&gt;
+rocm/gpu-operator-catalog:&lt;version&gt;
+
+# Device Plugin Images
+rocm/k8s-device-plugin:&lt;version&gt;
+rocm/k8s-device-plugin-labeller:&lt;version&gt;
+
+# Dependency Images
+quay.io/jetstack/cert-manager-controller:&lt;version&gt;
+quay.io/jetstack/cert-manager-webhook:&lt;version&gt;
+quay.io/jetstack/cert-manager-cainjector:&lt;version&gt;
+
+# For OpenShift Only
+registry.redhat.io/openshift4/ose-node-feature-discovery:&lt;version&gt;
+registry.redhat.io/openshift4/kernel-module-management:&lt;version&gt;
+</code></pre>
+<h3 id="required-rpmdeb-packages">Required RPM/DEB Packages</h3>
+<p>For driver compilation, ensure these packages are available in your internal package repository:</p>
+<h4 id="rhelcentos">RHEL/CentOS:</h4>
+<pre><code class="language-bash">kernel-devel
+kernel-headers
+gcc
+make
+elfutils-libelf-devel
+</code></pre>
+<h4 id="ubuntu">Ubuntu:</h4>
+<pre><code class="language-bash">linux-headers-$(uname -r)
+build-essential
+</code></pre>
+<h2 id="installation-steps">Installation Steps</h2>
+<h3 id="1-mirror-required-images">1. Mirror Required Images</h3>
+<ul>
+<li>Download images on a connected system:</li>
+</ul>
+<pre><code class="language-bash"># Example for core operator images
+docker pull rocm/gpu-operator:&lt;version&gt;
+docker pull rocm/k8s-device-plugin:&lt;version&gt;
+</code></pre>
+<ul>
+<li>Tag images for your internal registry:</li>
+</ul>
+<pre><code class="language-bash">docker tag rocm/gpu-operator:&lt;version&gt; internal-registry.example.com/rocm/gpu-operator:&lt;version&gt;
+docker tag rocm/k8s-device-plugin:&lt;version&gt; internal-registry.example.com/rocm/k8s-device-plugin:&lt;version&gt;
+</code></pre>
+<ul>
+<li>Push to your internal registry:</li>
+</ul>
+<pre><code class="language-bash">docker push internal-registry.example.com/rocm/gpu-operator:&lt;version&gt;
+docker push internal-registry.example.com/rocm/k8s-device-plugin:&lt;version&gt;
+</code></pre>
+<h3 id="2-configure-internal-package-repository">2. Configure Internal Package Repository</h3>
+<ol>
+<li>Create an internal package repository mirror containing required build packages</li>
+<li>Configure worker nodes to use the internal repository</li>
+<li>Verify package availability:</li>
+</ol>
+<pre><code class="language-bash"># RHEL/CentOS
+yum list kernel-devel kernel-headers gcc make elfutils-libelf-devel
+
+# Ubuntu
+apt list linux-headers-$(uname -r) build-essential
+</code></pre>
+<h3 id="3-install-cert-manager">3. Install Cert-Manager</h3>
+<ol>
+<li>Create custom values file for cert-manager:</li>
+</ol>
+<pre><code class="language-yaml"># cert-manager-values.yaml
+global:
+  imageRegistry: internal-registry.example.com
+</code></pre>
+<ol>
+<li>Install cert-manager using internal images:</li>
+</ol>
+<pre><code class="language-bash">helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.15.1 \
+  --set installCRDs=true \
+  -f cert-manager-values.yaml
+</code></pre>
+<h3 id="4-install-amd-gpu-operator">4. Install AMD GPU Operator</h3>
+<ul>
+<li>Create custom values file for the operator:</li>
+</ul>
+<pre><code class="language-yaml"># operator-values.yaml
+global:
+  imageRegistry: internal-registry.example.com
+
+driver:
+  repository: internal-registry.example.com/rocm/gpu-operator
+  version: &quot;&lt;version&gt;&quot;
+
+devicePlugin:
+  repository: internal-registry.example.com/rocm/k8s-device-plugin
+  version: &quot;&lt;version&gt;&quot;
+
+# Additional configuration for internal repositories
+buildArgs:
+  ROCM_REPO_URL: &quot;http://internal-repo.example.com/rocm&quot;
+  ROCM_REPO_KEY: &quot;http://internal-repo.example.com/rocm/rocm.gpg.key&quot;
+</code></pre>
+<ul>
+<li>Install the operator:</li>
+</ul>
+<pre><code class="language-bash">helm install amd-gpu-operator rocm/gpu-operator-helm \
+  --namespace kube-amd-gpu \
+  --create-namespace \
+  -f operator-values.yaml
+</code></pre>
+<h3 id="5-configure-deviceconfig">5. Configure DeviceConfig</h3>
+<p>Create a DeviceConfig that references your internal registry:</p>
+<pre><code class="language-yaml">apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: amd-gpu-config
+  namespace: kube-amd-gpu
+spec:
+  driver:
+    image: internal-registry.example.com/rocm/gpu-driver
+    version: &quot;&lt;version&gt;&quot;
+
+  devicePlugin:
+    devicePluginImage: internal-registry.example.com/rocm/k8s-device-plugin:latest
+    nodeLabellerImage: internal-registry.example.com/rocm/k8s-device-plugin-labeller:latest
+
+  selector:
+    feature.node.kubernetes.io/amd-gpu: &quot;true&quot;
+</code></pre>
+<h2 id="verification">Verification</h2>
+<ul>
+<li>Check operator pod status:</li>
+</ul>
+<pre><code class="language-bash">kubectl get pods -n kube-amd-gpu
+</code></pre>
+<ul>
+<li>Verify driver installation:</li>
+</ul>
+<pre><code class="language-bash">kubectl get deviceconfig -n kube-amd-gpu
+</code></pre>
+<ul>
+<li>Check GPU detection:</li>
+</ul>
+<pre><code class="language-bash">kubectl get nodes -l feature.node.kubernetes.io/amd-gpu=true
+</code></pre>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li>Image Pull Errors</li>
+<li>Verify internal registry connectivity</li>
+<li>Check image names and tags</li>
+<li>Verify registry credentials</li>
+<li>Driver Build Failures</li>
+<li>Verify package repository connectivity</li>
+<li>Check package availability</li>
+<li>Verify build dependencies</li>
+<li>Certificate Issues</li>
+<li>Check cert-manager deployment</li>
+<li>Verify TLS certificates for internal services</li>
+</ul>
+<h3 id="collecting-logs">Collecting Logs</h3>
+<pre><code class="language-bash"># Operator logs
+kubectl logs -n kube-amd-gpu deployment/amd-gpu-operator-controller-manager
+
+# Driver build logs
+kubectl logs -n kube-amd-gpu &lt;driver-build-pod&gt;
+</code></pre>
+<p>Run the support tool for comprehensive diagnostics:</p>
+<pre><code class="language-bash">./tools/techsupport_dump.sh -w -o yaml &lt;node-name&gt;
+</code></pre>
+<h2 id="additional-considerations">Additional Considerations</h2>
+<ul>
+<li>Registry Certificates</li>
+<li>Ensure registry certificates are trusted by all nodes</li>
+<li>Configure container runtime to trust internal certificates</li>
+<li>Package Repository Security</li>
+<li>Configure repository signing keys</li>
+<li>Verify package integrity</li>
+<li>Network Requirements</li>
+<li>Ensure internal DNS resolution works</li>
+<li>Configure necessary firewall rules</li>
+<li>Set up required proxy settings if applicable</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../http-proxy/" class="btn btn-neutral float-left" title="HTTP Proxy"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../contributing/developer-guide/" class="btn btn-neutral float-right" title="Developer Guide">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../http-proxy/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../contributing/developer-guide/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

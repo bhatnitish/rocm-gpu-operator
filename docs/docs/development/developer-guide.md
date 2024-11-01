@@ -1,3 +1,10 @@
+- [AMD GPU Operator Developer Guide](#amd-gpu-operator-developer-guide)
+  - [Prerequisites](#prerequisites)
+  - [Development Environment Setup](#development-environment-setup)
+  - [Running Tests](#running-tests)
+  - [Creating a Pull Request](#creating-a-pull-request)
+  - [Build Documentation Website Locally](#build-documentation-website-locally)
+
 # AMD GPU Operator Developer Guide
 
 This guide provides information for developers who want to contribute to or modify the AMD GPU Operator.
@@ -6,7 +13,7 @@ This guide provides information for developers who want to contribute to or modi
 
 - Go v1.20 (due to [open issues](https://github.com/golang/go/issues/65637) with Go v1.21 or v1.22)
 - Docker
-- Kubernetes cluster (v1.29.0+) or OpenShift (4.10+)
+- Kubernetes cluster (v1.29.0+) or OpenShift (4.16+)
 - `kubectl` or `oc` CLI tool configured to access your cluster
 - Access to `rocm/gpu-kernel-module-manager` image (available on Docker Hub)
 

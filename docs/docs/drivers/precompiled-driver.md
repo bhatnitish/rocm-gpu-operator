@@ -1,3 +1,16 @@
+- [Preparing Pre-compiled AMD GPU Driver Images](#preparing-pre-compiled-amd-gpu-driver-images)
+  - [Overview](#overview)
+  - [How KMM Selects Driver Images](#how-kmm-selects-driver-images)
+    - [Image Tag Format](#image-tag-format)
+  - [Building Pre-compiled Driver Images](#building-pre-compiled-driver-images)
+    - [Dockerfile Example](#dockerfile-example)
+    - [Build Steps](#build-steps)
+      - [Build the final image](#build-the-final-image)
+      - [Tag the image](#tag-the-image)
+      - [Push to the image to a registry:](#push-to-the-image-to-a-registry)
+  - [Using Pre-compiled Images](#using-pre-compiled-images)
+
+
 # Preparing Pre-compiled AMD GPU Driver Images
 
 ## Overview
@@ -21,8 +34,8 @@ KMM looks for images with tags in these formats:
 
 | OS | Tag Format | Example |
 |----|------------|---------|
-| Ubuntu | `ubuntu-<version>-<kernel>-<version>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
-| RHEL CoreOS | `coreos-<version>-<kernel>-el9-<version>` | `coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1` |
+| Ubuntu | `ubuntu-<OS version>-<kernel>-<driver version>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
+| RHEL CoreOS | `coreos-<OS version>-<kernel>-<driver version>` | `coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1` |
 
 When a DeviceConfig is created, KMM will:
 
@@ -104,6 +117,8 @@ docker build \
 
 #### Tag the image
 
+See [examples](#image-tag-format) to tag the image with the correct tag name:
+
 ```bash
 docker tag amdgpu-driver registry.example.com/amdgpu-driver:ubuntu-22.04-6.8.0-40-generic-6.1.3
 ```
@@ -134,7 +149,7 @@ spec:
       name: docker-auth
       
     # Driver version
-    version: "6.1.3"
+    version: "6.2.2"
     
   devicePlugin:
     devicePluginImage: rocm/k8s-device-plugin:latest
@@ -155,3 +170,5 @@ kubectl create secret docker-registry docker-auth \
   --docker-username=xxx \
   --docker-password=xxx
 ```
+
+* if you are hosting driver images in DockerHub, you don't need to specify the parameter ```--docker-server```

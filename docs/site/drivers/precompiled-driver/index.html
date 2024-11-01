@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Using Pre-Compiled Driver Image - AMD GPU Operator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Using Pre-Compiled Driver Image";
+        var mkdocs_page_input_path = "drivers/precompiled-driver.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> AMD GPU Operator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../overview/">Overview</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-helm/">OpenShift (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-olm/">OpenShift (OLM)</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Install Custom Resource</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../installation/">Installation</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="./">Using Pre-Compiled Driver Image</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#how-kmm-selects-driver-images">How KMM Selects Driver Images</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#image-tag-format">Image Tag Format</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#building-pre-compiled-driver-images">Building Pre-compiled Driver Images</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#dockerfile-example">Dockerfile Example</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#build-steps">Build Steps</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#using-pre-compiled-images">Using Pre-compiled Images</a>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../secure-boot/">Secure Boot</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../upgrading/">Driver Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/operator/">Operator Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../uninstallation/uninstallation/">Uninstallation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/http-proxy/">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/airgapped-install/">Air-Gapped Installation</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation-standards/">Documentation Standards</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">AMD GPU Operator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>User Guide &raquo;</li>
+          <li>Install Custom Resource &raquo;</li>
+      <li>Using Pre-Compiled Driver Image</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/drivers/precompiled-driver.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <ul>
+<li><a href="#preparing-pre-compiled-amd-gpu-driver-images">Preparing Pre-compiled AMD GPU Driver Images</a></li>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-kmm-selects-driver-images">How KMM Selects Driver Images</a><ul>
+<li><a href="#image-tag-format">Image Tag Format</a></li>
+</ul>
+</li>
+<li><a href="#building-pre-compiled-driver-images">Building Pre-compiled Driver Images</a><ul>
+<li><a href="#dockerfile-example">Dockerfile Example</a></li>
+<li><a href="#build-steps">Build Steps</a></li>
+<li><a href="#build-the-final-image">Build the final image</a></li>
+<li><a href="#tag-the-image">Tag the image</a></li>
+<li><a href="#push-to-the-image-to-a-registry">Push to the image to a registry:</a></li>
+</ul>
+</li>
+<li><a href="#using-pre-compiled-images">Using Pre-compiled Images</a></li>
+</ul>
+<h1 id="preparing-pre-compiled-amd-gpu-driver-images">Preparing Pre-compiled AMD GPU Driver Images</h1>
+<h2 id="overview">Overview</h2>
+<p>The AMD GPU Operator uses the Kernel Module Management (KMM) Operator to deploy AMD GPU drivers on worker nodes. Due to kernel compatibility requirements, each driver image must match the worker node's exact environment:</p>
+<ul>
+<li>Linux distribution</li>
+<li>OS release version  </li>
+<li>Kernel version</li>
+</ul>
+<h2 id="how-kmm-selects-driver-images">How KMM Selects Driver Images</h2>
+<p>KMM determines the appropriate driver image based on the combination of:</p>
+<ol>
+<li>Worker node OS information</li>
+<li>Requested ROCm driver version</li>
+</ol>
+<h3 id="image-tag-format">Image Tag Format</h3>
+<p>KMM looks for images with tags in these formats:</p>
+<table>
+<thead>
+<tr>
+<th>OS</th>
+<th>Tag Format</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ubuntu</td>
+<td><code>ubuntu-&lt;OS version&gt;-&lt;kernel&gt;-&lt;driver version&gt;</code></td>
+<td><code>ubuntu-22.04-6.8.0-40-generic-6.1.3</code></td>
+</tr>
+<tr>
+<td>RHEL CoreOS</td>
+<td><code>coreos-&lt;OS version&gt;-&lt;kernel&gt;-&lt;driver version&gt;</code></td>
+<td><code>coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1</code></td>
+</tr>
+</tbody>
+</table>
+<p>When a DeviceConfig is created, KMM will:</p>
+<ol>
+<li>Check if a matching driver image exists in the registry</li>
+<li>If not found, build the driver image in-cluster using the AMD GPU Operator's Dockerfile</li>
+<li>If found, directly use the existing image to install the driver</li>
+</ol>
+<h2 id="building-pre-compiled-driver-images">Building Pre-compiled Driver Images</h2>
+<h3 id="dockerfile-example">Dockerfile Example</h3>
+<pre><code class="language-dockerfile">FROM ubuntu:$$VERSION as builder
+ARG KERNEL_FULL_VERSION
+ARG DRIVERS_VERSION
+ARG REPO_URL
+
+# Install build dependencies
+RUN apt-get update &amp;&amp; apt-get install -y bc \
+    bison \
+    flex \
+    libelf-dev \
+    gnupg \
+    wget \
+    git \
+    make \
+    gcc \
+    linux-headers-${KERNEL_FULL_VERSION} \
+    linux-modules-extra-${KERNEL_FULL_VERSION}
+
+# Configure AMD GPU repository
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg &gt; /dev/null
+RUN echo &quot;deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main&quot; \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+
+# Install and configure driver
+RUN apt-get update &amp;&amp; apt-get install -y amdgpu-dkms
+RUN depmod ${KERNEL_FULL_VERSION}
+
+# Create final image
+FROM ubuntu:$$VERSION
+ARG KERNEL_FULL_VERSION
+
+RUN apt-get update &amp;&amp; apt-get install -y kmod
+
+# Set up module directory structure
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+
+# Set up firmware directory
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu
+</code></pre>
+<h3 id="build-steps">Build Steps</h3>
+<ul>
+<li>Choose a base image matching your worker nodes' OS (example: <code>ubuntu:22.04</code>)</li>
+<li>Install <code>amdgpu-dkms</code> package using the OS package manager</li>
+<li>Update Module Dependencies: run <code>depmod ${KERNEL_FULL_VERSION}</code></li>
+<li>Configure the final image</li>
+<li>Install <code>kmod</code> (required for modprobe operations)</li>
+<li>Copy required files to these locations:<ul>
+<li>Kernel modules: <code>/opt/lib/modules/${KERNEL_FULL_VERSION}/</code></li>
+<li>Firmware files: <code>/firmwareDir/updates/amdgpu/</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="build-the-final-image">Build the final image</h4>
+<pre><code class="language-bash">docker build \
+  --build-arg KERNEL_FULL_VERSION=$(uname -r) \
+  --build-arg DRIVERS_VERSION=6.1.3 \
+  --build-arg REPO_URL=https://repo.example.com \
+  -t amdgpu-driver .
+</code></pre>
+<h4 id="tag-the-image">Tag the image</h4>
+<p>See <a href="#image-tag-format">examples</a> to tag the image with the correct tag name:</p>
+<pre><code class="language-bash">docker tag amdgpu-driver registry.example.com/amdgpu-driver:ubuntu-22.04-6.8.0-40-generic-6.1.3
+</code></pre>
+<h4 id="push-to-the-image-to-a-registry">Push to the image to a registry:</h4>
+<pre><code class="language-bash">docker push registry.example.com/amdgpu-driver:ubuntu-22.04-6.8.0-40-generic-6.1.3
+</code></pre>
+<h2 id="using-pre-compiled-images">Using Pre-compiled Images</h2>
+<p>Configure your DeviceConfig to use the pre-compiled images:</p>
+<pre><code class="language-yaml">apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-deviceconfig
+  namespace: kube-amd-gpu
+spec:
+  driver:
+    # Registry path without tag - operator manages tags
+    image: registry.example.com/amdgpu-driver
+
+    # Registry credentials if required
+    imageRegistrySecret:
+      name: docker-auth
+
+    # Driver version
+    version: &quot;6.2.2&quot;
+
+  devicePlugin:
+    devicePluginImage: rocm/k8s-device-plugin:latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
+  selector:
+    feature.node.kubernetes.io/amd-gpu: &quot;true&quot;
+</code></pre>
+<blockquote>
+<p><strong>Important</strong>: Do not include the image tag in the <code>image</code> field - the operator automatically appends the appropriate tag based on the node's OS and kernel version.</p>
+</blockquote>
+<p>Create registry credentials, if needed:</p>
+<pre><code class="language-bash">kubectl create secret docker-registry docker-auth \
+  -n kube-amd-gpu \
+  --docker-server=registry.example.com \
+  --docker-username=xxx \
+  --docker-password=xxx
+</code></pre>
+<ul>
+<li>if you are hosting driver images in DockerHub, you don't need to specify the parameter <code>--docker-server</code></li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../installation/" class="btn btn-neutral float-left" title="Installation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../secure-boot/" class="btn btn-neutral float-right" title="Secure Boot">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../installation/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../secure-boot/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

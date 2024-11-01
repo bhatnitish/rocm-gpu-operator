@@ -1,3 +1,9 @@
+- [AMD GPU Operator Troubleshooting Guide](#amd-gpu-operator-troubleshooting-guide)
+  - [Checking Operator Status](#checking-operator-status)
+  - [Collecting Logs](#collecting-logs)
+  - [Debugging Driver Installation](#debugging-driver-installation)
+  - [Using Techsupport-dump Tool](#using-techsupport-dump-tool)
+
 # AMD GPU Operator Troubleshooting Guide
 
 This guide provides steps to diagnose and resolve common issues with the AMD GPU Operator.

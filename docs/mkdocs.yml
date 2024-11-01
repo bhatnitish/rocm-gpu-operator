@@ -4,28 +4,24 @@ nav:
   - Getting Started:
     - Overview: overview.md
   - User Guide:
-    - Installation:
+    - Install Operator:
         - Kubernetes (Helm): installation/kubernetes-helm.md
         - OpenShift (Helm): installation/openshift-helm.md
         - OpenShift (OLM): installation/openshift-olm.md  
-    - Configuration: configuration.md
-    - Usage: usage.md
-    - GPU Driver Management:
+    - Install Custom Resource:
       - Installation: drivers/installation.md
-      - Using a Pre-Compiled Driver: drivers/precompiled-driver.md
+      - Using Pre-Compiled Driver Image: drivers/precompiled-driver.md
       - Secure Boot: drivers/secure-boot.md
-      - Upgrade: drivers/upgrading.md
-      - Uninstallation: drivers/uninstallation.md
     - Upgrades:
+      - Driver Upgrade: drivers/upgrading.md
       - Operator Upgrade: upgrades/operator.md
-      - Kernel: upgrades/kernel.md
-    - Uninstallation:
-      - Driver: drivers/uninstallation.md
-      - Operator: installation/uninstall.md
+      - Kernel Upgrade: upgrades/kernel.md
+    - Usage: usage.md
+    - Uninstallation: uninstallation/uninstallation.md
     - Troubleshooting: troubleshooting.md      
-  - Advanced Topics:
-    - HTTP Proxy: advanced/http-proxy.md
-    - Air-Gapped Installation: advanced/airgapped-install.md
+  - Specialized Networks:
+    - HTTP Proxy: specialized_networks/http-proxy.md
+    - Air-Gapped Installation: specialized_networks/airgapped-install.md
   - Contributing:
     - Developer Guide: contributing/developer-guide.md
     - Documentation Standards: contributing/documentation-standards.md

@@ -1,3 +1,15 @@
+- [AMD GPU Operator Upgrade Guide](#amd-gpu-operator-upgrade-guide)
+  - [Overview](#overview)
+  - [Prerequisites](#prerequisites)
+  - [Pre-upgrade Tasks](#pre-upgrade-tasks)
+  - [Upgrade Process](#upgrade-process)
+    - [Helm-based Upgrade](#helm-based-upgrade)
+    - [Verify Upgrade](#verify-upgrade)
+  - [Rollback Procedures](#rollback-procedures)
+  - [Version-specific Notes](#version-specific-notes)
+  - [Troubleshooting](#troubleshooting)
+
+
 # AMD GPU Operator Upgrade Guide
 
 ## Overview

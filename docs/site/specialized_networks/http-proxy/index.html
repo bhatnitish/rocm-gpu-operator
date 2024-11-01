@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>HTTP Proxy - AMD GPU Operator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "HTTP Proxy";
+        var mkdocs_page_input_path = "specialized_networks/http-proxy.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> AMD GPU Operator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../overview/">Overview</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-helm/">OpenShift (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-olm/">OpenShift (OLM)</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Custom Resource</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/installation/">Installation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/precompiled-driver/">Using Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/secure-boot/">Secure Boot</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/upgrading/">Driver Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/operator/">Operator Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../uninstallation/uninstallation/">Uninstallation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">HTTP Proxy</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#configuration-options">Configuration Options</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#methods-to-apply-proxy-settings">Methods to Apply Proxy Settings</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#method-1-using-set-with-helm-install">Method 1: Using --set with helm install</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#method-2-using-a-custom-valuesyaml-file">Method 2: Using a Custom values.yaml File</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verifying-proxy-settings">Verifying Proxy Settings</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../airgapped-install/">Air-Gapped Installation</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation-standards/">Documentation Standards</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">AMD GPU Operator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Specialized Networks &raquo;</li>
+      <li>HTTP Proxy</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/specialized_networks/http-proxy.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <ul>
+<li><a href="#http-proxy">HTTP Proxy</a><ul>
+<li><a href="#configuration-options">Configuration Options</a></li>
+<li><a href="#methods-to-apply-proxy-settings">Methods to Apply Proxy Settings</a></li>
+<li><a href="#method-1-using---set-with-helm-install">Method 1: Using <code>--set</code> with <code>helm install</code></a></li>
+<li><a href="#method-2-using-a-custom-valuesyaml-file">Method 2: Using a Custom <code>values.yaml</code> File</a></li>
+</ul>
+</li>
+<li><a href="#verifying-proxy-settings">Verifying Proxy Settings</a></li>
+</ul>
+<h1 id="http-proxy">HTTP Proxy</h1>
+<p>The AMD GPU Operator supports usage within a Kubernetes cluster behind an HTTP Proxy. Generally, the AMD GPU Operator requires Internet access for two reaons:</p>
+<ol>
+<li>Pulling he container images from the registry during installation.</li>
+<li>Downloading the AMD GPU driver installer.</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Downloading the driver installer (Step 2) can be skipped when using a <a href="../../drivers/precompiled-driver/">pre-compiled driver image</a>.</p>
+</div>
+<p>When users setting up a Kubernetes cluster with traffic redirected to a proxy server, ensure the Kubernetes nodes, container runtime, and GPU Operator pods are properly configured to apply the proxy network settings.</p>
+<p>This document won't cover all the detailed steps about how to setup proxy network, configure OS level proxy configurationa and update the container runtime level networking settings, since those steps are not specific to the AMD GPU Operator. The rest of the document will show users the methods to inject the proxy configuration to AMD GPU Operator so that all the components images and driver installer can be downloaded successfully behind a HTTP proxy.</p>
+<h3 id="configuration-options">Configuration Options</h3>
+<p>You can configure the following proxy settings:</p>
+<ul>
+<li><code>HTTP_PROXY</code>: The HTTP proxy server URL</li>
+<li><code>HTTPS_PROXY</code>: The HTTPS proxy server URL</li>
+<li><code>NO_PROXY</code>: A comma-separated list of hostnames or IP addresses that should bypass the proxy</li>
+</ul>
+<h3 id="methods-to-apply-proxy-settings">Methods to Apply Proxy Settings</h3>
+<p>There are two ways to apply these proxy settings:</p>
+<h3 id="method-1-using-set-with-helm-install">Method 1: Using <code>--set</code> with <code>helm install</code></h3>
+<p>You can specify the proxy settings directly in the <code>helm install</code> command using the <code>--set</code> flag.</p>
+<pre><code class="language-bash">helm install amd-gpu-operator rocm/gpu-operator-helm \
+  --namespace kube-amd-gpu \
+  --create-namespace \
+  --set global.proxy.env.HTTP_PROXY=http://myproxy.com:123 \
+  --set global.proxy.env.HTTPS_PROXY=http://myproxy2.com:234 \
+  --set global.proxy.env.NO_PROXY=&quot;10.1.2.3\,localhost&quot;
+</code></pre>
+<p>Note: When using <code>--set</code>, use <code>\,</code> to separate multiple values in the <code>NO_PROXY</code> setting.</p>
+<h3 id="method-2-using-a-custom-valuesyaml-file">Method 2: Using a Custom <code>values.yaml</code> File</h3>
+<ol>
+<li>Create a Helm Charts values YAML file named <code>custom-values.yaml</code> with the following content included:</li>
+</ol>
+<pre><code class="language-yaml">global:
+  proxy:
+    env:
+      HTTP_PROXY: &quot;http://myproxy.com:123&quot;
+      HTTPS_PROXY: &quot;http://myproxy2.com:234&quot;
+      NO_PROXY: &quot;10.1.2.3,localhost&quot;
+</code></pre>
+<ol>
+<li>Use this file when installing the Helm chart:</li>
+</ol>
+<pre><code class="language-bash">helm install amd-gpu-operator rocm/gpu-operator-helm \
+  --namespace kube-amd-gpu \
+  --create-namespace \
+  -f custom-values.yaml
+</code></pre>
+<h2 id="verifying-proxy-settings">Verifying Proxy Settings</h2>
+<p>After installation, you can verify the proxy settings by inspecting the environment variables of the deployed pods:</p>
+<pre><code class="language-bash">kubectl get pods -n kube-amd-gpu
+kubectl exec -it &lt;pod-name&gt; -n kube-amd-gpu -- env | grep -i proxy
+</code></pre>
+<p>Replace <code>&lt;pod-name&gt;</code> with the name of one of the GPU Operator pods.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../troubleshooting/" class="btn btn-neutral float-left" title="Troubleshooting"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../airgapped-install/" class="btn btn-neutral float-right" title="Air-Gapped Installation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../../troubleshooting/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../airgapped-install/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

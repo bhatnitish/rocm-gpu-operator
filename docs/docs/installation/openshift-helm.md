@@ -1,3 +1,26 @@
+- [Installing AMD GPU Operator on OpenShift](#installing-amd-gpu-operator-on-openshift)
+  - [Prerequisites](#prerequisites)
+    - [OpenShift Requirements](#openshift-requirements)
+    - [Required OpenShift Operators](#required-openshift-operators)
+  - [Installation Methods](#installation-methods)
+    - [Method 1: All-in-One Installation](#method-1-all-in-one-installation)
+    - [Method 2: Component-by-Component Installation](#method-2-component-by-component-installation)
+      - [Step 1: Install Node Feature Discovery (NFD) Operator](#step-1-install-node-feature-discovery-nfd-operator)
+      - [Step 2: Install Kernel Module Management (KMM) Operator](#step-2-install-kernel-module-management-kmm-operator)
+      - [Step 3: Install AMD GPU Operator](#step-3-install-amd-gpu-operator)
+  - [Post-Installation Configuration](#post-installation-configuration)
+    - [1. Configure Node Feature Discovery](#1-configure-node-feature-discovery)
+    - [2. Create blacklist (for installing out-of-tree kernel module)](#2-create-blacklist-for-installing-out-of-tree-kernel-module)
+    - [3. Create DeviceConfig Resource](#3-create-deviceconfig-resource)
+  - [Verification](#verification)
+    - [1. Check Node Labels](#1-check-node-labels)
+    - [2. Check Component Status](#2-check-component-status)
+    - [3. Check Driver Status](#3-check-driver-status)
+  - [Troubleshooting](#troubleshooting)
+    - [Common Issues](#common-issues)
+  - [Uninstallation](#uninstallation)
+
+
 # Installing AMD GPU Operator on OpenShift
 
 This guide walks through installing the AMD GPU Operator on an OpenShift cluster using Helm.
@@ -6,7 +29,7 @@ This guide walks through installing the AMD GPU Operator on an OpenShift cluster
 
 ### OpenShift Requirements
 
-- OpenShift Container Platform 4.10 or later
+- OpenShift Container Platform 4.16 or later
 - Cluster administrator privileges
 - Helm v3.2.0 or later
 - `oc` CLI tool configured with cluster access
@@ -15,17 +38,21 @@ This guide walks through installing the AMD GPU Operator on an OpenShift cluster
 
 The following operators must be enabled in your OpenShift cluster (enabled by default):
 
-1. **Service-CA Operator**
-   - Required for certificate signing and webhook authentication
-   - Verifies communication between kube-api-server and KMM webhook server
+* **Service-CA Operator**
+    - Required for certificate signing and webhook authentication
+    - Verifies communication between kube-api-server and KMM webhook server
 
-2. **MachineConfig Operator**
-   - Required for configuring the blacklist for `amdgpu` driver
-   - Manages node-level configuration
+* **MachineConfig Operator**
+    - Required for configuring the blacklist for `amdgpu` driver
+    - Manages node-level configuration
 
-3. **Cluster Image Registry Operator**
-   - Required for driver image builds within OpenShift
-   - Manages internal image registry storage
+* **Cluster Image Registry Operator**
+    - Required for driver image builds within OpenShift
+    - Manages internal image registry storage
+    - Steps to enable image registry operator if it is disabled (example using emptyDir):
+        - Configure registry storage: ```oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"emptyDir":{}}}}' ```
+        - Enable the registry: ```oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}'```
+        - Verify the registry pod is running: ```oc get pods -n openshift-image-registry```
 
 ## Installation Methods
 
@@ -146,7 +173,34 @@ spec:
                     ]}
 ```
 
-### 2. Create DeviceConfig Resource
+### 2. Create blacklist (for installing out-of-tree kernel module)
+
+Create a Machine Config Operator custom resource to add `amdgpu` kernel module into the modprobe blacklist, here is an example of custom resource `MachineConfig`, please set `master` for the label `machineconfiguration.openshift.io/role` if you run Single Node OpenShift or `worker` in other scenarios with dedicated controllers.
+
+!!! warning "Node will reboot"
+    After adding `amdgpu` kernel module to blacklist by using `MachineConfig` custom resource, the Machine Config Operator will automatically reboot selected nodes.
+
+```yaml
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: amdgpu-module-blacklist
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: "/etc/modprobe.d/amdgpu-blacklist.conf"
+          mode: 420
+          overwrite: true
+          contents:
+            source: "data:text/plain;base64,YmxhY2tsaXN0IGFtZGdwdQo="
+```
+
+### 3. Create DeviceConfig Resource
 
 Create a `DeviceConfig` to trigger driver installation:
 
@@ -157,8 +211,10 @@ metadata:
   name: amd-gpu-config
   namespace: kube-amd-gpu
 spec:
-  devicePluginImage: rocm/k8s-device-plugin:latest
-  driversVersion: el9-6.1.1
+  driver:
+    enable: true
+    image: image-registry.openshift-image-registry.svc:5000/amdgpu_kmod
+    version: el9-6.1.1
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
 ```
@@ -221,15 +277,4 @@ For detailed troubleshooting, run the support tool:
 
 ## Uninstallation
 
-To remove the operator and its components:
-
-```bash
-# Remove DeviceConfig first
-oc delete deviceconfigs.amd.com -n kube-amd-gpu --all
-
-# Uninstall using Helm
-helm uninstall amd-gpu-operator -n kube-amd-gpu
-
-# Clean up namespace
-oc delete namespace gpu-operator
-```
+Please refer to the [Uninstallation](../uninstallation/uninstallation.md) document for uninstalling related resources.

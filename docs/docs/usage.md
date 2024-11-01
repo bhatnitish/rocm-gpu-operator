@@ -1,3 +1,11 @@
+- [AMD GPU Operator Usage Guide](#amd-gpu-operator-usage-guide)
+  - [Creating a GPU-enabled Pod](#creating-a-gpu-enabled-pod)
+  - [Checking GPU Status](#checking-gpu-status)
+  - [Using amd-smi](#using-amd-smi)
+  - [Using rocminfo](#using-rocminfo)
+  - [Configuring GPU Resources](#configuring-gpu-resources)
+
+
 # AMD GPU Operator Usage Guide
 
 This guide provides information on how to use the AMD GPU Operator in your Kubernetes environment.
@@ -111,4 +119,4 @@ kubectl logs rocminfo
 
 ## Configuring GPU Resources
 
-Configuration parameters are documented in the [AMD GPU Operator Configuration Guide](configuration.md)
+Configuration parameters are documented in the [Custom Resource Installation Guide](./drivers/installation.md)

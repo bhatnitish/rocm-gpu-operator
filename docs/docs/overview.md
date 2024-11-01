@@ -41,10 +41,10 @@ The [Kernel Module Management (KMM) Operator](https://github.com/kubernetes-sigs
 The components work together in the following sequence:
 
 1. NFD identifies worker nodes with AMD GPUs
-2. Controller Manager processes `DeviceConfig` resources
+2. Controller Manager processes `DeviceConfig` custom resources
 3. KMM handles driver operations based on configuration
-4. Device Plugin registers GPU resources
-5. Node Labeller adds detailed GPU information
+4. Device Plugin registers `amd.com/gpu` allocatable resources to node
+5. Node Labeller adds detailed GPU information to node labels
 6. Metrics Exporter provides ongoing monitoring
 
 [Placeholder: Architecture diagram]

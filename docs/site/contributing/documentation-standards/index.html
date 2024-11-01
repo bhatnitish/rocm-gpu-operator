@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Documentation Standards - AMD GPU Operator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Documentation Standards";
+        var mkdocs_page_input_path = "contributing/documentation-standards.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> AMD GPU Operator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../overview/">Overview</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-helm/">OpenShift (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-olm/">OpenShift (OLM)</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Custom Resource</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/installation/">Installation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/precompiled-driver/">Using Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/secure-boot/">Secure Boot</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/upgrading/">Driver Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/operator/">Operator Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../uninstallation/uninstallation/">Uninstallation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/http-proxy/">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/airgapped-install/">Air-Gapped Installation</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Documentation Standards</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#voice-and-tone">Voice and Tone</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#writing-style">Writing Style</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#terminology-standards">Terminology Standards</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#product-names">Product Names</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#technical-terms">Technical Terms</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#acronym-usage">Acronym Usage</a>
+    </li>
+        </ul>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#formatting-standards">Formatting Standards</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#headers">Headers</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#code-blocks">Code Blocks</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#lists">Lists</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#admonitions">Admonitions</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tables">Tables</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#document-structure">Document Structure</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#standard-sections">Standard Sections</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#example-template">Example Template</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#file-naming">File Naming</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#links-and-references">Links and References</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">AMD GPU Operator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Contributing &raquo;</li>
+      <li>Documentation Standards</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/contributing/documentation-standards.md"
+          class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <ul>
+<li><a href="#amd-gpu-operator-documentation-standards">AMD GPU Operator Documentation Standards</a></li>
+<li><a href="#voice-and-tone">Voice and Tone</a><ul>
+<li><a href="#writing-style">Writing Style</a></li>
+<li><a href="#terminology-standards">Terminology Standards</a></li>
+<li><a href="#product-names">Product Names</a></li>
+<li><a href="#technical-terms">Technical Terms</a></li>
+<li><a href="#acronym-usage">Acronym Usage</a></li>
+</ul>
+</li>
+<li><a href="#formatting-standards">Formatting Standards</a><ul>
+<li><a href="#headers">Headers</a></li>
+<li><a href="#code-blocks">Code Blocks</a></li>
+<li><a href="#lists">Lists</a></li>
+<li><a href="#admonitions">Admonitions</a></li>
+<li><a href="#tables">Tables</a></li>
+</ul>
+</li>
+<li><a href="#document-structure">Document Structure</a><ul>
+<li><a href="#standard-sections">Standard Sections</a></li>
+<li><a href="#example-template">Example Template</a></li>
+</ul>
+</li>
+<li><a href="#file-naming">File Naming</a></li>
+<li><a href="#links-and-references">Links and References</a></li>
+</ul>
+<h1 id="amd-gpu-operator-documentation-standards">AMD GPU Operator Documentation Standards</h1>
+<h2 id="voice-and-tone">Voice and Tone</h2>
+<h3 id="writing-style">Writing Style</h3>
+<ul>
+<li>Use active voice</li>
+<li>Write in second person ("you") for instructions</li>
+<li>Maintain professional, technical tone</li>
+<li>Be concise and direct</li>
+<li>Use present tense</li>
+</ul>
+<p>Examples:</p>
+<pre><code class="language-diff">- The configuration file will be created by the operator
++ The operator creates the configuration file
+
+- One should ensure that all prerequisites are met
++ Ensure all prerequisites are met
+</code></pre>
+<h3 id="terminology-standards">Terminology Standards</h3>
+<h4 id="product-names">Product Names</h4>
+<ul>
+<li>"AMD GPU Operator" (not "GPU operator" or "gpu-operator")</li>
+<li>"Kubernetes" (not "kubernetes" or "K8s")</li>
+<li>"OpenShift" (not "Openshift" or "openshift")</li>
+<li>"AMD ROCm™" (not "ROCM" or "rocm")</li>
+</ul>
+<h4 id="technical-terms">Technical Terms</h4>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Usage Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AMD GPU driver</td>
+<td>Standard term for the driver. Don't use "AMDGPU driver" or "GPU driver" alone</td>
+</tr>
+<tr>
+<td>worker node</td>
+<td>Standard term for cluster nodes. Don't use "worker" or "node" alone</td>
+</tr>
+<tr>
+<td>DeviceConfig</td>
+<td>One word, capital 'D' and 'C' when referring to the resource</td>
+</tr>
+<tr>
+<td>container image</td>
+<td>Use instead of just "image"</td>
+</tr>
+<tr>
+<td>pod</td>
+<td>Lowercase unless starting a sentence</td>
+</tr>
+<tr>
+<td>namespace</td>
+<td>Lowercase unless starting a sentence</td>
+</tr>
+</tbody>
+</table>
+<h4 id="acronym-usage">Acronym Usage</h4>
+<p>Always expand acronyms on first use in each document:
+- NFD (Node Feature Discovery)
+- KMM (Kernel Module Management)
+- CRD (Custom Resource Definition)
+- CR (Custom Resource)</p>
+<h2 id="formatting-standards">Formatting Standards</h2>
+<h3 id="headers">Headers</h3>
+<ul>
+<li>Use title case for all headers</li>
+<li>Add blank line before and after headers</li>
+</ul>
+<pre><code class="language-markdown"># Main Title
+
+## Section Title
+
+### Subsection Title
+</code></pre>
+<h3 id="code-blocks">Code Blocks</h3>
+<ul>
+<li>Always specify language for syntax highlighting</li>
+<li>Use inline code format (<code>code</code>) for:</li>
+<li>Command names</li>
+<li>File names</li>
+<li>Variable names</li>
+<li>Resource names</li>
+<li>Use block code format (```) for:</li>
+<li>Command examples</li>
+<li>YAML/JSON examples</li>
+<li>Configuration files</li>
+<li>Output examples</li>
+</ul>
+<p>Examples:</p>
+<pre><code class="language-markdown">Install using `helm`:
+
+```bash
+helm install amd-gpu-operator rocm/gpu-operator-helm
+```
+
+Create a configuration:
+
+```yaml
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: example
+```
+</code></pre>
+<h3 id="lists">Lists</h3>
+<ul>
+<li>Maintain consistent indentation (2 spaces)</li>
+<li>End each list item with punctuation</li>
+<li>Add blank line between list items if they contain multiple sentences or code blocks</li>
+</ul>
+<h3 id="admonitions">Admonitions</h3>
+<p>Use consistent formatting for notes, warnings, and tips:</p>
+<pre><code class="language-markdown">!!! note
+    Important supplementary information.
+
+!!! warning
+    Critical information about potential problems.
+
+!!! tip
+    Helpful advice for better usage.
+</code></pre>
+<h3 id="tables">Tables</h3>
+<ul>
+<li>Use tables for structured information</li>
+<li>Include header row</li>
+<li>Align columns consistently</li>
+<li>Add blank lines before and after tables</li>
+</ul>
+<p>Example:</p>
+<pre><code class="language-markdown">| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `image` | Container image path | `rocm/gpu-operator:latest` |
+| `version` | Driver version | `6.2.0` |
+</code></pre>
+<h2 id="document-structure">Document Structure</h2>
+<h3 id="standard-sections">Standard Sections</h3>
+<p>Every document should include these sections in order:</p>
+<ol>
+<li>Title (H1)</li>
+<li>Brief overview/introduction</li>
+<li>Prerequisites (if applicable)</li>
+<li>Main content</li>
+<li>Verification steps (if applicable)</li>
+<li>Troubleshooting (if applicable)</li>
+</ol>
+<h3 id="example-template">Example Template</h3>
+<pre><code class="language-markdown"># Feature Title
+
+Brief description of the feature or component.
+
+## Prerequisites
+
+- Required components
+- Required permissions
+- Required resources
+
+## Overview
+
+Detailed description of the feature.
+
+## Configuration
+
+Configuration steps and examples.
+
+## Verification
+
+Steps to verify successful implementation.
+
+## Troubleshooting
+
+Common issues and solutions.
+</code></pre>
+<h2 id="file-naming">File Naming</h2>
+<ul>
+<li>Use lowercase</li>
+<li>Use hyphens for spaces</li>
+<li>Be descriptive but concise</li>
+<li>Include category prefix when applicable</li>
+</ul>
+<p>Examples:</p>
+<ul>
+<li><code>install-kubernetes.md</code></li>
+<li><code>upgrade-operator.md</code></li>
+</ul>
+<h2 id="links-and-references">Links and References</h2>
+<ul>
+<li>Use relative links for internal documentation</li>
+<li>Use absolute links for external references</li>
+<li>Include link text that makes sense out of context</li>
+</ul>
+<p>Examples:</p>
+<pre><code class="language-markdown">[Installation Guide](../install/kubernetes.md)
+[Kubernetes Documentation](https://kubernetes.io/docs)
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../developer-guide/" class="btn btn-neutral float-left" title="Developer Guide"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../developer-guide/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

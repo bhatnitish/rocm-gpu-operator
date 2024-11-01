@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>Project layout - AMD GPU OPERATOR</title>
+    <title>Project layout - AMD GPU Operator</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
@@ -34,7 +34,7 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
     <div class="wy-side-scroll">
       <div class="wy-side-nav-search">
-          <a href=".." class="icon icon-home"> AMD GPU OPERATOR
+          <a href=".." class="icon icon-home"> AMD GPU Operator
         </a><div role="search">
   <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
       <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
@@ -44,61 +44,65 @@
 
       <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../components/">Components</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../overview/">Overview</a>
+                  </li>
               </ul>
-              <p class="caption"><span class="caption-text">Install</span></p>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="#">Install Operator</a>
     <ul>
-                <li class="toctree-l2"><a class="reference internal" href="../vanilla_k8s_deploy_helm/">Vanilla Kubernetes - Helm Charts</a>
+                <li class="toctree-l2"><a class="reference internal" href="../installation/kubernetes-helm/">Kubernetes (Helm)</a>
                 </li>
-                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_helm/">OpenShift - Helm Charts</a>
+                <li class="toctree-l2"><a class="reference internal" href="../installation/openshift-helm/">OpenShift (Helm)</a>
                 </li>
-                <li class="toctree-l2"><a class="reference internal" href="../openshift_deploy_olm/">OpenShift - OLM bundle</a>
+                <li class="toctree-l2"><a class="reference internal" href="../installation/openshift-olm/">OpenShift (OLM)</a>
                 </li>
     </ul>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="#">Deploy Driver</a>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Install Custom Resource</a>
     <ul>
-                <li class="toctree-l2"><a class="reference internal" href="../driver_install/">Install Driver</a>
+                <li class="toctree-l2"><a class="reference internal" href="../drivers/installation/">Installation</a>
                 </li>
-                <li class="toctree-l2"><a class="reference internal" href="../pre_compiled_image/">Pre-Compiled Driver Image</a>
+                <li class="toctree-l2"><a class="reference internal" href="../drivers/precompiled-driver/">Using Pre-Compiled Driver Image</a>
                 </li>
-                <li class="toctree-l2"><a class="reference internal" href="../secure_boot/">Secure Boot Driver Image</a>
+                <li class="toctree-l2"><a class="reference internal" href="../drivers/secure-boot/">Secure Boot</a>
                 </li>
     </ul>
                   </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Upgrade</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="" href="../operator_upgrade.md">Upgrade Operator</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_upgrade/">Upgrade Driver</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../kernel_upgrade/">Upgrade Kernel</a>
-                  </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Uninstall</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="" href="../driver_unload.md">Unload Driver</a>
-                  </li>
-                  <li class="toctree-l1"><a class="" href="../operator_uninstall.md">Uninstall Operator</a>
-                  </li>
-              </ul>
-              <ul>
-                <li class="toctree-l1"><a class="" href="../troubleshoot.md">TroubleShooting</a>
+                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../drivers/upgrading/">Driver Upgrade</a>
                 </li>
+                <li class="toctree-l2"><a class="reference internal" href="../upgrades/operator/">Operator Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../uninstallation/uninstallation/">Uninstallation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Specialized Networks</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../http_proxy/">HTTP Proxy</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../specialized_networks/http-proxy/">HTTP Proxy</a>
                   </li>
-                  <li class="toctree-l1"><a class="" href="../airgapped_network.md">Air-Gapped Network</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../specialized_networks/airgapped-install/">Air-Gapped Installation</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../contributing/developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../contributing/documentation-standards/">Documentation Standards</a>
                   </li>
               </ul>
       </div>
@@ -108,7 +112,7 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
       <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="..">AMD GPU OPERATOR</a>
+          <a href="..">AMD GPU Operator</a>
         
       </nav>
       <div class="wy-nav-content">
@@ -117,7 +121,7 @@
     <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
       <li>Project layout</li>
     <li class="wy-breadcrumbs-aside">
-        <a href="https://github.com/pensando/gpu-operator/blob/main/docs/docs/project_layout.md"
+        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/project_layout.md"
           class="icon icon-github"> Edit on GitHub</a>
     </li>
   </ul>
@@ -265,7 +269,7 @@
   <span class="rst-current-version" data-toggle="rst-current-version">
     
         <span>
-          <a href="https://github.com/pensando/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
         </span>
     
     
