@@ -1,0 +1,24 @@
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: devcfg-kuberbac-clusterip
+  namespace: kube-amd-gpu
+spec:
+  driver:
+    version: "6.2.1"
+
+  devicePlugin:
+    devicePluginImage: rocm/k8s-device-plugin:latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
+  metricsExporter:
+    enable: True
+    serviceType: "NodePort"
+    port: 5000
+    nodePort: 31000
+    image: "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
+    rbacConfig:
+      enable: True
+      disableHttps: False
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"

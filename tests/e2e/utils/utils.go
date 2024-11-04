@@ -34,13 +34,18 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
 )
@@ -814,6 +819,105 @@ func DeployNodeAppDaemonSet(cl *kubernetes.Clientset) error {
 	}, 10*time.Minute, time.Second*5)
 }
 
+func GetClusterIP(clientset *kubernetes.Clientset, serviceName, namespace string) (string, error) {
+	ctx := context.TODO()
+
+	service, err := clientset.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get service %s: %v", serviceName, err)
+	}
+
+	return service.Spec.ClusterIP, nil
+}
+
+func SplitYAML(data []byte) [][]byte {
+	docs := strings.Split(string(data), "---")
+	var result [][]byte
+	for _, doc := range docs {
+		trimmedDoc := strings.TrimSpace(doc)
+		if trimmedDoc != "" {
+			result = append(result, []byte(trimmedDoc))
+		}
+	}
+	return result
+}
+
+func DeployResourcesFromFile(fileName string, cl *kubernetes.Clientset, create bool) error {
+	fileName = "./yamls/config/" + fileName
+	data, err := os.ReadFile(fileName)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %s", fileName)
+	}
+
+	decoder := serializer.NewCodecFactory(scheme.Scheme).UniversalDeserializer()
+
+	documents := SplitYAML(data)
+	for _, doc := range documents {
+		obj, _, err := decoder.Decode(doc, nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to decode yaml %+v: %+v", doc, err)
+		}
+
+		switch resource := obj.(type) {
+		case *v1.Namespace:
+			if create {
+				_, err = cl.CoreV1().Namespaces().Create(context.TODO(), resource, metav1.CreateOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to create namespace %+v: %+v", resource, err)
+				}
+			} else {
+				err = cl.CoreV1().Namespaces().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to delete namespace %+v: %+v", resource, err)
+				}
+			}
+
+		case *rbacv1.ClusterRole:
+			if create {
+				_, err = cl.RbacV1().ClusterRoles().Create(context.TODO(), resource, metav1.CreateOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to create clusterrole %+v: %+v", resource, err)
+				}
+			} else {
+				err = cl.RbacV1().ClusterRoles().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to delete clusterrole %+v: %+v", resource, err)
+				}
+			}
+
+		case *rbacv1.ClusterRoleBinding:
+			if create {
+				_, err = cl.RbacV1().ClusterRoleBindings().Create(context.TODO(), resource, metav1.CreateOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to create clusterrole binding %+v: %+v", resource, err)
+				}
+			} else {
+				err = cl.RbacV1().ClusterRoleBindings().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to delete clusterrole binding %+v: %+v", resource, err)
+				}
+			}
+
+		case *batchv1.Job:
+			if create {
+				_, err = cl.BatchV1().Jobs(resource.Namespace).Create(context.TODO(), resource, metav1.CreateOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to create batch job %+v: %+v", resource, err)
+				}
+			} else {
+				err = cl.BatchV1().Jobs(resource.Namespace).Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to delete batch job %+v: %+v", resource, err)
+				}
+			}
+
+		default:
+			return fmt.Errorf("unsupported resource type %+v", resource)
+		}
+	}
+	return nil
+}
+
 func DeleteNodeAppDaemonSet(cl *kubernetes.Clientset) error {
 
 	dsCli := cl.AppsV1().DaemonSets("default")
@@ -934,4 +1038,143 @@ func RebootNodeWithWait(ctx context.Context, cl *kubernetes.Clientset,
 	}
 
 	return nil
+}
+
+func GetJobLogs(clientset *kubernetes.Clientset, job *batchv1.Job) ([]string, error) {
+	if job == nil {
+		return nil, fmt.Errorf("Provide a valid job")
+	}
+
+	jobLogs := []string{}
+	var logsBuffer bytes.Buffer
+	podNames, err := GetPodNamesFromJob(clientset, job)
+	if err != nil {
+		return nil, err
+	}
+	for _, podName := range podNames {
+		podLogOpts := v1.PodLogOptions{}
+		req := clientset.CoreV1().Pods(job.Namespace).GetLogs(podName, &podLogOpts)
+
+		logs, err := req.Stream(context.TODO())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get logs for Pod %s: %v", podName, err)
+		}
+		defer logs.Close()
+
+		_, err = io.Copy(&logsBuffer, logs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read logs for Pod %s: %v", podName, err)
+		}
+
+		jobLogs = append(jobLogs, fmt.Sprintf("Logs from Pod %s:\n%s\n", podName, logsBuffer.String()))
+	}
+
+	return jobLogs, nil
+}
+
+func GetPodNamesFromJob(clientset *kubernetes.Clientset, job *batchv1.Job) ([]string, error) {
+	var podNames []string
+
+	labelSelector := fmt.Sprintf("job-name=%s", job.Name)
+	pods, err := clientset.CoreV1().Pods(job.Namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Pods for Job %s: %v", job.Name, err)
+	}
+
+	for _, pod := range pods.Items {
+		podNames = append(podNames, pod.Name)
+	}
+
+	return podNames, nil
+
+}
+
+func GetServiceEndpoints(clientset *kubernetes.Clientset, serviceName, namespace string) ([]string, error) {
+	ctx := context.TODO()
+	_, err := clientset.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service %s: %v", serviceName, err)
+	}
+
+	endpoints, err := clientset.CoreV1().Endpoints(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get endpoints for service %s: %v", serviceName, err)
+	}
+
+	var endpointIPs []string
+	for _, subset := range endpoints.Subsets {
+		for _, address := range subset.Addresses {
+			endpointIPs = append(endpointIPs, address.IP)
+		}
+	}
+
+	return endpointIPs, nil
+}
+
+func GenerateServiceAccountToken(clientset *kubernetes.Clientset, serviceAccountName, namespace string) (string, error) {
+	ctx := context.TODO()
+
+	seconds := int64(24 * 3600)
+	tokenRequest := &authenticationv1.TokenRequest{
+		Spec: authenticationv1.TokenRequestSpec{
+			ExpirationSeconds: &seconds,
+		},
+	}
+
+	// Request a token for the service account
+	tokenResp, err := clientset.CoreV1().ServiceAccounts(namespace).CreateToken(ctx, serviceAccountName, tokenRequest, metav1.CreateOptions{})
+	if err != nil || len(tokenResp.Status.Token) == 0 {
+		return "", fmt.Errorf("failed to generate token for service account %s: %v tokenResp: %+v", serviceAccountName, err, tokenResp)
+	}
+
+	return tokenResp.Status.Token, nil
+}
+
+func CurlMetrics(endpointIPs []string, token string, port int, secure bool) error {
+	protocol := "https"
+	if !secure {
+		protocol = "http"
+	}
+	for _, ip := range endpointIPs {
+		cmd := fmt.Sprintf("curl -v -s -k -H \"Authorization: Bearer %s\" %s://%s:%d/metrics", token, protocol, ip, port)
+		output, err := exec.Command("sh", "-c", cmd).Output()
+		if err != nil {
+			return fmt.Errorf("failed to curl endpoint %s: %v", ip, err)
+		}
+		if !strings.Contains(string(output), "GPU_UUID") {
+			return fmt.Errorf("failed to fetch metrics, log: %s curl command: %s", string(output), cmd)
+		}
+	}
+	return nil
+}
+
+func GetNodeIPsForDaemonSet(clientset *kubernetes.Clientset, daemonSetName, namespace string) ([]string, error) {
+	ctx := context.TODO()
+
+	daemonSet, err := clientset.AppsV1().DaemonSets(namespace).Get(ctx, daemonSetName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DaemonSet %s: %v", daemonSetName, err)
+	}
+
+	// Construct the label selector from the DaemonSet's selector
+	labelSelector := metav1.FormatLabelSelector(daemonSet.Spec.Selector)
+
+	// List Pods in the specified namespace with the matching label selector
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Pods for DaemonSet %s: %v", daemonSetName, err)
+	}
+
+	// Collect Node IPs from the Pods using HostIP
+	var nodeIPs []string
+	for _, pod := range pods.Items {
+		nodeIPs = append(nodeIPs, pod.Status.HostIP)
+	}
+
+	return nodeIPs, nil
 }

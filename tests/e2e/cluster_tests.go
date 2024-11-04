@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"os/user"
 	"strings"
@@ -31,12 +32,16 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/yaml"
 
 	"github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
@@ -72,9 +77,109 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	return devCfg
 }
 
+func (s *E2ESuite) getDeviceConfigFromFile(c *C, fileName string) *v1alpha1.DeviceConfig {
+	userInfo, err := user.Current()
+	assert.NoErrorf(c, err, fmt.Sprintf("failed to get user: %+v", err))
+
+	fileName = "./yamls/config/" + fileName
+	data, err := os.ReadFile(fileName)
+	assert.NoErrorf(c, err, fmt.Sprintf("failed to read file %s: %+v", fileName, err))
+
+	var deviceConfig v1alpha1.DeviceConfig
+	err = yaml.Unmarshal(data, &deviceConfig)
+	assert.NoErrorf(c, err, fmt.Sprintf("failed to unmarshal deviceconfig: %+v", err))
+
+	deviceConfig.Namespace = s.ns
+	deviceConfig.Spec.Driver.Image = fmt.Sprintf("registry.test.pensando.io:5000/e2e/%v", userInfo.Username)
+	deviceConfig.Spec.Driver.Version = s.defaultDriverVersion
+
+	if s.openshift {
+		deviceConfig.Spec.Driver.Version = "el9-6.1.1"
+	}
+	return &deviceConfig
+}
+
 func (s *E2ESuite) createDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
 	_, err := s.dClient.DeviceConfigs(s.ns).Create(devCfg)
 	assert.NoError(c, err, "failed to create %v", s.cfgName)
+}
+
+func (s *E2ESuite) manageCurlJob(fileName string, clusterIP string, c *C) {
+	fileName = "./yamls/config/" + fileName
+	data, err := os.ReadFile(fileName)
+	assert.NoError(c, err, fmt.Sprintf("failed to read file %s: %+v", fileName, err))
+
+	updatedData := strings.Replace(string(data), "<service-endpoint-ip>", clusterIP, -1)
+
+	decoder := serializer.NewCodecFactory(scheme.Scheme).UniversalDeserializer()
+	obj, _, err := decoder.Decode([]byte(updatedData), nil, nil)
+	assert.NoError(c, err, fmt.Sprintf("failed to decode job file: %+v", err))
+
+	job, _ := obj.(*batchv1.Job)
+	assert.Eventually(c, func() bool {
+		if !s.deployCurlJob(job) {
+			return false
+		}
+		defer s.deleteJob(job)
+
+		for i := 0; i < 5; i++ {
+			if s.checkJobStatus(job) {
+				return true
+			}
+			time.Sleep(1 * time.Second)
+		}
+
+		return false
+	}, 5*time.Minute, 10*time.Second)
+}
+
+func (s *E2ESuite) deployCurlJob(job *batchv1.Job) bool {
+	_, err := s.clientSet.BatchV1().Jobs(job.Namespace).Create(context.TODO(), job, metav1.CreateOptions{})
+	if err != nil {
+		log.Errorf("failed to create job: %+v", err)
+		return false
+	}
+	return true
+}
+
+func (s *E2ESuite) deleteJob(job *batchv1.Job) bool {
+	propagationPolicy := metav1.DeletePropagationBackground
+
+	deleteOptions := metav1.DeleteOptions{
+		PropagationPolicy: &propagationPolicy,
+	}
+	err := s.clientSet.BatchV1().Jobs(job.Namespace).Delete(context.TODO(), job.Name, deleteOptions)
+	if err != nil {
+		log.Errorf("failed to delete job: %+v", err)
+		return false
+	}
+	return true
+}
+
+func (s *E2ESuite) checkJobStatus(job *batchv1.Job) bool {
+	job, err := s.clientSet.BatchV1().Jobs(job.Namespace).Get(context.TODO(), job.Name, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("failed to get job %s: %v", job.Name, err)
+		return false
+	}
+
+	if job.Status.Succeeded > 0 {
+		jobLogs, err := utils.GetJobLogs(s.clientSet, job)
+		if err != nil {
+			log.Errorf("failed to get job logs: %v", err)
+			return false
+		}
+		for _, jlog := range jobLogs {
+			if !strings.Contains(jlog, "GPU_UUID") {
+				log.Errorf("failed to fetch metrics, log: %s", jlog)
+				return false
+			}
+		}
+		log.Infof("JobLogs: %+v", jobLogs)
+		return true
+	}
+
+	return false
 }
 
 func (s *E2ESuite) checkNFDWorkerStatus(ns string, c *C, workerName string) {
@@ -124,24 +229,30 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 	}, 5*time.Minute, 5*time.Second)
 }
 
-func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
+func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, serviceType corev1.ServiceType, c *C) {
 	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), s.cfgName+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), devCfg.Name+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
 		if err != nil {
-			log.Errorf("failed to get metrics exporter %v", err)
+			log.Errorf("failed to get metrics exporter devCfg: %+v %v", devCfg, err)
 			return false
 		}
 		log.Infof("metrics exporter %+v", ds.Status)
-		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), s.cfgName+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
+		svc, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(), devCfg.Name+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("failed to get metrics service %v", err)
 			return false
 		}
 		log.Infof("metrics service %+v", svc.Spec)
 
-		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
-			svc.Spec.Type == corev1.ServiceTypeNodePort && len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(5000) &&
-			svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
+		ready := ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
+			len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(devCfg.Spec.MetricsExporter.Port)
+		if serviceType == corev1.ServiceTypeNodePort {
+			ready = ready && svc.Spec.Type == corev1.ServiceTypeNodePort && svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
+		} else {
+			ready = ready && svc.Spec.Type == corev1.ServiceTypeClusterIP
+		}
+
+		return ready
 	}, 5*time.Minute, 5*time.Second)
 }
 
@@ -309,12 +420,12 @@ func (s *E2ESuite) verifyROCMPOD(driverInstalled bool, c *C) {
 	}
 }
 
-func (s *E2ESuite) deleteDeviceConfig(c *C) {
-	_, err := s.dClient.DeviceConfigs(s.ns).Delete(s.cfgName)
-	assert.NoErrorf(c, err, "failed to delete %v", s.cfgName)
+func (s *E2ESuite) deleteDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Delete(devCfg.Name)
+	assert.NoErrorf(c, err, "failed to delete %v", devCfg.Name)
 
 	assert.Eventually(c, func() bool {
-		_, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), s.cfgName+"-node-labeller", metav1.GetOptions{})
+		_, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), devCfg.Name+"-node-labeller", metav1.GetOptions{})
 		if err == nil {
 			log.Warnf("waiting to delete node-labeller ")
 			return false
@@ -323,7 +434,7 @@ func (s *E2ESuite) deleteDeviceConfig(c *C) {
 	}, 5*time.Minute, 5*time.Second)
 
 	assert.Eventually(c, func() bool {
-		_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+		_, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
 		if err == nil {
 			log.Warnf("waiting to delete deviceConfig")
 			return false
@@ -354,7 +465,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
@@ -363,7 +474,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.verifyROCMPOD(true, c)
 
 	// delete
-	s.deleteDeviceConfig(c)
+	s.deleteDeviceConfig(devCfg, c)
 
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
@@ -413,7 +524,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.verifyROCMPOD(true, c)
 
 	// delete
-	s.deleteDeviceConfig(c)
+	s.deleteDeviceConfig(devCfg, c)
 
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
@@ -446,7 +557,7 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
-	s.deleteDeviceConfig(c)
+	s.deleteDeviceConfig(devCfg, c)
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
@@ -463,7 +574,7 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
-	s.deleteDeviceConfig(c)
+	s.deleteDeviceConfig(devCfg, c)
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
@@ -771,6 +882,10 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 }
 
 func (s *E2ESuite) TestEnableBlacklist(c *C) {
+	if s.noamdgpu {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
 	log.Infof("TestEnableBlacklist")
 
 	devCfg := s.getDeviceConfig(c)
@@ -830,11 +945,112 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	assert.NoError(c, err, fmt.Sprintf("%v", err))
 
 	// delete
-	s.deleteDeviceConfig(c)
+	s.deleteDeviceConfig(devCfg, c)
 
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
+	if s.noamdgpu {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-clusterip", metav1.GetOptions{})
+	assert.Errorf(c, err, "config deviceconfig-kuberbac-clusterip exists")
+
+	log.Info("create deviceconfig-kuberbac-clusterip")
+	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_clusterip.yaml")
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)
+
+	clusterIP, err := utils.GetClusterIP(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	assert.NoError(c, err, fmt.Sprintf("couldn't get cluster IP for metrics exporter service: %+v", err))
+
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
+	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
+	s.manageCurlJob("job_kuberbac_clusterip.yaml", clusterIP, c)
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
+	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
+}
+
+func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
+	if s.noamdgpu {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
+	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
+
+	log.Info("create deviceconfig-kuberbac-nodeport")
+	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+
+	endpointIPs, err := utils.GetServiceEndpoints(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	assert.NoError(c, err, fmt.Sprintf("couldn't get endpoint IPs for metrics exporter service: %+v", err))
+
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
+	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
+	token, err := utils.GenerateServiceAccountToken(s.clientSet, "default", "metrics-reader")
+	assert.NoError(c, err, fmt.Sprintf("failed to generate token for default serviceaccount in metrics-client: %+v", err))
+
+	// Test 1: Run the curl job repeatedly using endpoint IPs
+	assert.Eventually(c, func() bool {
+		err = utils.CurlMetrics(endpointIPs, token, int(devCfg.Spec.MetricsExporter.Port), true)
+		if err != nil {
+			log.Errorf(err.Error())
+			return false
+		}
+
+		return true
+	}, 3*time.Minute, 10*time.Second)
+
+	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	assert.NoError(c, err, fmt.Sprintf("couldn't get node IPs for metrics exporter daemonset pods: %+v", err))
+
+	// Test 2: Run the curl job repeatedly using nodeport
+	assert.Eventually(c, func() bool {
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true)
+		if err != nil {
+			log.Errorf(err.Error())
+			return false
+		}
+
+		return true
+	}, 3*time.Minute, 10*time.Second)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	// Change th ports to give time for the old pods to be deleted and not affect the current test
+	devCfg.Spec.MetricsExporter.RbacConfig.DisableHttps = true
+	devCfg.Spec.MetricsExporter.Port = 6000
+	devCfg.Spec.MetricsExporter.NodePort = 32000
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+
+	nodeIPs, err = utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	assert.NoError(c, err, fmt.Sprintf("couldn't get node IPs for metrics exporter daemonset pods: %+v", err))
+
+	// Test 2: Run the curl job repeatedly using nodeport
+	assert.Eventually(c, func() bool {
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), false)
+		if err != nil {
+			log.Errorf(err.Error())
+			return false
+		}
+
+		return true
+	}, 3*time.Minute, 10*time.Second)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
+	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 }
 
 func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
@@ -860,7 +1076,7 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	s.verifyROCMPOD(true, c)
 
 	// delete
-	s.deleteDeviceConfig(c)
+	s.deleteDeviceConfig(devCfg, c)
 
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)

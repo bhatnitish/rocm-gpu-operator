@@ -189,17 +189,17 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleMetricsExporter
 }
 
 // handleNodeLabeller mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) handleNodeLabeller(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) handleNodeLabeller(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "handleNodeLabeller", ctx, devConfig)
+	ret := m.ctrl.Call(m, "handleNodeLabeller", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // handleNodeLabeller indicates an expected call of handleNodeLabeller.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNodeLabeller(ctx, devConfig any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNodeLabeller(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeLabeller", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleNodeLabeller), ctx, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeLabeller", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleNodeLabeller), ctx, devConfig, nodes)
 }
 
 // setFinalizer mocks base method.
