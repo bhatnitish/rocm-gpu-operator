@@ -14,7 +14,6 @@ nav:
       - Secure Boot: drivers/secure-boot.md
     - Upgrades:
       - Driver Upgrade: drivers/upgrading.md
-      - Operator Upgrade: upgrades/operator.md
       - Kernel Upgrade: upgrades/kernel.md
     - Usage: usage.md
     - Uninstallation: uninstallation/uninstallation.md
