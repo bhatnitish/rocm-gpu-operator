@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
@@ -52,6 +53,7 @@ import (
 
 const ClusterTypeOpenShift = "openshift"
 const ClusterTypeK8s = "kubernetes"
+const HttpServerPort = "8084"
 
 var kubectl = "kubectl"
 
@@ -507,7 +509,7 @@ func RunCommandOnNode(ctx context.Context, cl *kubernetes.Clientset, nodeName, c
 		return "", err
 	}
 
-	url := fmt.Sprintf("http://%s:8080/runcommand", nodeip)
+	url := fmt.Sprintf("http://%s:%s/runcommand", nodeip, HttpServerPort)
 	client := &http.Client{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -923,7 +925,7 @@ func DeleteNodeAppDaemonSet(cl *kubernetes.Clientset) error {
 	dsCli := cl.AppsV1().DaemonSets("default")
 	reterr := dsCli.Delete(context.TODO(), "e2e-nodeapp-ds", metav1.DeleteOptions{})
 	if reterr != nil {
-		return fmt.Errorf("nodeapp create error: %v", reterr)
+		return fmt.Errorf("nodeapp delete error: %v", reterr)
 	}
 	return nil
 }
@@ -954,7 +956,7 @@ func GetNodeIP(ctx context.Context, cl *kubernetes.Clientset,
 
 func IsNodeHealthy(cl *kubernetes.Clientset, nodeip string) error {
 
-	url := fmt.Sprintf("http://%s:8080/health", nodeip)
+	url := fmt.Sprintf("http://%s:%s/health", nodeip, HttpServerPort)
 	client := &http.Client{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -987,7 +989,7 @@ func IsNodeHealthy(cl *kubernetes.Clientset, nodeip string) error {
 
 func RebootNode(cl *kubernetes.Clientset, nodeip string) error {
 
-	url := fmt.Sprintf("http://%s:8080/reboot", nodeip)
+	url := fmt.Sprintf("http://%s:%s/reboot", nodeip, HttpServerPort)
 	client := &http.Client{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -1033,7 +1035,7 @@ func RebootNodeWithWait(ctx context.Context, cl *kubernetes.Clientset,
 			return err
 		}
 		return nil
-	}, time.Minute*5, time.Second*20); err != nil {
+	}, time.Minute*10, time.Second*20); err != nil {
 		return fmt.Errorf("node did not become healthy %v", err)
 	}
 
@@ -1177,4 +1179,34 @@ func GetNodeIPsForDaemonSet(clientset *kubernetes.Clientset, daemonSetName, name
 	}
 
 	return nodeIPs, nil
+}
+
+func RebootNodesWithWait(ctx context.Context, cl *kubernetes.Clientset, nodes []v1.Node) error {
+	if len(nodes) == 0 {
+		log.Errorf("No worker nodes provided for reboot")
+		return nil
+	}
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(nodes))
+	for _, node := range nodes {
+		wg.Add(1)
+		go func(node v1.Node) {
+			defer wg.Done()
+
+			if err := RebootNodeWithWait(ctx, cl, node.Name); err != nil {
+				log.Errorf("Rebooting worker node %s failed with error: %v", node.Name, err)
+				errCh <- err
+				return
+			}
+			log.Infof("Worker node %s successfully rebooted!", node.Name)
+		}(node)
+	}
+
+	wg.Wait()
+	close(errCh)
+	if len(errCh) > 0 {
+		return <-errCh
+	}
+
+	return nil
 }

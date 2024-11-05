@@ -155,7 +155,7 @@ func main() {
 
 	// Create the HTTP server
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    fmt.Sprintf(":%s", utils.HttpServerPort),
 		Handler: mux,
 	}
 
