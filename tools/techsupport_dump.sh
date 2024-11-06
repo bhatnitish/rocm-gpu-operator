@@ -55,6 +55,7 @@ pod_logs() {
 	NODE=$3
 	PODS=$4
 
+	[ -z ${PODS} ] && return
 	KNS="${KUBECTL} -n ${NS}"
 	mkdir -p ${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}
 	for lpod in ${PODS}; do
@@ -148,6 +149,33 @@ else
 	NODES=$(echo "${NODES} ${CONTROL_PLANE}" | tr ' ' '\n' | sort -u)
 fi
 
+cat <<EOF >/tmp/techsupport.json
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: techsupport
+  labels:
+    app: techsupport
+spec:
+  selector:
+    matchLabels:
+      app: techsupport
+  template:
+    metadata:
+      labels:
+        app: techsupport
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.37
+        securityContext:
+          privileged: true
+        args:
+        - sleep
+        - 1h
+EOF
+${KUBECTL} apply -f /tmp/techsupport.json
+
 log "logs:"
 for node in ${NODES}; do
 	log " ${node}:"
@@ -168,9 +196,9 @@ for node in ${NODES}; do
 	pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS
 	# gpuagent logs
 	GPUAGENT_LOGS="gpu-agent.log gpu-agent-api.log gpu-agent-err.log"
-	mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-agent
 	for l in ${GPUAGENT_LOGS}; do
 		for expod in ${EXPORTER_PODS}; do
+	                mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-agent
 			pod=$(basename ${expod})
 			${KUBECTL} cp ${GPUOPER_NS}/${pod}:"/run/$l" ${TECH_SUPPORT_FILE}/${node}/gpu-agent/$l >/dev/null || true
 		done
@@ -182,16 +210,15 @@ for node in ${NODES}; do
 	${KUBECTL} get nodes -l "node-role.kubernetes.io/control-plane=NoSchedule" 2>/dev/null | grep ${node} && continue # skip master nodes
 
 	# node logs
-	${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} | grep node-debugger-${node} | xargs -r -n1 ${KUBECTL} delete
-	${KUBECTL} debug node/${node} -q --image=busybox -- sh -c "sleep infinity"
-	dbgpod=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} | grep node-debugger-${node})
+	dbgpod=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport")
+
 	# wait for the debug pod
 	${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
 	log "   lsmod"
 	${KUBECTL} exec -it ${dbgpod} -- sh -c "lsmod | grep amdgpu || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
 	log "   dmesg"
 	${KUBECTL} exec -it ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
-	${KUBECTL} delete ${dbgpod} >/dev/null
 done
+${KUBECTL} delete -f /tmp/techsupport.json
 
 tar cfz ${TECH_SUPPORT_FILE}.tgz ${TECH_SUPPORT_FILE} && rm -rf ${TECH_SUPPORT_FILE} && log "${TECH_SUPPORT_FILE}.tgz is ready"
