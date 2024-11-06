@@ -17,6 +17,7 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"flag"
 	"path/filepath"
 	"testing"
@@ -120,7 +121,12 @@ func (s *E2ESuite) TearDownTest(c *C) {
 				c.Fatalf(err.Error())
 			}
 		}
-		time.Sleep(30 * time.Second)
+		if len(l.Items) > 0 {
+			nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+			if err := utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes); err != nil {
+				c.Fatalf(err.Error())
+			}
+		}
 	}
 }
 func (s *E2ESuite) TearDownSuite(c *C) {

@@ -569,19 +569,21 @@ func GetWorkerNodes(cl *kubernetes.Clientset) []*v1.Node {
 	return ret
 }
 
-func GetAMDGpuWorker(cl *kubernetes.Clientset) []*v1.Node {
-	ret := make([]*v1.Node, 0)
-
+func GetAMDGpuWorker(cl *kubernetes.Clientset, isOpenshift bool) []v1.Node {
+	ret := make([]v1.Node, 0)
 	labelSelector := labels.NewSelector()
+	if !isOpenshift {
+		r, _ := labels.NewRequirement(
+			"node-role.kubernetes.io/control-plane",
+			selection.DoesNotExist,
+			nil,
+		)
+		labelSelector = labelSelector.Add(*r)
+	}
 	r, _ := labels.NewRequirement(
-		"node-role.kubernetes.io/control-plane",
-		selection.DoesNotExist,
-		nil,
-	)
-	labelSelector = labelSelector.Add(*r)
-	r, _ = labels.NewRequirement("gpu.vendor",
+		"feature.node.kubernetes.io/amd-gpu",
 		selection.Equals,
-		[]string{"amd"},
+		[]string{"true"},
 	)
 	labelSelector = labelSelector.Add(*r)
 
@@ -593,7 +595,7 @@ func GetAMDGpuWorker(cl *kubernetes.Clientset) []*v1.Node {
 		return ret
 	}
 	for i := 0; i < len(nodes.Items); i++ {
-		node := &nodes.Items[i]
+		node := nodes.Items[i]
 		ret = append(ret, node)
 	}
 	return ret

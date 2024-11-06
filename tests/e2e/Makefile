@@ -11,7 +11,7 @@ ifdef NOAMDGPU
 endif
 
 all:
-	go test -test.timeout=30m -v $(TEST_ARGS);
+	go test -test.timeout=360m -v $(TEST_ARGS);
 lint:
 	@go fmt ./...
 	@goimports -w ./

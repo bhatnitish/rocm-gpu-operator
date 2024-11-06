@@ -479,6 +479,9 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 // TestDriverUpgradeByUpdatingCR
@@ -509,14 +512,20 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.verifyROCMPOD(true, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
-	log.Infof("Test completed")
 
 	// upgrade
 	// update the CR's driver version config
-	devCfg.Spec.Driver.Version = "6.2"
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2"
+	}
 	s.patchDriversVersion(devCfg, c)
 	// update the node resources version labels
 	s.updateNodeDriverVersionLabel(devCfg, c)
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 
 	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -529,16 +538,18 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
-// TestDriverUpgradeByPsuhingNewCR
+// TestDriverUpgradeByPushingNewCR
 // test the driver upgrade by pushing new CR
 // 1. install the driver
 // 2. make sure the worker node was labeled with correct driver version
 // 3. update the CR to the new driver version
 // 4. update the worker node label to the new driver version
 // 5. make sure the new version driver was loaded
-func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
+func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 	if s.noamdgpu {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
@@ -561,9 +572,15 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
-
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 	// upgrade by pushing new CR with new version
-	devCfg.Spec.Driver.Version = "6.2"
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2"
+	}
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)
@@ -578,6 +595,8 @@ func (s *E2ESuite) TestDriverUpgradeByPsuhingNewCR(c *C) {
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
@@ -950,6 +969,9 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
@@ -975,6 +997,9 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 	s.deleteDeviceConfig(devCfg, c)
 	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
@@ -1025,7 +1050,9 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 
 	// delete
 	s.deleteDeviceConfig(devCfg, c)
-
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 	// Change th ports to give time for the old pods to be deleted and not affect the current test
 	devCfg.Spec.MetricsExporter.RbacConfig.DisableHttps = true
 	devCfg.Spec.MetricsExporter.Port = 6000
@@ -1051,6 +1078,8 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	s.deleteDeviceConfig(devCfg, c)
 	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
@@ -1081,4 +1110,7 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	s.verifyROCMPOD(false, c)
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
