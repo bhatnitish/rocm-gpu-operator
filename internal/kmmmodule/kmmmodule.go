@@ -462,9 +462,12 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	var registryTLS *kmmv1beta1.TLSOptions
 	if (devConfig.Spec.Driver.ImageRegistryTLS.Insecure != nil && *devConfig.Spec.Driver.ImageRegistryTLS.Insecure) ||
 		(devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify != nil && *devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify) {
-		registryTLS = &kmmv1beta1.TLSOptions{
-			Insecure:              *devConfig.Spec.Driver.ImageRegistryTLS.Insecure,
-			InsecureSkipTLSVerify: *devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify,
+		registryTLS = &kmmv1beta1.TLSOptions{}
+		if devConfig.Spec.Driver.ImageRegistryTLS.Insecure != nil {
+			registryTLS.Insecure = *devConfig.Spec.Driver.ImageRegistryTLS.Insecure
+		}
+		if devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify != nil {
+			registryTLS.InsecureSkipTLSVerify = *devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify
 		}
 	}
 
