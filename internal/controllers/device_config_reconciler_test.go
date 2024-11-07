@@ -277,6 +277,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	})
 
 	ctx := context.Background()
+	driverEnable := true
 	devConfig := &amdv1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      devConfigName,
@@ -284,7 +285,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		},
 		Spec: amdv1alpha1.DeviceConfigSpec{
 			Driver: amdv1alpha1.DriverSpec{
-				Enable: true,
+				Enable: &driverEnable,
 			},
 		},
 	}
@@ -462,6 +463,7 @@ var _ = Describe("handleKMMModule", func() {
 	})
 
 	ctx := context.Background()
+	driverEnable := true
 	devConfig := &amdv1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      devConfigName,
@@ -469,7 +471,7 @@ var _ = Describe("handleKMMModule", func() {
 		},
 		Spec: amdv1alpha1.DeviceConfigSpec{
 			Driver: amdv1alpha1.DriverSpec{
-				Enable: true,
+				Enable: &driverEnable,
 			},
 		},
 	}
@@ -529,6 +531,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 	})
 
 	ctx := context.Background()
+	driverEnable := true
 	devConfig := &amdv1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      devConfigName,
@@ -536,7 +539,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 		},
 		Spec: amdv1alpha1.DeviceConfigSpec{
 			Driver: amdv1alpha1.DriverSpec{
-				Enable: true,
+				Enable: &driverEnable,
 			},
 		},
 	}
@@ -595,6 +598,7 @@ var _ = Describe("handleNodeLabeller", func() {
 	})
 
 	ctx := context.Background()
+	enableNodeLabeller := true
 	devConfig := &amdv1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      devConfigName,
@@ -602,7 +606,7 @@ var _ = Describe("handleNodeLabeller", func() {
 		},
 		Spec: amdv1alpha1.DeviceConfigSpec{
 			DevicePlugin: amdv1alpha1.DevicePluginSpec{
-				EnableNodeLabeller: true,
+				EnableNodeLabeller: &enableNodeLabeller,
 			},
 		},
 	}

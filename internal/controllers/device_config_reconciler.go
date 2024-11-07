@@ -277,7 +277,7 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
-	if devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
 		if err != nil {
 			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
@@ -308,7 +308,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 		return fmt.Errorf("failed to fetch device-plugin %+v: %+v", dsName, err)
 	}
 
-	if devConfig.Spec.MetricsExporter.Enable {
+	if devConfig.Spec.MetricsExporter.Enable != nil && *devConfig.Spec.MetricsExporter.Enable {
 		metricsDS := appsv1.DaemonSet{}
 		dsName := types.NamespacedName{
 			Namespace: devConfig.Namespace,
@@ -497,7 +497,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	if err := dcrh.client.Get(ctx, namespacedName, &mod); err != nil {
 		if k8serrors.IsNotFound(err) {
 			// if KMM module CR is not found
-			if devConfig.Spec.Driver.Enable {
+			if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 				logger.Info("module already deleted, removing finalizer", "module", namespacedName)
 			} else {
 				// driver disabled mode won't have KMM CR created
@@ -528,7 +528,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 
 func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
-	if !devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable == nil || !*devConfig.Spec.Driver.Enable {
 		logger.Info("skip handling build config map as KMM driver mode is disabled")
 		return nil
 	}
@@ -586,7 +586,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 	}
 	logger := log.FromContext(ctx)
 
-	if devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
 			return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig, nodes)
 		})
@@ -623,7 +623,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleDevicePlugin(ctx context.Context
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// label corresponding node with given kmod version
 	// so that KMM could manage the upgrade by watching the node's version label change
-	if devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		err := dcrh.kmmHandler.SetNodeVersionLabelAsDesired(ctx, devConfig, nodes)
 		if err != nil {
 			return fmt.Errorf("failed to update node version label for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
@@ -635,7 +635,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Cont
 func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
-	if !devConfig.Spec.DevicePlugin.EnableNodeLabeller {
+	if devConfig.Spec.DevicePlugin.EnableNodeLabeller == nil || !*devConfig.Spec.DevicePlugin.EnableNodeLabeller {
 		// deleting existing node labeller daemonset if it exists
 		existingDS := &appsv1.DaemonSet{}
 		existingDSMetadata := types.NamespacedName{
@@ -708,7 +708,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 	}
 
 	// delete if disabled
-	if !devConfig.Spec.MetricsExporter.Enable {
+	if devConfig.Spec.MetricsExporter.Enable == nil || !*devConfig.Spec.MetricsExporter.Enable {
 		return dcrh.finalizeMetricsExporter(ctx, devConfig)
 	}
 

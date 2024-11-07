@@ -158,7 +158,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	}
 
 	// only use module ready label as node selector when KMM driver is enabled
-	if devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 
@@ -202,7 +202,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 
 	serviceaccount := defaultSAName
 
-	if mSpec.RbacConfig.Enable {
+	if mSpec.RbacConfig.Enable != nil && *mSpec.RbacConfig.Enable {
 		internalPort := servicePort
 		if internalPort == port {
 			internalPort = port - 1
@@ -223,7 +223,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		}
 
 		volumeMounts := []v1.VolumeMount{}
-		if mSpec.RbacConfig.DisableHttps {
+		if mSpec.RbacConfig.DisableHttps != nil && *mSpec.RbacConfig.DisableHttps {
 			args = append(args, "--insecure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(port)))
 		} else {
 			args = append(args, "--secure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(port)))

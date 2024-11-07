@@ -259,7 +259,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val
 	}
-	if devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 
@@ -369,7 +369,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		}
 	}
 
-	if !devConfig.Spec.Driver.Enable {
+	if devConfig.Spec.Driver.Enable == nil || !*devConfig.Spec.Driver.Enable {
 		args = &kmmv1beta1.ModprobeArgs{
 			Load:   []string{"-n"},
 			Unload: []string{"-n"},
@@ -460,11 +460,11 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}
 
 	var registryTLS *kmmv1beta1.TLSOptions
-	if devConfig.Spec.Driver.ImageRegistryTLS.Insecure ||
-		devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify {
+	if (devConfig.Spec.Driver.ImageRegistryTLS.Insecure != nil && *devConfig.Spec.Driver.ImageRegistryTLS.Insecure) ||
+		(devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify != nil && *devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify) {
 		registryTLS = &kmmv1beta1.TLSOptions{
-			Insecure:              devConfig.Spec.Driver.ImageRegistryTLS.Insecure,
-			InsecureSkipTLSVerify: devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify,
+			Insecure:              *devConfig.Spec.Driver.ImageRegistryTLS.Insecure,
+			InsecureSkipTLSVerify: *devConfig.Spec.Driver.ImageRegistryTLS.InsecureSkipTLSVerify,
 		}
 	}
 

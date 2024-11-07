@@ -87,6 +87,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
 			},
 		}
+		driverEnable := true
 		// default input
 		input := amdv1alpha1.DeviceConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -95,7 +96,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 			},
 			Spec: amdv1alpha1.DeviceConfigSpec{
 				Driver: amdv1alpha1.DriverSpec{
-					Enable: true,
+					Enable: &driverEnable,
 				},
 			},
 		}
@@ -135,6 +136,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
 			},
 		}
+		driverEnable := true
 		// user input
 		input := amdv1alpha1.DeviceConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -143,7 +145,7 @@ var _ = Describe("setKMMModuleLoader", func() {
 			},
 			Spec: amdv1alpha1.DeviceConfigSpec{
 				Driver: amdv1alpha1.DriverSpec{
-					Enable:  true,
+					Enable:  &driverEnable,
 					Image:   "some driver image",
 					Version: "some driver version",
 					ImageRegistrySecret: &v1.LocalObjectReference{

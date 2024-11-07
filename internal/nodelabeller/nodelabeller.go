@@ -123,16 +123,14 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
-	initContainerCommand := []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
+	var initContainerCommand []string
 
-	// if users want to apply the blacklist, init container will add the amdgpu to the blacklist
-	if devConfig.Spec.Driver.Blacklist {
+	if devConfig.Spec.Driver.Blacklist != nil && *devConfig.Spec.Driver.Blacklist {
+		// if users want to apply the blacklist, init container will add the amdgpu to the blacklist
 		initContainerCommand = []string{"sh", "-c", "echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
-	}
-
-	// if users disabled the KMM driver, or disabled the blacklist
-	// init container will remove any hanging amdgpu blacklist entry from the list
-	if !devConfig.Spec.Driver.Blacklist {
+	} else {
+		// if users disabled the KMM driver, or disabled the blacklist
+		// init container will remove any hanging amdgpu blacklist entry from the list
 		initContainerCommand = []string{"sh", "-c", "rm -f /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
 	}
 

@@ -52,6 +52,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 
 	userInfo, err := user.Current()
 	assert.NoErrorf(c, err, fmt.Sprintf("failed to get user: %+v", err))
+	metricsExporterEnable := true
 	devCfg := &v1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.cfgName,
@@ -64,7 +65,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			},
 			//SkipDrivers:    true,
 			MetricsExporter: v1alpha1.MetricsExporterSpec{
-				Enable:   true,
+				Enable:   &metricsExporterEnable,
 				NodePort: 32501,
 			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
@@ -448,7 +449,8 @@ func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	devCfg := s.getDeviceConfig(c)
-	devCfg.Spec.Driver.Enable = false
+	driverEnable := false
+	devCfg.Spec.Driver.Enable = &driverEnable
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c)
 }
@@ -908,7 +910,8 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 	log.Infof("TestEnableBlacklist")
 
 	devCfg := s.getDeviceConfig(c)
-	devCfg.Spec.Driver.Blacklist = true
+	blacklist := true
+	devCfg.Spec.Driver.Blacklist = &blacklist
 
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
@@ -1054,7 +1057,8 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
 	assert.NoError(c, err, "failed to reboot nodes")
 	// Change th ports to give time for the old pods to be deleted and not affect the current test
-	devCfg.Spec.MetricsExporter.RbacConfig.DisableHttps = true
+	disableHttps := true
+	devCfg.Spec.MetricsExporter.RbacConfig.DisableHttps = &disableHttps
 	devCfg.Spec.MetricsExporter.Port = 6000
 	devCfg.Spec.MetricsExporter.NodePort = 32000
 	s.createDeviceConfig(devCfg, c)
