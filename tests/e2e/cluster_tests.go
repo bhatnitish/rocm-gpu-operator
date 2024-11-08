@@ -18,9 +18,17 @@ package e2e
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -33,7 +41,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -230,7 +237,7 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
 	}, 5*time.Minute, 5*time.Second)
 }
 
-func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, serviceType corev1.ServiceType, c *C) {
+func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, serviceType v1.ServiceType, c *C) {
 	assert.Eventually(c, func() bool {
 		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), devCfg.Name+"-"+metricsexporter.ExporterName, metav1.GetOptions{})
 		if err != nil {
@@ -247,10 +254,10 @@ func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns 
 
 		ready := ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
 			len(svc.Spec.Ports) > 0 && svc.Spec.Ports[0].TargetPort == intstr.FromInt32(devCfg.Spec.MetricsExporter.Port)
-		if serviceType == corev1.ServiceTypeNodePort {
-			ready = ready && svc.Spec.Type == corev1.ServiceTypeNodePort && svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
+		if serviceType == v1.ServiceTypeNodePort {
+			ready = ready && svc.Spec.Type == v1.ServiceTypeNodePort && svc.Spec.Ports[0].NodePort == devCfg.Spec.MetricsExporter.NodePort
 		} else {
-			ready = ready && svc.Spec.Type == corev1.ServiceTypeClusterIP
+			ready = ready && svc.Spec.Type == v1.ServiceTypeClusterIP
 		}
 
 		return ready
@@ -445,7 +452,7 @@ func (s *E2ESuite) deleteDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
 }
 
 func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	devCfg := s.getDeviceConfig(c)
@@ -456,7 +463,7 @@ func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 }
 
 func (s *E2ESuite) TestDeployment(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -467,7 +474,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
@@ -493,8 +500,9 @@ func (s *E2ESuite) TestDeployment(c *C) {
 // 3. update the CR to the new driver version
 // 4. update the worker node label to the new driver version
 // 5. make sure the new version driver was loaded
+
 func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -552,7 +560,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 // 4. update the worker node label to the new driver version
 // 5. make sure the new version driver was loaded
 func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -629,7 +637,7 @@ func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
 }
 
 func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	var deployCommand, undeployCommand, deployWithoutNFDKMMCommand string
@@ -785,13 +793,13 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 
 func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
-	if !s.noamdgpu {
-		c.Skip("Skipping for non amd gpu testbed")
+	if !s.simEnable {
+		c.Skip("Skipping for amd gpu testbed")
 	}
 
 	ctx := context.TODO()
 	noamdWorkerList := utils.GetNonAMDGpuWorker(s.clientSet)
-	noamdNodeMap := make(map[string]*corev1.Node)
+	noamdNodeMap := make(map[string]*v1.Node)
 	noamdNodeNames := make([]string, 0)
 	for _, worker := range noamdWorkerList {
 		noamdNodeMap[worker.Name] = worker
@@ -903,7 +911,7 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 }
 
 func (s *E2ESuite) TestEnableBlacklist(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 
@@ -920,7 +928,7 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 }
 
 func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 
@@ -978,7 +986,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 
@@ -988,7 +996,7 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 	log.Info("create deviceconfig-kuberbac-clusterip")
 	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_clusterip.yaml")
 	s.createDeviceConfig(devCfg, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
 
 	clusterIP, err := utils.GetClusterIP(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
 	assert.NoError(c, err, fmt.Sprintf("couldn't get cluster IP for metrics exporter service: %+v", err))
@@ -1006,9 +1014,6 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
-	if s.noamdgpu {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
@@ -1016,19 +1021,29 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	log.Info("create deviceconfig-kuberbac-nodeport")
 	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
 	s.createDeviceConfig(devCfg, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 
 	endpointIPs, err := utils.GetServiceEndpoints(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
 	assert.NoError(c, err, fmt.Sprintf("couldn't get endpoint IPs for metrics exporter service: %+v", err))
 
 	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
 	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
-	token, err := utils.GenerateServiceAccountToken(s.clientSet, "default", "metrics-reader")
+
+	// Run the token request repeatedly
+	token := ""
+	assert.Eventually(c, func() bool {
+		token, err = utils.GenerateServiceAccountToken(s.clientSet, "default", "metrics-reader")
+		if err != nil || len(token) == 0 {
+			log.Errorf("failed to generate token for default serviceaccount in metrics-client: %+v", err)
+			return false
+		}
+		return true
+	}, 1*time.Minute, 10*time.Second)
 	assert.NoError(c, err, fmt.Sprintf("failed to generate token for default serviceaccount in metrics-client: %+v", err))
 
 	// Test 1: Run the curl job repeatedly using endpoint IPs
 	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(endpointIPs, token, int(devCfg.Spec.MetricsExporter.Port), true)
+		err = utils.CurlMetrics(endpointIPs, token, int(devCfg.Spec.MetricsExporter.Port), true, "")
 		if err != nil {
 			log.Errorf(err.Error())
 			return false
@@ -1042,7 +1057,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 
 	// Test 2: Run the curl job repeatedly using nodeport
 	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true)
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, "")
 		if err != nil {
 			log.Errorf(err.Error())
 			return false
@@ -1062,14 +1077,14 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	devCfg.Spec.MetricsExporter.Port = 6000
 	devCfg.Spec.MetricsExporter.NodePort = 32000
 	s.createDeviceConfig(devCfg, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 
 	nodeIPs, err = utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
 	assert.NoError(c, err, fmt.Sprintf("couldn't get node IPs for metrics exporter daemonset pods: %+v", err))
 
 	// Test 2: Run the curl job repeatedly using nodeport
 	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), false)
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), false, "")
 		if err != nil {
 			log.Errorf(err.Error())
 			return false
@@ -1086,8 +1101,118 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	assert.NoError(c, err, "failed to reboot nodes")
 }
 
+func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
+	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
+
+	// Create the cacert, cert and private key
+	caPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	assert.NoErrorf(c, err, "failed to create caPrivateKey")
+
+	caTemplate := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{Organization: []string{"My CA"}},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		IsCA:         true,
+	}
+	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caPrivateKey.PublicKey, caPrivateKey)
+	assert.NoErrorf(c, err, "failed to create caCert")
+
+	tlsPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	assert.NoErrorf(c, err, "failed to create tlsPrivateKey")
+	tlsTemplate := x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{Organization: []string{"My TLS"}},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  []net.IP{},
+	}
+
+	nodeIPs, err := utils.GetNodeIPs(s.clientSet)
+	assert.NoErrorf(c, err, "failed to get nodeIPs")
+	for _, ip := range nodeIPs {
+		tlsTemplate.IPAddresses = append(tlsTemplate.IPAddresses, net.ParseIP(ip))
+	}
+
+	tlsCertDER, err := x509.CreateCertificate(rand.Reader, &tlsTemplate, &caTemplate, &tlsPrivateKey.PublicKey, caPrivateKey)
+	assert.NoErrorf(c, err, "failed to create tlsCert")
+	combinedCertPEM := &bytes.Buffer{}
+	caCertPEM := &bytes.Buffer{}
+	err = pem.Encode(combinedCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: tlsCertDER})
+	assert.NoErrorf(c, err, "failed to encode certificate %v", err)
+	err = pem.Encode(combinedCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
+	assert.NoErrorf(c, err, "failed to encode ca certificate %v", err)
+	err = pem.Encode(caCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
+	assert.NoErrorf(c, err, "failed to encode ca certificate %v", err)
+	tlsKeyPEM := &bytes.Buffer{}
+	pkcs8PrivateKey, err := x509.MarshalPKCS8PrivateKey(tlsPrivateKey)
+	assert.NoErrorf(c, err, "failed to encode private key in PKCS#8 format")
+	err = pem.Encode(tlsKeyPEM, &pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8PrivateKey})
+	assert.NoErrorf(c, err, "failed to encode private key %v", err)
+
+	secretName := "kube-tls-secret"
+	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, combinedCertPEM.Bytes(), tlsKeyPEM.Bytes())
+	assert.NoErrorf(c, err, fmt.Sprintf("failed to create secret %v", err))
+
+	log.Info("create deviceconfig-kuberbac-nodeport")
+	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
+	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &v1.LocalObjectReference{Name: secretName}
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
+
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
+	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
+
+	// Run the token request repeatedly
+	token := ""
+	assert.Eventually(c, func() bool {
+		token, err = utils.GenerateServiceAccountToken(s.clientSet, "default", "metrics-reader")
+		if err != nil || len(token) == 0 {
+			log.Errorf("failed to generate token for default serviceaccount in metrics-client: %+v", err)
+			return false
+		}
+		return true
+	}, 1*time.Minute, 10*time.Second)
+	assert.NoError(c, err, fmt.Sprintf("failed to generate token for default serviceaccount in metrics-client: %+v", err))
+
+	file, err := utils.CreateTempFile("cacert-*.crt", caCertPEM.Bytes())
+	assert.NoError(c, err, fmt.Sprintf("failed to create cacert file: %v", err))
+
+	// Get the nodeIPs of the nodes where the daemonset pods are deployed
+	nodeIPs, err = utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+
+	// Run the curl job repeatedly using nodeport
+	assert.Eventually(c, func() bool {
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, file.Name())
+		if err != nil {
+			log.Errorf(err.Error())
+			return false
+		}
+
+		return true
+	}, 3*time.Minute, 10*time.Second)
+	err = utils.DeleteTempFile(file)
+	assert.NoError(c, err, fmt.Sprintf("failed to delete cacert file: %v", err))
+
+	// delete
+	err = utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns)
+	assert.NoErrorf(c, err, fmt.Sprintf("failed to delete secret %v", err))
+	s.deleteDeviceConfig(devCfg, c)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
+	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
+}
+
 func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
-	if s.noamdgpu {
+	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 

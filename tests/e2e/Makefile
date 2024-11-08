@@ -6,8 +6,8 @@ ifdef OPENSHIFT
 	TEST_ARGS += "-openshift"
 endif
 
-ifdef NOAMDGPU
-	TEST_ARGS += "-noamdgpu"
+ifdef SIM_ENABLE
+	TEST_ARGS += "-simEnable"
 endif
 
 all:

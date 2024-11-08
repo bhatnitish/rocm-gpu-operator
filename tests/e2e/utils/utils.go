@@ -361,6 +361,25 @@ func DeletePod(ctx context.Context, cl *kubernetes.Clientset, ns string,
 	return rpodCli.Delete(ctx, name, metav1.DeleteOptions{})
 }
 
+func CreateTLSSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string, crt, key []byte) error {
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Data: map[string][]byte{
+			"tls.crt": crt,
+			"tls.key": key,
+		},
+		Type: v1.SecretTypeTLS,
+	}
+	_, err := cl.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
+	return err
+}
+
+func DeleteTLSSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string) error {
+	return cl.CoreV1().Secrets(ns).Delete(ctx, name, metav1.DeleteOptions{})
+}
+
 func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string,
 	name string, image string, matchLabels map[string]string,
 	res *v1.ResourceRequirements) error {
@@ -1137,18 +1156,45 @@ func GenerateServiceAccountToken(clientset *kubernetes.Clientset, serviceAccount
 	return tokenResp.Status.Token, nil
 }
 
-func CurlMetrics(endpointIPs []string, token string, port int, secure bool) error {
+func CreateTempFile(fileName string, data []byte) (*os.File, error) {
+	file, err := os.CreateTemp("", fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %v", err)
+	}
+	if _, err := file.Write(data); err != nil {
+		return nil, fmt.Errorf("failed to write temp file: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close temp file: %v", err)
+	}
+	return file, nil
+}
+
+func DeleteTempFile(file *os.File) error {
+	if file == nil {
+		return fmt.Errorf("no valid file provided to delete")
+	}
+	return os.Remove(file.Name())
+}
+
+func CurlMetrics(endpointIPs []string, token string, port int, secure bool, caCert string) error {
 	protocol := "https"
 	if !secure {
 		protocol = "http"
 	}
+	caCertStr := ""
+	if len(caCert) > 0 {
+		caCertStr = fmt.Sprintf("--cacert %s", caCert)
+	} else {
+		caCertStr = "-k"
+	}
 	for _, ip := range endpointIPs {
-		cmd := fmt.Sprintf("curl -v -s -k -H \"Authorization: Bearer %s\" %s://%s:%d/metrics", token, protocol, ip, port)
+		cmd := fmt.Sprintf("curl -v -s %s -H \"Authorization: Bearer %s\" %s://%s:%d/metrics", caCertStr, token, protocol, ip, port)
 		output, err := exec.Command("sh", "-c", cmd).Output()
 		if err != nil {
 			return fmt.Errorf("failed to curl endpoint %s: %v", ip, err)
 		}
-		if !strings.Contains(string(output), "GPU_UUID") {
+		if !strings.Contains(string(output), "GPU_UUID") && !strings.Contains(string(output), "gpu_uuid") {
 			return fmt.Errorf("failed to fetch metrics, log: %s curl command: %s", string(output), cmd)
 		}
 	}
@@ -1211,4 +1257,21 @@ func RebootNodesWithWait(ctx context.Context, cl *kubernetes.Clientset, nodes []
 	}
 
 	return nil
+}
+
+func GetNodeIPs(clientset *kubernetes.Clientset) ([]string, error) {
+	nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes %v", err)
+	}
+
+	nodeIPs := []string{}
+	for _, node := range nodes.Items {
+		for _, address := range node.Status.Addresses {
+			if address.Type == v1.NodeInternalIP || address.Type == v1.NodeExternalIP {
+				nodeIPs = append(nodeIPs, address.Address)
+			}
+		}
+	}
+	return nodeIPs, nil
 }

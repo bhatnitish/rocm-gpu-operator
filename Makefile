@@ -36,6 +36,9 @@ ifdef SKIP_KMM
 SKIP_KMM_CMD=--set kmm.enabled=false
 endif
 
+ifdef SIM_ENABLE
+SIM_ENABLE_CMD=--set controllerManager.env.simEnable=true
+endif
 # IMAGE_NAME defines the docker.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -185,7 +188,7 @@ e2e:
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
 	export OPENSHIFT
-	export NOAMDGPU
+	export SIM_ENABLE
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
 
@@ -424,7 +427,7 @@ helm-uninstall:
 	fi
 
 helm-install-openshift:
-	helm install amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+	helm install amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD}
 
 helm-uninstall-openshift:
 	echo "Deleting all CRs before uninstalling operator..."
@@ -434,7 +437,7 @@ helm-uninstall-openshift:
 	helm uninstall amd-gpu-operator -n kube-amd-gpu
 
 helm-install-k8s:
-	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD}
+	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD}
 
 helm-uninstall-k8s:
 	echo "Deleting all device configs before uninstalling operator..."

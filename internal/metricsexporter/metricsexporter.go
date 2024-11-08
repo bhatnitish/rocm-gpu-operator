@@ -34,6 +34,7 @@ package metricsexporter
 
 import (
 	"fmt"
+	"os"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
@@ -280,12 +281,18 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 					{
 						Name:            "driver-init",
 						Image:           "busybox:1.36",
-						Command:         []string{"sh", "-c", "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						Command:         []string{"sh", "-c", "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
 								Name:      "sys-volume",
 								MountPath: "/host-sys",
+							},
+						},
+						Env: []v1.EnvVar{
+							{
+								Name:  "SIM_ENABLE",
+								Value: os.Getenv("SIM_ENABLE"),
 							},
 						},
 					},

@@ -33,5 +33,5 @@ type E2ESuite struct {
 	clusterType          string
 	defaultDriverVersion string
 	openshift            bool
-	noamdgpu             bool
+	simEnable            bool
 }

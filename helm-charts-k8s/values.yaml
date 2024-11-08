@@ -31,6 +31,8 @@ controllerManager:
   replicas: 1
   serviceAccount:
     annotations: {}
+  env:
+    simEnable: false
 kmmDevicePlugin:
   serviceAccount:
     annotations: {}
