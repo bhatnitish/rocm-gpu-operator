@@ -620,8 +620,8 @@ func GetAMDGpuWorker(cl *kubernetes.Clientset, isOpenshift bool) []v1.Node {
 	return ret
 }
 
-func GetNonAMDGpuWorker(cl *kubernetes.Clientset) []*v1.Node {
-	ret := make([]*v1.Node, 0)
+func GetNonAMDGpuWorker(cl *kubernetes.Clientset) []v1.Node {
+	ret := make([]v1.Node, 0)
 
 	labelSelector := labels.NewSelector()
 	r, _ := labels.NewRequirement(
@@ -644,7 +644,7 @@ func GetNonAMDGpuWorker(cl *kubernetes.Clientset) []*v1.Node {
 		return ret
 	}
 	for i := 0; i < len(nodes.Items); i++ {
-		node := &nodes.Items[i]
+		node := nodes.Items[i]
 		ret = append(ret, node)
 	}
 	return ret

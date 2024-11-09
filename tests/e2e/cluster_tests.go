@@ -74,6 +74,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			MetricsExporter: v1alpha1.MetricsExporterSpec{
 				Enable:   &metricsExporterEnable,
 				NodePort: 32501,
+				Port:     5000,
 			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 		},
@@ -207,7 +208,7 @@ func (s *E2ESuite) checkNFDWorkerStatus(ns string, c *C, workerName string) {
 	}, 5*time.Minute, 5*time.Second)
 }
 
-func (s *E2ESuite) verifyDevicePluginStatus(ns string, c *C) {
+func (s *E2ESuite) verifyDevicePluginStatus(ns string, c *C, devCfg *v1alpha1.DeviceConfig) {
 	assert.Eventually(c, func() bool {
 		pods, err := s.clientSet.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -215,18 +216,18 @@ func (s *E2ESuite) verifyDevicePluginStatus(ns string, c *C) {
 			return false
 		}
 		for _, pod := range pods.Items {
-			if strings.Contains(pod.Name, utils.DevicePluginName(s.cfgName)) {
+			if strings.Contains(pod.Name, utils.DevicePluginName(devCfg.Name)) {
 				return true
 			}
 		}
-		log.Infof(" Device Plugin Not found for deviceconfig %v", s.cfgName)
+		log.Infof(" Device Plugin Not found for deviceconfig %v", devCfg.Name)
 		return false
 	}, 5*time.Minute, 5*time.Second)
 }
 
-func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C) {
+func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C, devCfg *v1alpha1.DeviceConfig) {
 	assert.Eventually(c, func() bool {
-		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), utils.NodeLabellerName(s.cfgName), metav1.GetOptions{})
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), utils.NodeLabellerName(devCfg.Name), metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("  failed to get node-labeller %v", err)
 			return false
@@ -272,7 +273,7 @@ func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
 
 func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
-		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("failed to get deviceConfig %v", err)
 			return false
@@ -459,7 +460,7 @@ func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 	driverEnable := false
 	devCfg.Spec.Driver.Enable = &driverEnable
 	s.createDeviceConfig(devCfg, c)
-	s.verifyDevicePluginStatus(s.ns, c)
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
 }
 
 func (s *E2ESuite) TestDeployment(c *C) {
@@ -473,7 +474,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
@@ -512,7 +513,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
@@ -570,7 +571,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
@@ -593,7 +594,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 	}
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 	s.verifyNodeDriverVersionLabel(devCfg, c)
@@ -733,7 +734,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	devCfg.Spec.Selector = map[string]string{standardSelector: "true"}
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(standardNFDNamespace, c, standardNFDWorkerName)
-	s.checkNodeLabellerStatus("kube-amd-gpu", c)
+	s.checkNodeLabellerStatus("kube-amd-gpu", c, devCfg)
 
 	log.Infof("Un-Deploying the current deployment")
 
@@ -799,7 +800,7 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
 	ctx := context.TODO()
 	noamdWorkerList := utils.GetNonAMDGpuWorker(s.clientSet)
-	noamdNodeMap := make(map[string]*v1.Node)
+	noamdNodeMap := make(map[string]v1.Node)
 	noamdNodeNames := make([]string, 0)
 	for _, worker := range noamdWorkerList {
 		noamdNodeMap[worker.Name] = worker
@@ -826,7 +827,7 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 
 	assert.Eventually(c, func() bool {
 		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -923,7 +924,7 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 }
 
@@ -940,7 +941,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
@@ -1225,7 +1226,7 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	devCfg.Spec.Driver.Version = ""
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
-	s.checkNodeLabellerStatus(s.ns, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
@@ -1242,4 +1243,67 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
 	assert.NoError(c, err, "failed to reboot nodes")
+}
+
+func (s *E2ESuite) TestDifferentCRsForDifferentNodes(c *C) {
+
+	var nodes []v1.Node
+	if s.simEnable {
+		nodes = utils.GetNonAMDGpuWorker(s.clientSet)
+	} else {
+		nodes = utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	}
+
+	ctx := context.TODO()
+	nodeNames := make([]string, 0)
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+
+	// Deploying Different CR's for worker nodes using unique node selector with different Image Versions
+	driverVersions := []string{"6.1.3", "6.2"}
+	devCfgs := []*v1alpha1.DeviceConfig{}
+	for i, nodeName := range nodeNames {
+		cfgName := nodeName
+		_, err := s.dClient.DeviceConfigs(s.ns).Get(cfgName, metav1.GetOptions{})
+		assert.Errorf(c, err, fmt.Sprintf("config %v exists", cfgName))
+
+		log.Infof("create %v", cfgName)
+		devCfg := s.getDeviceConfig(c)
+		devCfg.Name = cfgName
+		devCfg.Spec.Selector = map[string]string{
+			"kubernetes.io/hostname": nodeName,
+		}
+		devCfg.Spec.Driver.Version = driverVersions[i%len(driverVersions)]
+		s.createDeviceConfig(devCfg, c)
+		devCfgs = append(devCfgs, devCfg)
+		s.checkNFDWorkerStatus(s.ns, c, "")
+		s.verifyDeviceConfigStatus(devCfg, c)
+		s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
+		s.verifyDevicePluginStatus(s.ns, c, devCfg)
+		s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	}
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		// Deploying rocm pods for worker nodes
+		err := utils.DeployRocmPodsByNodeNames(ctx, s.clientSet, nodeNames)
+		assert.NoError(c, err, "failed to deploy rocm pods")
+		s.verifyROCMPOD(true, c)
+
+		for _, devCfg := range devCfgs {
+			s.deleteDeviceConfig(devCfg, c)
+		}
+
+		s.verifyROCMPOD(false, c)
+		err = utils.DelRocmPodsByNodeNames(ctx, s.clientSet, nodeNames)
+		assert.NoError(c, err, "failed to remove rocm pods")
+
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	} else {
+		for _, devCfg := range devCfgs {
+			s.deleteDeviceConfig(devCfg, c)
+		}
+	}
 }
