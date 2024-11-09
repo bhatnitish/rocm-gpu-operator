@@ -76,7 +76,7 @@ const (
 	defaultOcDriversImageTemplate = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
-	defaultOcDriversVersion     = "el9-6.1.1"
+	defaultOcDriversVersion     = "6.2.2"
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
 	defaultInternalCDNURL       = "artifactory-cdn.amd.com"
 )

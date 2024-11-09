@@ -80,7 +80,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	}
 
 	if s.openshift {
-		devCfg.Spec.Driver.Version = "el9-6.1.1"
+		devCfg.Spec.Driver.Version = "6.1.1"
 	}
 	return devCfg
 }
@@ -102,7 +102,7 @@ func (s *E2ESuite) getDeviceConfigFromFile(c *C, fileName string) *v1alpha1.Devi
 	deviceConfig.Spec.Driver.Version = s.defaultDriverVersion
 
 	if s.openshift {
-		deviceConfig.Spec.Driver.Version = "el9-6.1.1"
+		deviceConfig.Spec.Driver.Version = "6.1.1"
 	}
 	return &deviceConfig
 }
@@ -526,7 +526,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	// upgrade
 	// update the CR's driver version config
 	if s.openshift {
-		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+		devCfg.Spec.Driver.Version = "6.2.2"
 	} else {
 		devCfg.Spec.Driver.Version = "6.2"
 	}
@@ -587,7 +587,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 	assert.NoError(c, err, "failed to reboot nodes")
 	// upgrade by pushing new CR with new version
 	if s.openshift {
-		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+		devCfg.Spec.Driver.Version = "6.2.2"
 	} else {
 		devCfg.Spec.Driver.Version = "6.2"
 	}

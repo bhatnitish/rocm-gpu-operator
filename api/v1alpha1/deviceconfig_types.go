@@ -89,7 +89,7 @@ type DriverSpec struct {
 	AMDGPUInstallerRepoURL string `json:"amdgpuInstallerRepoURL,omitempty"`
 
 	// version of the drivers source code, can be used as part of image of dockerfile source image
-	// default value for different OS is: ubuntu: 6.1.3, coreOS: el9-6.1.1
+	// default value for different OS is: ubuntu: 6.1.3, coreOS: 6.2.2
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Version",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:version"}
 	// +optional
 	Version string `json:"version,omitempty"`
@@ -98,7 +98,7 @@ type DriverSpec struct {
 	// for vanilla k8s the default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod
 	// for OpenShift the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
 	// image tag will be in the format of <linux distro>-<release version>-<kernel version>-<driver version>
-	// example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-el9-6.1.1 and ubuntu-22.04-5.15.0-94-generic-6.1.3
+	// example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2 and ubuntu-22.04-5.15.0-94-generic-6.1.3
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
 	// +optional
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`

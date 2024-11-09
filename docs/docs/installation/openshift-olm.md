@@ -236,7 +236,7 @@ spec:
   driver:
     enable: true
     image: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
-    version: el9-6.1.1
+    version: 6.2.2
   selector:
     "feature.node.kubernetes.io/amd-gpu": "true"
 ```
