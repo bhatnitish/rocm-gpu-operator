@@ -15,6 +15,8 @@ nav:
     - Upgrades:
       - Driver Upgrade: drivers/upgrading.md
       - Kernel Upgrade: upgrades/kernel.md
+    - Metrics:
+      - Exporter: metrics/exporter.md
     - Usage: usage.md
     - Uninstallation: uninstallation/uninstallation.md
     - Troubleshooting: troubleshooting.md      

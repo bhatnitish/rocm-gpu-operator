@@ -8,7 +8,7 @@
     <title>Kubernetes (Helm) - AMD GPU Operator</title>
     <link rel="stylesheet" href="../../css/theme.css" />
     <link rel="stylesheet" href="../../css/theme_extra.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
     
       <script>
         // Current page data
@@ -17,15 +17,14 @@
         var mkdocs_page_url = null;
       </script>
     
-    <script src="../../js/jquery-3.6.0.min.js" defer></script>
     <!--[if lt IE 9]>
       <script src="../../js/html5shiv.min.js"></script>
     <![endif]-->
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/dockerfile.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/shell.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
-      <script>hljs.initHighlightingOnLoad();</script> 
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+      <script>hljs.highlightAll();</script> 
 </head>
 
 <body class="wy-body-for-nav" role="document">
@@ -37,7 +36,7 @@
           <a href="../.." class="icon icon-home"> AMD GPU Operator
         </a><div role="search">
   <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
   </form>
 </div>
       </div>
@@ -54,9 +53,9 @@
               </ul>
               <p class="caption"><span class="caption-text">User Guide</span></p>
               <ul class="current">
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Install Operator</a>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Install Operator</a>
     <ul class="current">
-                <li class="toctree-l2 current"><a class="reference internal current" href="./">Kubernetes (Helm)</a>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Kubernetes (Helm)</a>
     <ul class="current">
     <li class="toctree-l3"><a class="reference internal" href="#prerequisites">Prerequisites</a>
         <ul>
@@ -112,7 +111,7 @@
                 </li>
     </ul>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="#">Install Custom Resource</a>
+                  <li class="toctree-l1"><a class="reference internal" >Install Custom Resource</a>
     <ul>
                 <li class="toctree-l2"><a class="reference internal" href="../../drivers/installation/">Installation</a>
                 </li>
@@ -122,11 +121,17 @@
                 </li>
     </ul>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="#">Upgrades</a>
+                  <li class="toctree-l1"><a class="reference internal" >Upgrades</a>
     <ul>
                 <li class="toctree-l2"><a class="reference internal" href="../../drivers/upgrading/">Driver Upgrade</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Metrics</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../metrics/exporter/">Exporter</a>
                 </li>
     </ul>
                   </li>
@@ -164,13 +169,12 @@
       <div class="wy-nav-content">
         <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
-    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
-          <li>User Guide &raquo;</li>
-          <li>Install Operator &raquo;</li>
-      <li>Kubernetes (Helm)</li>
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">User Guide</li>
+          <li class="breadcrumb-item">Install Operator</li>
+      <li class="breadcrumb-item active">Kubernetes (Helm)</li>
     <li class="wy-breadcrumbs-aside">
-        <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/installation/kubernetes-helm.md"
-          class="icon icon-github"> Edit on GitHub</a>
+          <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/installation/kubernetes-helm.md" class="icon icon-github"> Edit on GitHub</a>
     </li>
   </ul>
   <hr/>
@@ -696,14 +700,15 @@ GPU  POWER  GPU_TEMP  MEM_TEMP  GFX_UTIL  GFX_CLOCK  MEM_UTIL  MEM_CLOCK
     
   </span>
 </div>
-    <script>var base_url = '../..';</script>
-    <script src="../../js/theme_extra.js" defer></script>
-    <script src="../../js/theme.js" defer></script>
-      <script src="../../search/main.js" defer></script>
-    <script defer>
-        window.onload = function () {
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
             SphinxRtdTheme.Navigation.enable(true);
-        };
+        });
     </script>
 
 </body>
