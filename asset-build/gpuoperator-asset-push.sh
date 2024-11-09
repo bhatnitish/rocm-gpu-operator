@@ -38,18 +38,24 @@ copy_artifacts () {
 }
 
 docker_push () {
+    # push operator controller image to internal registry
     docker load -i /gpu-operator/amd-gpu-operator-latest.tar.gz
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator:latest | grep "HOURLY"
     docker push registry.test.pensando.io:5000/amd-gpu-operator:latest
-
+    # push OLM bundle image to internal registry
+    docker load -i /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz
+    docker inspect registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest | grep "HOURLY"
+    docker push registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest
     # push final release to docker hub for public access
     if [ -z $DOCKERHUB_TOKEN ]
     then
       echo "DOCKERHUB_TOKEN is not set"
     else
-      docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest amdpsdo/gpu-operator:latest
       docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest amdpsdo/gpu-operator:latest
       docker push amdpsdo/gpu-operator:latest
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest amdpsdo/gpu-operator-olm-bundle:latest
+      docker push amdpsdo/gpu-operator-olm-bundle:latest
     fi
 }
 
