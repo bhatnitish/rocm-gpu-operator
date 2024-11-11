@@ -190,7 +190,7 @@
 <h3 id="apply-the-secret-and-crd-update">Apply the Secret and CRD Update</h3>
 <p>Once the TLS secret is created, the <strong>DeviceConfig</strong> CR will automatically apply the secret to the <strong>kube-rbac-proxy</strong> sidecar, securing the metrics endpoint with TLS.</p>
 <h2 id="accessing-metrics">Accessing Metrics</h2>
-<p>For a complete guide on how to access the metrics securely (including the generation of tokens, applying RBAC roles, and accessing the metrics inside and outside the cluster), please refer to the example <a href="https://github.com/pensando/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> in the repository. This includes detailed steps on:</p>
+<p>For a complete guide on how to access the metrics securely (including the generation of tokens, applying RBAC roles, and accessing the metrics inside and outside the cluster), please refer to the example <a href="https://github.com/rocm/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> in the repository. This includes detailed steps on:</p>
 <ul>
 <li>Deploying the metrics-reader roles</li>
 <li>Generating tokens for the service account</li>
@@ -198,7 +198,7 @@
 </ul>
 <h2 id="conclusion">Conclusion</h2>
 <p>By following these steps, you will have a fully functional setup for accessing metrics from your AMD GPU cluster using the <strong>Metrics Exporter</strong> and <strong>kube-rbac-proxy</strong>. The <strong>kube-rbac-proxy</strong> ensures that only authorized users can access the metrics, and the setup supports both internal and external access with appropriate security mechanisms (including TLS and RBAC).</p>
-<p>For more detailed configuration guidance, refer to the example <a href="https://github.com/pensando/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> for information on token generation, cluster role deployment, and accessing metrics both inside and outside the cluster.</p>
+<p>For more detailed configuration guidance, refer to the example <a href="https://github.com/rocm/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> for information on token generation, cluster role deployment, and accessing metrics both inside and outside the cluster.</p>
               
             </div>
           </div><footer>

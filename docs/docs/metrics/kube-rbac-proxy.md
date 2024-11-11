@@ -47,7 +47,7 @@ Once the TLS secret is created, the **DeviceConfig** CR will automatically apply
 
 ## Accessing Metrics
 
-For a complete guide on how to access the metrics securely (including the generation of tokens, applying RBAC roles, and accessing the metrics inside and outside the cluster), please refer to the example [README](https://github.com/pensando/gpu-operator/blob/main/example/metricsExporter/README.md) in the repository. This includes detailed steps on:
+For a complete guide on how to access the metrics securely (including the generation of tokens, applying RBAC roles, and accessing the metrics inside and outside the cluster), please refer to the example [README](https://github.com/rocm/gpu-operator/blob/main/example/metricsExporter/README.md) in the repository. This includes detailed steps on:
 
 - Deploying the metrics-reader roles
 - Generating tokens for the service account
@@ -57,5 +57,5 @@ For a complete guide on how to access the metrics securely (including the genera
 
 By following these steps, you will have a fully functional setup for accessing metrics from your AMD GPU cluster using the **Metrics Exporter** and **kube-rbac-proxy**. The **kube-rbac-proxy** ensures that only authorized users can access the metrics, and the setup supports both internal and external access with appropriate security mechanisms (including TLS and RBAC).
 
-For more detailed configuration guidance, refer to the example [README](https://github.com/pensando/gpu-operator/blob/main/example/metricsExporter/README.md) for information on token generation, cluster role deployment, and accessing metrics both inside and outside the cluster.
+For more detailed configuration guidance, refer to the example [README](https://github.com/rocm/gpu-operator/blob/main/example/metricsExporter/README.md) for information on token generation, cluster role deployment, and accessing metrics both inside and outside the cluster.
 
