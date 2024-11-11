@@ -5,15 +5,15 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../../img/favicon.ico" />
-    <title>Developer Guide - AMD GPU Operator</title>
+    <title>Kube Rbac Proxy - AMD GPU Operator</title>
     <link rel="stylesheet" href="../../css/theme.css" />
     <link rel="stylesheet" href="../../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
     
       <script>
         // Current page data
-        var mkdocs_page_name = "Developer Guide";
-        var mkdocs_page_input_path = "contributing/developer-guide.md";
+        var mkdocs_page_name = "Kube Rbac Proxy";
+        var mkdocs_page_input_path = "metrics/kube-rbac-proxy.md";
         var mkdocs_page_url = null;
       </script>
     
@@ -52,7 +52,7 @@
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">User Guide</span></p>
-              <ul>
+              <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" >Install Operator</a>
     <ul>
                 <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
@@ -81,11 +81,31 @@
                 </li>
     </ul>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" >Metrics</a>
-    <ul>
-                <li class="toctree-l2"><a class="reference internal" href="../../metrics/exporter/">Exporter</a>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Metrics</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../exporter/">Exporter</a>
                 </li>
-                <li class="toctree-l2"><a class="reference internal" href="../../metrics/kube-rbac-proxy/">Kube Rbac Proxy</a>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Kube Rbac Proxy</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#configure-kube-rbac-proxy">Configure Kube-RBAC-Proxy</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#example-deviceconfig-cr-with-kube-rbac-proxy">Example: DeviceConfig CR with kube-rbac-proxy</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#provide-custom-tls-certificates">Provide Custom TLS Certificates</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#example-create-tls-secret">Example: Create TLS Secret</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#apply-the-secret-and-crd-update">Apply the Secret and CRD Update</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#accessing-metrics">Accessing Metrics</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a>
+    </li>
+    </ul>
                 </li>
     </ul>
                   </li>
@@ -104,22 +124,10 @@
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Contributing</span></p>
-              <ul class="current">
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Developer Guide</a>
-    <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#development-environment-setup">Development Environment Setup</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#running-tests">Running Tests</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#creating-a-pull-request">Creating a Pull Request</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#build-documentation-website-locally">Build Documentation Website Locally</a>
-    </li>
-    </ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/developer-guide/">Developer Guide</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../documentation-standards/">Documentation Standards</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation-standards/">Documentation Standards</a>
                   </li>
               </ul>
       </div>
@@ -136,10 +144,11 @@
         <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
     <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
-          <li class="breadcrumb-item">Contributing</li>
-      <li class="breadcrumb-item active">Developer Guide</li>
+          <li class="breadcrumb-item">User Guide</li>
+          <li class="breadcrumb-item">Metrics</li>
+      <li class="breadcrumb-item active">Kube Rbac Proxy</li>
     <li class="wy-breadcrumbs-aside">
-          <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/contributing/developer-guide.md" class="icon icon-github"> Edit on GitHub</a>
+          <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/metrics/kube-rbac-proxy.md" class="icon icon-github"> Edit on GitHub</a>
     </li>
   </ul>
   <hr/>
@@ -147,123 +156,55 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <ul>
-<li><a href="#amd-gpu-operator-developer-guide">AMD GPU Operator Developer Guide</a></li>
-<li><a href="#prerequisites">Prerequisites</a></li>
-<li><a href="#development-environment-setup">Development Environment Setup</a></li>
-<li><a href="#running-tests">Running Tests</a></li>
-<li><a href="#creating-a-pull-request">Creating a Pull Request</a></li>
-<li><a href="#build-documentation-website-locally">Build Documentation Website Locally</a></li>
-</ul>
-<h1 id="amd-gpu-operator-developer-guide">AMD GPU Operator Developer Guide</h1>
-<p>This guide provides information for developers who want to contribute to or modify the AMD GPU Operator.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+                <h1 id="kube-rbac-proxy-with-metrics-exporter">Kube-RBAC-Proxy with Metrics Exporter</h1>
+<p>The <strong>kube-rbac-proxy</strong> sidecar container is used to secure the metrics endpoint by enforcing <strong>Role-Based Access Control (RBAC)</strong>. By enabling the <strong>kube-rbac-proxy</strong>, only authorized users can access the <code>/metrics</code> URL, ensuring the security of your metrics data.</p>
+<h2 id="configure-kube-rbac-proxy">Configure Kube-RBAC-Proxy</h2>
+<p>To enable and configure the <strong>kube-rbac-proxy</strong> sidecar container, add the <code>rbacConfig</code> section to the <strong>Metrics Exporter</strong> configuration in the <strong>DeviceConfig</strong> CR. Here's a quick overview of the settings for <strong>kube-rbac-proxy</strong>:</p>
 <ul>
-<li>Go v1.20 (due to <a href="https://github.com/golang/go/issues/65637">open issues</a> with Go v1.21 or v1.22)</li>
-<li>Docker</li>
-<li>Kubernetes cluster (v1.29.0+) or OpenShift (4.16+)</li>
-<li><code>kubectl</code> or <code>oc</code> CLI tool configured to access your cluster</li>
-<li>Access to <code>rocm/gpu-kernel-module-manager</code> image (available on Docker Hub)</li>
+<li><strong>enable</strong>: Set to <code>true</code> to enable the <strong>kube-rbac-proxy</strong> sidecar container.</li>
+<li><strong>image</strong>: Specify the image for the <strong>kube-rbac-proxy</strong> container. If not specified, the default image is used.</li>
+<li><strong>secret</strong>: Provide the secret name that contains the TLS certificates and private keys for securing the metrics endpoint with HTTPS.</li>
+<li><strong>disableHttps</strong>: If set to <code>true</code>, the HTTPS protection for the metrics endpoint is disabled. By default, this is <code>false</code>, and HTTPS is enabled for secure communication.</li>
 </ul>
-<h2 id="development-environment-setup">Development Environment Setup</h2>
-<ul>
-<li>Install Helm:</li>
-</ul>
-<pre><code class="language-bash">curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-chmod 700 get_helm.sh
-./get_helm.sh
+<h3 id="example-deviceconfig-cr-with-kube-rbac-proxy">Example: DeviceConfig CR with kube-rbac-proxy</h3>
+<pre><code class="language-yaml">metricsExporter:
+    enable: true
+    serviceType: &quot;NodePort&quot;
+    nodePort: 32500
+    image: &quot;amd/device-metrics-exporter/exporter:v1&quot;
+
+    # Enable Kube-RBAC-Proxy
+    rbacConfig:
+        enable: true  # Enable the kube-rbac-proxy sidecar
+        image: &quot;quay.io/brancz/kube-rbac-proxy:v0.18.1&quot;  # Image for the kube-rbac-proxy sidecar container
+        secret:
+            name: &quot;my-tls-secret&quot;  # Secret containing the TLS certificate and key for kube-rbac-proxy
+        disableHttps: false  # Set to true if you want to disable HTTPS protection
 </code></pre>
-<p>For alternative installation methods, refer to the <a href="https://helm.sh/docs/intro/install/">Helm Official Website</a>.</p>
-<ul>
-<li>Install Helmify:</li>
-<li>
-<p>Download the released binary from the <a href="https://github.com/arttor/helmify/releases/tag/v0.4.13">Helmify GitHub release page</a>, unpack it, and move it to your <code>PATH</code>.</p>
-</li>
-<li>
-<p>Clone the repository:</p>
-</li>
-</ul>
-<pre><code class="language-bash">git clone https://github.com/ROCm/gpu-operator.git
-cd gpu-operator
+<h2 id="provide-custom-tls-certificates">Provide Custom TLS Certificates</h2>
+<p>If you want to provide custom TLS certificates, create a Kubernetes secret containing the <strong>TLS certificate</strong> (<code>tls.crt</code>) and <strong>private key</strong> (<code>tls.key</code>), and reference this secret in the <code>rbacConfig.secret.name</code> field.</p>
+<h3 id="example-create-tls-secret">Example: Create TLS Secret</h3>
+<p>To create the secret containing your custom certificates, run the following command:</p>
+<pre><code class="language-bash">kubectl create secret tls my-tls-secret --cert=path/to/cert.crt --key=path/to/cert.key -n kube-amd-gpu
 </code></pre>
+<h3 id="apply-the-secret-and-crd-update">Apply the Secret and CRD Update</h3>
+<p>Once the TLS secret is created, the <strong>DeviceConfig</strong> CR will automatically apply the secret to the <strong>kube-rbac-proxy</strong> sidecar, securing the metrics endpoint with TLS.</p>
+<h2 id="accessing-metrics">Accessing Metrics</h2>
+<p>For a complete guide on how to access the metrics securely (including the generation of tokens, applying RBAC roles, and accessing the metrics inside and outside the cluster), please refer to the example <a href="https://github.com/pensando/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> in the repository. This includes detailed steps on:</p>
 <ul>
-<li>(Optional) Set up a local Docker registry. If you want to build and host container images locally, you can set up a local Docker registry:</li>
+<li>Deploying the metrics-reader roles</li>
+<li>Generating tokens for the service account</li>
+<li>Accessing the metrics from inside and outside the Kubernetes cluster</li>
 </ul>
-<pre><code class="language-bash">docker run -d -p 5000:5000 --name registry registry:latest
-</code></pre>
-<ul>
-<li>Modify the registry-related variables in the <code>Makefile</code>:</li>
-<li><code>DOCKER_REGISTRY</code>: Set to <code>localhost:5000</code> for local development, or your preferred registry</li>
-<li><code>IMAGE_NAME</code>: Set to <code>rocm/gpu-operator</code></li>
-<li>
-<p><code>IMAGE_TAG</code>: Set as needed (e.g., <code>v1.0.0</code> or <code>latest</code>)</p>
-</li>
-<li>
-<p>Compile the project:</p>
-</li>
-</ul>
-<p><code>bash
- make</code></p>
-<p>This will generate the basic YAML files for CRD and build controller images.</p>
-<ul>
-<li>Build and push the AMD GPU Operator image:</li>
-</ul>
-<pre><code class="language-bash">make docker-build
-make docker-push
-</code></pre>
-<blockquote>
-<p>Note: If you're using a remote registry that requires authentication, ensure you've logged in using <code>docker login</code> before pushing.</p>
-</blockquote>
-<ul>
-<li>Generate Helm charts:</li>
-<li>For vanilla Kubernetes: <code>make helm</code></li>
-<li>For OpenShift: <code>OPENSHIFT=1 make helm</code></li>
-</ul>
-<h2 id="running-tests">Running Tests</h2>
-<p>To run the e2e tests:</p>
-<pre><code class="language-bash">make e2e
-</code></pre>
-<p>To run e2e tests with a specific Helm chart:</p>
-<pre><code class="language-bash">make e2e GPU_OPERATOR_CHART=&quot;path to helm chart&quot;
-</code></pre>
-<p>To run e2e test only:</p>
-<pre><code class="language-bash">make -C tests/e2e # run e2e tests only
-</code></pre>
-<h2 id="creating-a-pull-request">Creating a Pull Request</h2>
-<ol>
-<li>Fork the repository on GitHub.</li>
-<li>Create a new branch for your changes.</li>
-<li>Make your changes and commit them with clear, descriptive commit messages.</li>
-<li>Push your changes to your fork.</li>
-<li>Create a pull request against the main repository.</li>
-</ol>
-<p>Please ensure your code follows our coding standards and includes appropriate tests.</p>
-<h2 id="build-documentation-website-locally">Build Documentation Website Locally</h2>
-<ul>
-<li>Download mkdocs utilities</li>
-</ul>
-<pre><code class="language-bash">python3 -m pip install mkdocs
-</code></pre>
-<ul>
-<li>Build the website</li>
-</ul>
-<pre><code class="language-bash">cd docs
-python3 -m mkdocs build
-</code></pre>
-<ul>
-<li>Deploy the website</li>
-</ul>
-<pre><code class="language-bash">python3 -m mkdocs serve --dev-addr localhost:2345
-</code></pre>
-<ul>
-<li>The local docs website will dynmically update as changes are made to markdown docs.</li>
-</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>By following these steps, you will have a fully functional setup for accessing metrics from your AMD GPU cluster using the <strong>Metrics Exporter</strong> and <strong>kube-rbac-proxy</strong>. The <strong>kube-rbac-proxy</strong> ensures that only authorized users can access the metrics, and the setup supports both internal and external access with appropriate security mechanisms (including TLS and RBAC).</p>
+<p>For more detailed configuration guidance, refer to the example <a href="https://github.com/pensando/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> for information on token generation, cluster role deployment, and accessing metrics both inside and outside the cluster.</p>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../../specialized_networks/airgapped-install/" class="btn btn-neutral float-left" title="Air-Gapped Installation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../documentation-standards/" class="btn btn-neutral float-right" title="Documentation Standards">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../exporter/" class="btn btn-neutral float-left" title="Exporter"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../usage/" class="btn btn-neutral float-right" title="Usage">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -291,10 +232,10 @@ python3 -m mkdocs build
         </span>
     
     
-      <span><a href="../../specialized_networks/airgapped-install/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../exporter/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../documentation-standards/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../../usage/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

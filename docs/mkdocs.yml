@@ -17,6 +17,7 @@ nav:
       - Kernel Upgrade: upgrades/kernel.md
     - Metrics:
       - Exporter: metrics/exporter.md
+      - Kube Rbac Proxy: metrics/kube-rbac-proxy.md
     - Usage: usage.md
     - Uninstallation: uninstallation/uninstallation.md
     - Troubleshooting: troubleshooting.md      
