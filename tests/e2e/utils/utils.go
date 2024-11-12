@@ -344,15 +344,15 @@ func DelRocmPods(ctx context.Context, cl *kubernetes.Clientset) error {
 }
 
 func GetRocmInfo(name string) (string, error) {
-	return ExecPodCmd("rocm-smi --alldevices -i | grep Name", v1.NamespaceDefault, name)
+	return ExecPodCmd("rocm-smi --alldevices -i | grep Name", v1.NamespaceDefault, name, "")
 }
 
 func ListGpuDrivers(name string) (string, error) {
-	return ExecPodCmd("lsmod | grep amdgpu", v1.NamespaceDefault, name)
+	return ExecPodCmd("lsmod | grep amdgpu", v1.NamespaceDefault, name, "")
 }
 
 func GetGpuDriverVersion(name string) (string, error) {
-	return ExecPodCmd("rocm-smi --showdriverversion | grep Driver", v1.NamespaceDefault, name)
+	return ExecPodCmd("rocm-smi --showdriverversion | grep Driver", v1.NamespaceDefault, name, "")
 }
 
 func DeletePod(ctx context.Context, cl *kubernetes.Clientset, ns string,
@@ -467,8 +467,13 @@ func NFDWorkerName(isOpenshift bool) string {
 	return "amd-gpu-operator-node-feature-discovery-worker"
 }
 
-func ExecPodCmd(command string, ns string, name string) (string, error) {
-	cmd := exec.Command(kubectl, "exec", "-n", ns, name, "--", "sh", "-c", command)
+func ExecPodCmd(command string, ns string, name string, container string) (string, error) {
+	var cmd *exec.Cmd
+	if container != "" {
+		cmd = exec.Command(kubectl, "exec", "-n", ns, name, "-c", container, "--", "sh", "-c", command)
+	} else {
+		cmd = exec.Command(kubectl, "exec", "-n", ns, name, "--", "sh", "-c", command)
+	}
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

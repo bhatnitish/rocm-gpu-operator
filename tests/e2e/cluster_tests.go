@@ -37,7 +37,6 @@ import (
 
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	batchv1 "k8s.io/api/batch/v1"

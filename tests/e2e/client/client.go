@@ -64,6 +64,7 @@ type deviceConfigsClient struct {
 
 type DeviceConfigsInterface interface {
 	Create(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	Update(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	List(opts metav1.ListOptions) (*v1alpha1.DeviceConfigList, error)
 	PatchDriversVersion(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	Get(name string, options metav1.GetOptions) (*v1alpha1.DeviceConfig, error)
@@ -107,6 +108,24 @@ func (c *deviceConfigsClient) Create(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.D
 		Post().
 		Namespace(c.ns).
 		Resource("deviceConfigs").
+		Body(devCfg).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) Update(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+	err := c.restClient.
+		Put().
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
 		Body(devCfg).
 		Do(context.TODO()).
 		Into(&result)

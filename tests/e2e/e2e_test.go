@@ -19,7 +19,11 @@ package e2e
 import (
 	"context"
 	"flag"
+	"fmt"
+	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -27,13 +31,26 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/pensando/gpu-operator/tests/e2e/client"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
+
+var log = logrus.Logger{
+	Out: os.Stdout,
+	Formatter: &logrus.TextFormatter{
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			return fmt.Sprintf("%v()", f.Function), fmt.Sprintf("%v:%v", path.Base(f.File), f.Line)
+		},
+	},
+	Hooks:        make(logrus.LevelHooks),
+	Level:        logrus.InfoLevel,
+	ExitFunc:     os.Exit,
+	ReportCaller: true,
+}
 
 var kubeConfig = flag.String("kubeConfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "absolute path to the kubeconfig file")
 var helmChart = flag.String("helmchart", "", "helmchart")
@@ -110,6 +127,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 
 func (s *E2ESuite) SetUpTest(c *C) {
 	log.Info("setupTest:")
+	_ = s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{})
 
 }
 func (s *E2ESuite) TearDownTest(c *C) {
@@ -128,7 +146,10 @@ func (s *E2ESuite) TearDownTest(c *C) {
 			}
 		}
 	}
+
+	_ = s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{})
 }
+
 func (s *E2ESuite) TearDownSuite(c *C) {
 	log.Info("TearDownSuite:")
 	if l, err := s.dClient.DeviceConfigs(s.ns).List(metav1.ListOptions{}); err == nil {
@@ -140,6 +161,7 @@ func (s *E2ESuite) TearDownSuite(c *C) {
 		}
 		time.Sleep(30 * time.Second)
 	}
+	_ = s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{})
 
 	if err := utils.DeleteNodeAppDaemonSet(s.clientSet); err != nil {
 		log.Infof("%v", err)
