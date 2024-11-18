@@ -5,3 +5,7 @@
 /helm-charts-k8s/charts/*.tgz
 /helm-charts-openshift/charts/*.tgz
 *.out
+
+# Sphinx documentation
+_build/
+.venv/

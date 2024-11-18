@@ -1,0 +1,32 @@
+root: index
+defaults:
+  numbered: False
+  maxdepth: 6
+subtrees:
+  - caption: Usage
+    entries:
+    - file: overview
+    - file: usage
+    - file: troubleshooting     
+  - caption: Installation
+    entries:
+      - file: installation/kubernetes-helm
+      - file: installation/openshift-helm
+      - file: installation/openshift-olm    
+      - file: uninstallation/uninstallation
+  - caption: Driver Management
+    entries:
+      - file: drivers/installation
+      - file: drivers/precompiled-driver
+      - file: drivers/secure-boot
+      - file: drivers/upgrading
+      - file: upgrades/kernel      
+  - caption: Specialized Networks
+    entries:
+      - file: specialized_networks/airgapped-install
+      - file: specialized_networks/http-proxy
+  - caption: Contributing
+    entries:
+      - file: contributing/developer-guide
+      - file: contributing/documentation-standards
+
