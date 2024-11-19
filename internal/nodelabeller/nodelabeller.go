@@ -188,6 +188,10 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
+	if devConfig.Spec.DevicePlugin.NodeLabellerImagePullPolicy != "" {
+		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.NodeLabellerImagePullPolicy)
+	}
+
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
 }

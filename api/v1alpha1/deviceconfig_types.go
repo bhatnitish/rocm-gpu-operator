@@ -119,6 +119,87 @@ type DriverSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageSign",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageSign"}
 	// +optional
 	ImageSign ImageSignSpec `json:"imageSign,omitempty"`
+
+	// policy to upgrade the drivers
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *UpgradePolicySpec `json:"upgradePolicy,omitempty"`
+}
+
+// UpgradeState captures the state of the upgrade process on a node
+// +enum
+type UpgradeState string
+
+const (
+	// No State.
+	UpgradeStateEmpty UpgradeState = ""
+	// Node upgrade pending
+	UpgradeStateNotStarted UpgradeState = "Upgrade-Not-Started"
+	// Node pre-upgrade ops
+	UpgradeStateStarted UpgradeState = "Upgrade-Started"
+	// Node install in progress
+	UpgradeStateInstallInProgress UpgradeState = "Install-In-Progress"
+	// Node install complete
+	UpgradeStateInstallComplete UpgradeState = "Install-Complete"
+	// Node upgrade in progress
+	UpgradeStateInProgress UpgradeState = "Upgrade-In-Progress"
+	// Node upgrade complete
+	UpgradeStateComplete UpgradeState = "Upgrade-Complete"
+	// Node upgrade failed
+	UpgradeStateFailed UpgradeState = "Upgrade-Failed"
+	// Node cordon failed
+	UpgradeStateCordonFailed UpgradeState = "Cordon-Failed"
+	// Node uncordon failed
+	UpgradeStateUncordonFailed UpgradeState = "Uncordon-Failed"
+	// Node drain failed
+	UpgradeStateDrainFailed UpgradeState = "Drain-Failed"
+)
+
+type UpgradePolicySpec struct {
+	// enable upgrade policy, disabled by default
+	// If disabled, user has to manually upgrade all the nodes.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	// +optional
+	Enable *bool `json:"enable,omitempty"`
+	// MaxParallelUpgrades indicates how many nodes can be upgraded in parallel
+	// 0 means no limit, all nodes will be upgraded in parallel
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MaxParallelUpgrades",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:maxParallelUpgrades"}
+	// +optional
+	// +kubebuilder:default:=1
+	// +kubebuilder:validation:Minimum:=0
+	MaxParallelUpgrades int `json:"maxParallelUpgrades,omitempty"`
+	// Node draining policy
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeDrainPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeDrainPolicy"}
+	// +optional
+	NodeDrainPolicy *DrainSpec `json:"nodeDrainPolicy,omitempty"`
+	// Pod Deletion policy. If both NodeDrainPolicy and PodDeletionPolicy config is available, NodeDrainPolicy(if enabled) will take precedence.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodDeletionPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy"}
+	// +optional
+	PodDeletionPolicy *PodDeletionSpec `json:"podDeletionPolicy,omitempty"`
+}
+
+type DrainSpec struct {
+	// Force indicates if force draining is allowed
+	// +optional
+	// +kubebuilder:default:=false
+	Force *bool `json:"force,omitempty"`
+	// TimeoutSecond specifies the length of time in seconds to wait before giving up drain, zero means infinite
+	// +optional
+	// +kubebuilder:default:=300
+	// +kubebuilder:validation:Minimum:=0
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+}
+
+type PodDeletionSpec struct {
+	// Force indicates if force deletion is allowed
+	// +optional
+	// +kubebuilder:default:=false
+	Force *bool `json:"force,omitempty"`
+	// TimeoutSecond specifies the length of time in seconds to wait before giving up on pod deletion, zero means infinite
+	// +optional
+	// +kubebuilder:default:=300
+	// +kubebuilder:validation:Minimum:=0
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
 }
 
 type DevicePluginSpec struct {
@@ -128,11 +209,23 @@ type DevicePluginSpec struct {
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	DevicePluginImage string `json:"devicePluginImage,omitempty"`
 
+	// image pull policy for device plugin
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:DevicePluginImagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	DevicePluginImagePullPolicy string `json:"devicePluginImagePullPolicy,omitempty"`
+
 	// node labeller image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage"}
 	// +optional
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	NodeLabellerImage string `json:"nodeLabellerImage,omitempty"`
+
+	// image pull policy for node labeller
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:NodeLabellerImagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	NodeLabellerImagePullPolicy string `json:"nodeLabellerImagePullPolicy,omitempty"`
 
 	// node labeller image registry secret used to pull/push images
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
@@ -186,6 +279,12 @@ type MetricsExporterSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
 	// +optional
 	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+
+	// image pull policy for metrics exporter
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
 
 	// Port is the internal port used for in-cluster and node access to pull metrics from the metrics-exporter (default 5000).
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Port",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:port"}
@@ -270,9 +369,10 @@ type DeploymentStatus struct {
 
 // ModuleStatus contains the status of driver module installed by operator on the node
 type ModuleStatus struct {
-	ContainerImage     string `json:"containerImage,omitempty"`
-	KernelVersion      string `json:"kernelVersion,omitempty"`
-	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
+	ContainerImage     string       `json:"containerImage,omitempty"`
+	KernelVersion      string       `json:"kernelVersion,omitempty"`
+	LastTransitionTime string       `json:"lastTransitionTime,omitempty"`
+	Status             UpgradeState `json:"status,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.
@@ -286,6 +386,10 @@ type DeviceConfigStatus struct {
 	// NodeModuleStatus contains per node status of driver module installation
 	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="NodeModuleStatus",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus"
 	NodeModuleStatus map[string]ModuleStatus `json:"nodeModuleStatus,omitempty"`
+	// Conditions list the current status of the DeviceConfig object
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// ObservedGeneration is the latest spec generation successfully processed by the controller
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true

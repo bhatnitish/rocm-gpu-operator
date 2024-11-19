@@ -341,6 +341,9 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 			},
 		},
 	}
+	if devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy != "" {
+		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy)
+	}
 	return controllerutil.SetControllerReference(devConfig, ds, km.scheme)
 }
 
@@ -396,6 +399,17 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
 	mod.Spec.ImageRepoSecret = devConfig.Spec.Driver.ImageRegistrySecret
 	mod.Spec.Selector = getNodeSelector(devConfig)
+	//TODO Enable when kmm has this field
+	/*
+		mod.Spec.Tolerations = []v1.Toleration {
+			{
+				Key:      "amd-gpu-operator-upgrade-in-progress",
+				Value:    "true",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		}
+	*/
 	return nil
 }
 

@@ -196,6 +196,10 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		},
 	}
 
+	if mSpec.ImagePullPolicy != "" {
+		containers[0].ImagePullPolicy = v1.PullPolicy(mSpec.ImagePullPolicy)
+	}
+
 	imagePullSecrets := []v1.LocalObjectReference{}
 	if mSpec.ImageRegistrySecret != nil {
 		imagePullSecrets = append(imagePullSecrets, *mSpec.ImageRegistrySecret)

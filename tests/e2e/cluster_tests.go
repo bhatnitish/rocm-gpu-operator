@@ -78,7 +78,8 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 		},
 	}
-
+	insecure := true
+	devCfg.Spec.Driver.ImageRegistryTLS.Insecure = &insecure
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "6.1.1"
 	}
@@ -794,7 +795,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
 	if !s.simEnable {
-		c.Skip("Skipping for amd gpu testbed")
+		c.Skip("Skipping for non amd gpu testbed")
 	}
 
 	ctx := context.TODO()
@@ -1304,5 +1305,222 @@ func (s *E2ESuite) TestDifferentCRsForDifferentNodes(c *C) {
 		for _, devCfg := range devCfgs {
 			s.deleteDeviceConfig(devCfg, c)
 		}
+	}
+}
+
+func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	upgradePolicy := v1alpha1.UpgradePolicySpec{
+		Enable: &enable,
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// upgrade
+	// update the CR's driver version config
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2.2"
+	}
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.patchDriversVersion(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	if !s.simEnable {
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+		s.verifyNodeDriverVersionLabel(devCfg, c)
+		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
+		assert.NoError(c, err, "failed to deploy pods")
+		s.verifyROCMPOD(true, c)
+	}
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	if !s.simEnable {
+		s.verifyROCMPOD(false, c)
+		err = utils.DelRocmPods(context.TODO(), s.clientSet)
+		assert.NoError(c, err, "failed to remove rocm pods")
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
+}
+
+func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	upgradePolicy := v1alpha1.UpgradePolicySpec{
+		Enable:              &enable,
+		MaxParallelUpgrades: 2,
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// upgrade
+	// update the CR's driver version config
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2.2"
+	}
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.patchDriversVersion(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+		s.verifyNodeDriverVersionLabel(devCfg, c)
+		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
+		assert.NoError(c, err, "failed to deploy pods")
+		s.verifyROCMPOD(true, c)
+	}
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		s.verifyROCMPOD(false, c)
+		err = utils.DelRocmPods(context.TODO(), s.clientSet)
+		assert.NoError(c, err, "failed to remove rocm pods")
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
+}
+
+func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	force := true
+	drainPolicy := v1alpha1.DrainSpec{
+		Force:          &force,
+		TimeoutSeconds: 300,
+	}
+	upgradePolicy := v1alpha1.UpgradePolicySpec{
+		Enable:              &enable,
+		MaxParallelUpgrades: 2,
+		NodeDrainPolicy:     &drainPolicy,
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// upgrade
+	// update the CR's driver version config
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2.2"
+	}
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.patchDriversVersion(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+		s.verifyNodeDriverVersionLabel(devCfg, c)
+		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
+		assert.NoError(c, err, "failed to deploy pods")
+		s.verifyROCMPOD(true, c)
+	}
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		s.verifyROCMPOD(false, c)
+		err = utils.DelRocmPods(context.TODO(), s.clientSet)
+		assert.NoError(c, err, "failed to remove rocm pods")
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
+}
+
+func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	force := true
+	podDeletionPolicy := v1alpha1.PodDeletionSpec{
+		Force:          &force,
+		TimeoutSeconds: 300,
+	}
+	upgradePolicy := v1alpha1.UpgradePolicySpec{
+		Enable:              &enable,
+		MaxParallelUpgrades: 2,
+		PodDeletionPolicy:   &podDeletionPolicy,
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// upgrade
+	// update the CR's driver version config
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2.2"
+	}
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.patchDriversVersion(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+		s.verifyNodeDriverVersionLabel(devCfg, c)
+		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
+		assert.NoError(c, err, "failed to deploy pods")
+		s.verifyROCMPOD(true, c)
+	}
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	// Verify rocm pod deployment only for real amd gpu setup
+	if !s.simEnable {
+		s.verifyROCMPOD(false, c)
+		err = utils.DelRocmPods(context.TODO(), s.clientSet)
+		assert.NoError(c, err, "failed to remove rocm pods")
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }

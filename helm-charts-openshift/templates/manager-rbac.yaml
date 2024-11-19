@@ -111,6 +111,15 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/eviction
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
   - pods/finalizers
   verbs:
   - delete
@@ -123,6 +132,14 @@ rules:
   - pods/status
   verbs:
   - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
   - get
   - list
   - watch

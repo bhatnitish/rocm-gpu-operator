@@ -32,7 +32,9 @@ import (
 	v1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
+	v10 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -58,6 +60,48 @@ func NewMockdeviceConfigReconcilerHelperAPI(ctrl *gomock.Controller) *Mockdevice
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockdeviceConfigReconcilerHelperAPI) EXPECT() *MockdeviceConfigReconcilerHelperAPIMockRecorder {
 	return m.recorder
+}
+
+// buildDeviceConfigStatus mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) buildDeviceConfigStatus(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "buildDeviceConfigStatus", ctx, devConfig, nodes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// buildDeviceConfigStatus indicates an expected call of buildDeviceConfigStatus.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) buildDeviceConfigStatus(ctx, devConfig, nodes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "buildDeviceConfigStatus", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).buildDeviceConfigStatus), ctx, devConfig, nodes)
+}
+
+// buildNodeAssignments mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) buildNodeAssignments(deviceConfigList *v1alpha1.DeviceConfigList) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "buildNodeAssignments", deviceConfigList)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// buildNodeAssignments indicates an expected call of buildNodeAssignments.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) buildNodeAssignments(deviceConfigList any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "buildNodeAssignments", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).buildNodeAssignments), deviceConfigList)
+}
+
+// deleteCondition mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) deleteCondition(ctx context.Context, condition string, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "deleteCondition", ctx, condition, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// deleteCondition indicates an expected call of deleteCondition.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) deleteCondition(ctx, condition, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteCondition", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).deleteCondition), ctx, condition, devConfig)
 }
 
 // finalizeDeviceConfig mocks base method.
@@ -188,6 +232,21 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleMetricsExporter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleMetricsExporter", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleMetricsExporter), ctx, devConfig)
 }
 
+// handleModuleUpgrade mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleModuleUpgrade(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (controllerruntime.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleModuleUpgrade", ctx, devConfig, nodes, delete)
+	ret0, _ := ret[0].(controllerruntime.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// handleModuleUpgrade indicates an expected call of handleModuleUpgrade.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleModuleUpgrade(ctx, devConfig, nodes, delete any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleModuleUpgrade", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleModuleUpgrade), ctx, devConfig, nodes, delete)
+}
+
 // handleNodeLabeller mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) handleNodeLabeller(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
@@ -200,6 +259,35 @@ func (m *MockdeviceConfigReconcilerHelperAPI) handleNodeLabeller(ctx context.Con
 func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNodeLabeller(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeLabeller", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleNodeLabeller), ctx, devConfig, nodes)
+}
+
+// listDeviceConfigs mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) listDeviceConfigs(ctx context.Context) (*v1alpha1.DeviceConfigList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "listDeviceConfigs", ctx)
+	ret0, _ := ret[0].(*v1alpha1.DeviceConfigList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// listDeviceConfigs indicates an expected call of listDeviceConfigs.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) listDeviceConfigs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "listDeviceConfigs", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).listDeviceConfigs), ctx)
+}
+
+// setCondition mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) setCondition(ctx context.Context, condition string, devConfig *v1alpha1.DeviceConfig, status v10.ConditionStatus, reason, message string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "setCondition", ctx, condition, devConfig, status, reason, message)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// setCondition indicates an expected call of setCondition.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) setCondition(ctx, condition, devConfig, status, reason, message any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setCondition", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).setCondition), ctx, condition, devConfig, status, reason, message)
 }
 
 // setFinalizer mocks base method.
@@ -217,15 +305,55 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) setFinalizer(ctx, dev
 }
 
 // updateDeviceConfigStatus mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) updateDeviceConfigStatus(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) updateDeviceConfigStatus(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "updateDeviceConfigStatus", ctx, devConfig, nodes)
+	ret := m.ctrl.Call(m, "updateDeviceConfigStatus", ctx, devConfig)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // updateDeviceConfigStatus indicates an expected call of updateDeviceConfigStatus.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) updateDeviceConfigStatus(ctx, devConfig, nodes any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) updateDeviceConfigStatus(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateDeviceConfigStatus", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).updateDeviceConfigStatus), ctx, devConfig, nodes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateDeviceConfigStatus", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).updateDeviceConfigStatus), ctx, devConfig)
+}
+
+// updateNodeAssignments mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) updateNodeAssignments(namespacedName string, nodes *v1.NodeList, isFinalizer bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "updateNodeAssignments", namespacedName, nodes, isFinalizer)
+}
+
+// updateNodeAssignments indicates an expected call of updateNodeAssignments.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) updateNodeAssignments(namespacedName, nodes, isFinalizer any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateNodeAssignments", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).updateNodeAssignments), namespacedName, nodes, isFinalizer)
+}
+
+// validateDeviceConfig mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) validateDeviceConfig(ctx context.Context, devConfig *v1alpha1.DeviceConfig) []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "validateDeviceConfig", ctx, devConfig)
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// validateDeviceConfig indicates an expected call of validateDeviceConfig.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) validateDeviceConfig(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "validateDeviceConfig", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).validateDeviceConfig), ctx, devConfig)
+}
+
+// validateNodeAssignments mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "validateNodeAssignments", namespacedName, nodes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// validateNodeAssignments indicates an expected call of validateNodeAssignments.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) validateNodeAssignments(namespacedName, nodes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "validateNodeAssignments", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).validateNodeAssignments), namespacedName, nodes)
 }

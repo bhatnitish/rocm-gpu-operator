@@ -1206,6 +1206,23 @@ func CurlMetrics(endpointIPs []string, token string, port int, secure bool, caCe
 	return nil
 }
 
+func GetNodeIPs(clientset *kubernetes.Clientset) ([]string, error) {
+	nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes %v", err)
+	}
+
+	nodeIPs := []string{}
+	for _, node := range nodes.Items {
+		for _, address := range node.Status.Addresses {
+			if address.Type == v1.NodeInternalIP || address.Type == v1.NodeExternalIP {
+				nodeIPs = append(nodeIPs, address.Address)
+			}
+		}
+	}
+	return nodeIPs, nil
+}
+
 func GetNodeIPsForDaemonSet(clientset *kubernetes.Clientset, daemonSetName, namespace string) ([]string, error) {
 	ctx := context.TODO()
 
@@ -1262,21 +1279,4 @@ func RebootNodesWithWait(ctx context.Context, cl *kubernetes.Clientset, nodes []
 	}
 
 	return nil
-}
-
-func GetNodeIPs(clientset *kubernetes.Clientset) ([]string, error) {
-	nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list nodes %v", err)
-	}
-
-	nodeIPs := []string{}
-	for _, node := range nodes.Items {
-		for _, address := range node.Status.Addresses {
-			if address.Type == v1.NodeInternalIP || address.Type == v1.NodeExternalIP {
-				nodeIPs = append(nodeIPs, address.Address)
-			}
-		}
-	}
-	return nodeIPs, nil
 }

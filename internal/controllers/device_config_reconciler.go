@@ -37,15 +37,19 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	"github.com/pensando/gpu-operator/internal/conditions"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	"github.com/pensando/gpu-operator/internal/nodelabeller"
+	"github.com/pensando/gpu-operator/internal/validator"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -70,16 +74,20 @@ const (
 
 // ModuleReconciler reconciles a Module object
 type DeviceConfigReconciler struct {
+	once            sync.Once
+	initErr         error
 	helper          deviceConfigReconcilerHelperAPI
 	podEventHandler podEventHandlerAPI
 }
 
 func NewDeviceConfigReconciler(
+	k8sConfig *rest.Config,
 	client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter) *DeviceConfigReconciler {
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, metricsHandler)
+	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler)
 	podEventHandler := newPodEventHandler(client)
 	return &DeviceConfigReconciler{
 		helper:          helper,
@@ -110,6 +118,16 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).Complete(r)
 }
 
+func (r *DeviceConfigReconciler) init(ctx context.Context) {
+	// List existing Device Configs
+	deviceConfigList, err := r.helper.listDeviceConfigs(ctx)
+	if err != nil {
+		r.initErr = err
+		return
+	}
+	r.initErr = r.helper.buildNodeAssignments(deviceConfigList)
+}
+
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/finalizers,verbs=update
@@ -134,11 +152,20 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=delete;get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods/status,verbs=delete;get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=delete;get;list;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=pods/eviction,verbs=delete;get;list;create
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
 
 	logger := log.FromContext(ctx)
+
+	r.once.Do(func() {
+		r.init(ctx)
+	})
+	if r.initErr != nil {
+		return res, r.initErr
+	}
 
 	devConfig, err := r.helper.getRequestedDeviceConfig(ctx, req.NamespacedName)
 	if err != nil {
@@ -155,12 +182,41 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if devConfig.GetDeletionTimestamp() != nil {
+		// Reset the upgrade states
+		if _, err := r.helper.handleModuleUpgrade(ctx, devConfig, nodes, true); err != nil {
+			logger.Error(err, fmt.Sprintf("upgrade manager delete device config error: %v", err))
+		}
 		// DeviceConfig is being deleted
 		err = r.helper.finalizeDeviceConfig(ctx, devConfig, nodes)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to finalize DeviceConfig %s: %v", req.NamespacedName, err)
 		}
 		return ctrl.Result{}, nil
+	}
+
+	// Verify that the DeviceConfig does not select nodes covered by other DeviceConfigs
+	err = r.helper.validateNodeAssignments(req.NamespacedName.String(), nodes)
+	if err != nil {
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.ValidationError, fmt.Sprintf("Validation failed: %v", err)); errSet != nil {
+			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
+		}
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.ReadyStatus, ""); errSet != nil {
+			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
+		}
+		return res, err
+	}
+
+	// Validate device config
+	result := r.helper.validateDeviceConfig(ctx, devConfig)
+	if len(result) != 0 {
+		// Update status Conditions here
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.ValidationError, fmt.Sprintf("Validation failed: %v", result)); errSet != nil {
+			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
+		}
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.ReadyStatus, ""); errSet != nil {
+			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
+		}
+		return res, fmt.Errorf("validation failed for DeviceConfig %s: %v", req.NamespacedName, result)
 	}
 
 	err = r.helper.setFinalizer(ctx, devConfig)
@@ -172,6 +228,12 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	err = r.helper.handleBuildConfigMap(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to handle build ConfigMap for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
+	logger.Info("start module install/upgrade reconciliation")
+	res, err = r.helper.handleModuleUpgrade(ctx, devConfig, nodes, false)
+	if err != nil {
+		return res, fmt.Errorf("Failed to fetch nodes for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
 	logger.Info("start KMM reconciliation")
@@ -201,18 +263,32 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle metrics exporter for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
-	err = r.helper.updateDeviceConfigStatus(ctx, devConfig, nodes)
+	err = r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes)
+	if err != nil {
+		return res, fmt.Errorf("failed to build status for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
+	err = r.helper.updateDeviceConfigStatus(ctx, devConfig)
 	if err != nil {
 		return res, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
+
+	// Update nodeAssignments after DeviceConfig status update
+	r.helper.updateNodeAssignments(req.NamespacedName.String(), nodes, false)
+
 	return res, nil
 }
 
 //go:generate mockgen -source=device_config_reconciler.go -package=controllers -destination=mock_device_config_reconciler.go deviceConfigReconcilerHelperAPI
 type deviceConfigReconcilerHelperAPI interface {
 	getRequestedDeviceConfig(ctx context.Context, namespacedName types.NamespacedName) (*amdv1alpha1.DeviceConfig, error)
+	listDeviceConfigs(ctx context.Context) (*amdv1alpha1.DeviceConfigList, error)
+	buildNodeAssignments(deviceConfigList *amdv1alpha1.DeviceConfigList) error
+	validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error
+	updateNodeAssignments(namespacedName string, nodes *v1.NodeList, isFinalizer bool)
 	getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error)
-	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
@@ -222,25 +298,50 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error
+	deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error
+	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
+	handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error)
 }
 
 type deviceConfigReconcilerHelper struct {
-	client         client.Client
-	kmmHandler     kmmmodule.KMMModuleAPI
-	nlHandler      nodelabeller.NodeLabeller
-	metricsHandler metricsexporter.MetricsExporter
+	client            client.Client
+	kmmHandler        kmmmodule.KMMModuleAPI
+	nlHandler         nodelabeller.NodeLabeller
+	metricsHandler    metricsexporter.MetricsExporter
+	nodeAssignments   map[string]string
+	conditionUpdater  conditions.ConditionUpdater
+	validator         validator.ValidatorAPI
+	upgradeMgrHandler upgradeMgrAPI
 }
 
 func newDeviceConfigReconcilerHelper(client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
+	upgradeMgrHandler upgradeMgrAPI,
 	metricsHandler metricsexporter.MetricsExporter) deviceConfigReconcilerHelperAPI {
+	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
+	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
-		client:         client,
-		kmmHandler:     kmmHandler,
-		nlHandler:      nlHandler,
-		metricsHandler: metricsHandler,
+		client:            client,
+		kmmHandler:        kmmHandler,
+		nlHandler:         nlHandler,
+		metricsHandler:    metricsHandler,
+		nodeAssignments:   make(map[string]string),
+		conditionUpdater:  conditionUpdater,
+		validator:         validator,
+		upgradeMgrHandler: upgradeMgrHandler,
 	}
+}
+
+func (dcrh *deviceConfigReconcilerHelper) listDeviceConfigs(ctx context.Context) (*amdv1alpha1.DeviceConfigList, error) {
+	devConfigList := amdv1alpha1.DeviceConfigList{}
+
+	if err := dcrh.client.List(ctx, &devConfigList); err != nil {
+		return nil, fmt.Errorf("failed to list DeviceConfigs: %v", err)
+	}
+
+	return &devConfigList, nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) getRequestedDeviceConfig(ctx context.Context, namespacedName types.NamespacedName) (*amdv1alpha1.DeviceConfig, error) {
@@ -274,7 +375,7 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 	return reqs
 }
 
-func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
 	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
@@ -331,6 +432,15 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 		return err
 	}
 
+	// Successfully processed the config
+	devConfig.Status.ObservedGeneration = devConfig.Generation
+	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+	dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
+
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
 	// get the latest version of object right before update
 	// to avoid issue "the object has been modified; please apply your changes to the latest version and try again"
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -362,9 +472,9 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 	// for each node, fetch its status of modules configured by given DeviceConfig
 	for _, node := range nodes.Items {
 		// if there is no module configured for given node
-		// the info under that node name will be empty
+		// the info under that node name will have only status
 		// then it will be clear to see which node didn't get module configured
-		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{}
+		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name)}
 
 		nmc := kmmv1beta1.NodeModulesConfig{}
 		err := dcrh.client.Get(ctx, types.NamespacedName{Name: node.Name}, &nmc)
@@ -384,6 +494,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 						ContainerImage:     module.Config.ContainerImage,
 						KernelVersion:      module.Config.KernelVersion,
 						LastTransitionTime: module.LastTransitionTime.String(),
+						Status:             dcrh.upgradeMgrHandler.GetNodeStatus(node.Name),
 					}
 				}
 			}
@@ -522,6 +633,9 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
 		logger.Error(err, "failed to update node labels")
 	}
+
+	// Update nodeAssignments after DeviceConfig status update
+	dcrh.updateNodeAssignments(namespacedName.String(), nodes, true)
 
 	return nil
 }
@@ -701,6 +815,14 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	}
 	return nil
 }
+
+func (dcrh *deviceConfigReconcilerHelper) handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error) {
+	if delete {
+		return dcrh.upgradeMgrHandler.HandleDelete(ctx, devConfig, nodes)
+	}
+	return dcrh.upgradeMgrHandler.HandleUpgrade(ctx, devConfig, nodes)
+}
+
 func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
 	logger := log.FromContext(ctx)
 	ds := &appsv1.DaemonSet{
@@ -776,6 +898,100 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 		}); retryErr != nil {
 			logger.Error(retryErr, fmt.Sprintf("failed to remove labels from node %+v", node.Name))
 		}
+	}
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error {
+	var err error
+
+	for _, node := range nodes.Items {
+		val, ok := dcrh.nodeAssignments[node.Name]
+		if ok && val != namespacedName {
+			err = fmt.Errorf("node %s already assigned to DeviceConfig %s, cannot re-assign to %s", node.Name, val, namespacedName)
+			break
+		}
+	}
+
+	return err
+}
+
+func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(deviceConfigList *amdv1alpha1.DeviceConfigList) error {
+	if deviceConfigList == nil {
+		return nil
+	}
+
+	isReady := func(devConfig *amdv1alpha1.DeviceConfig) bool {
+		ready := dcrh.conditionUpdater.GetReadyCondition(devConfig)
+		if ready == nil {
+			return false
+		}
+		return ready.Status == metav1.ConditionTrue
+	}
+
+	for _, devConfig := range deviceConfigList.Items {
+		if isReady(&devConfig) {
+			namespacedName := types.NamespacedName{
+				Namespace: devConfig.Namespace,
+				Name:      devConfig.Name,
+			}
+
+			nodeItems := []v1.Node{}
+			for node := range devConfig.Status.NodeModuleStatus {
+				nodeItems = append(nodeItems, v1.Node{ObjectMeta: metav1.ObjectMeta{Name: node}})
+			}
+			err := dcrh.validateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems})
+			if err != nil {
+				return err
+			}
+			dcrh.updateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems}, false)
+		}
+	}
+
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) updateNodeAssignments(namespacedName string, nodes *v1.NodeList, isFinalizer bool) {
+	if isFinalizer {
+		for _, node := range nodes.Items {
+			delete(dcrh.nodeAssignments, node.Name)
+		}
+		return
+	}
+
+	for _, node := range nodes.Items {
+		dcrh.nodeAssignments[node.Name] = namespacedName
+	}
+}
+
+func (dcrh *deviceConfigReconcilerHelper) setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error {
+	switch condition {
+	case conditions.ConditionTypeReady:
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, status, reason, message)
+		return dcrh.updateDeviceConfigStatus(ctx, devConfig)
+	case conditions.ConditionTypeError:
+		dcrh.conditionUpdater.SetErrorCondition(devConfig, status, reason, message)
+		return dcrh.updateDeviceConfigStatus(ctx, devConfig)
+	}
+	return fmt.Errorf("Condition %s not supported", condition)
+}
+
+func (dcrh *deviceConfigReconcilerHelper) deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error {
+	switch condition {
+	case conditions.ConditionTypeReady:
+		dcrh.conditionUpdater.DeleteReadyCondition(devConfig)
+		return dcrh.updateDeviceConfigStatus(ctx, devConfig)
+	case conditions.ConditionTypeError:
+		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+		return dcrh.updateDeviceConfigStatus(ctx, devConfig)
+	}
+	return fmt.Errorf("Condition %s not supported", condition)
+}
+
+func (dcrh *deviceConfigReconcilerHelper) validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string {
+	// Validate only if the spec has changed since the last successful validation
+	if devConfig.Generation != devConfig.Status.ObservedGeneration {
+		return dcrh.validator.ValidateDeviceConfigAll(ctx, dcrh.client, devConfig)
 	}
 	return nil
 }

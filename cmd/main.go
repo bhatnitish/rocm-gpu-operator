@@ -108,6 +108,7 @@ func main() {
 	nlHandler := nodelabeller.NewNodeLabeller(scheme)
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	dcr := controllers.NewDeviceConfigReconciler(
+		mgr.GetConfig(),
 		client,
 		kmmHandler,
 		nlHandler,

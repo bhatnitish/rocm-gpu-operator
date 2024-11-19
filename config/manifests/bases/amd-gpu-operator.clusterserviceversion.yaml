@@ -37,6 +37,11 @@ spec:
         path: devicePlugin.devicePluginImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: image pull policy for device plugin
+        displayName: DevicePluginImagePullPolicy
+        path: devicePlugin.devicePluginImagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:DevicePluginImagePullPolicy
       - description: enable or disable the node labeller
         displayName: EnableNodeLabeller
         path: devicePlugin.enableNodeLabeller
@@ -52,6 +57,11 @@ spec:
         path: devicePlugin.nodeLabellerImage
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage
+      - description: image pull policy for node labeller
+        displayName: NodeLabellerImagePullPolicy
+        path: devicePlugin.nodeLabellerImagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:NodeLabellerImagePullPolicy
       - description: driver
         displayName: Driver
         path: driver
@@ -128,6 +138,34 @@ spec:
         path: driver.imageSign.keySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: policy to upgrade the drivers
+        displayName: UpgradePolicy
+        path: driver.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: enable upgrade policy, disabled by default If disabled, user
+          has to manually upgrade all the nodes.
+        displayName: Enable
+        path: driver.upgradePolicy.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: MaxParallelUpgrades indicates how many nodes can be upgraded
+          in parallel 0 means no limit, all nodes will be upgraded in parallel
+        displayName: MaxParallelUpgrades
+        path: driver.upgradePolicy.maxParallelUpgrades
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxParallelUpgrades
+      - description: Node draining policy
+        displayName: NodeDrainPolicy
+        path: driver.upgradePolicy.nodeDrainPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeDrainPolicy
+      - description: Pod Deletion policy. If both NodeDrainPolicy and PodDeletionPolicy
+          config is available, NodeDrainPolicy(if enabled) will take precedence.
+        displayName: PodDeletionPolicy
+        path: driver.upgradePolicy.podDeletionPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy
       - description: 'version of the drivers source code, can be used as part of image
           of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
           coreOS: 6.2.2'
@@ -161,6 +199,11 @@ spec:
         path: metricsExporter.image
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for metrics exporter
+        displayName: ImagePullPolicy
+        path: metricsExporter.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
       - description: metrics exporter image registry secret used to pull/push images
         displayName: ImageRegistrySecret
         path: metricsExporter.imageRegistrySecret
