@@ -1,4 +1,4 @@
-from "registry.test.pensando.io:5000/pensando/gpu-op:1.0"
+from "registry.test.pensando.io:5000/pensando/gpu-op:1.1"
 
 user = getenv("USER")
 group = getenv("GROUP_NAME")
@@ -13,9 +13,6 @@ copy "asset-build/gpuoperator-asset-push.sh", "/gpuoperator-asset-push.sh"
 run "chmod +x /gpuoperator-asset-push.sh"
 
 if user == "root"
-  # remove the games group as it conflicts with staff group for mac users
-  run "groupdel games"
-
   # update user .bash_profile
   run "echo 'export GOPATH=/usr' >> /root/.bash_profile"
   run "echo 'export GOFLAGS=-mod=vendor' >> /root/.bash_profile"
@@ -24,22 +21,20 @@ if user == "root"
   run "localedef -i en_US -f UTF-8 en_US.UTF-8"
 else
 if user != ""
-  # remove the games group as it conflicts with staff group for mac users
-  run "groupdel games"
-
   # add user
   run "groupadd -g #{gid} #{group}"
-  run "useradd -l -u #{uid} -g #{gid} #{user} -G docker"
+  run "useradd -l -m -s /usr/bin/bash -u #{uid} -g #{gid} -G docker #{user}"
 
   # go installs in /usr, make it world writeable
   run "chmod 777 /usr/bin"
 
   # update user .bash_profile
+  run "mkdir -p /home/#{user}"
   run "echo 'export GOPATH=/usr' >> /home/#{user}/.bash_profile"
-  run "echo 'export PATH=/usr/local/go/bin:$PATH' >> /home/#{user}/.bash_profile"
+  run "echo 'export PATH=/usr/local/go/bin:$PATH:/usr/local/bin' >> /home/#{user}/.bash_profile"
   run "echo 'export GOFLAGS=-mod=vendor' >> /home/#{user}/.bash_profile"
-  run "echo 'sudo chown -R #{user} /sw/' >> /home/#{user}/.bash_profile"
-  run "echo 'sudo chgrp -R #{user} /sw/' >> /home/#{user}/.bash_profile"
+  run "echo 'sudo chown -R #{user} /gpu-operator/' >> /home/#{user}/.bash_profile"
+  run "echo 'sudo chgrp -R #{user} /gpu-operator/' >> /home/#{user}/.bash_profile"
   run "echo 'Defaults secure_path = /usr/local/go/bin:$PATH:/bin:/usr/sbin/' >> /etc/sudoers"
 
   run "echo '#{user} ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/#{user} && chmod 0440 /etc/sudoers.d/#{user}"

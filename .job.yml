@@ -64,3 +64,5 @@ jobs:
     labels: ["CI-Precheckin-Gpuoperator"]
   asset-build:
     labels: ["CI-Sanity-Build"]
+  ci-internal:
+    labels: [""]
