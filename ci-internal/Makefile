@@ -1,6 +1,6 @@
 # CICD test image
 TEST_CONTAINER_URL ?= registry.test.pensando.io:5000/pensando/gpu-op
-TEST_CONTAINER_VERSION ?=1.1
+TEST_CONTAINER_VERSION ?=1.2
 
 # CHANNELS define the bundle channels used in the bundle.
 docker/install_box:

@@ -41,9 +41,7 @@ run "echo 'deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.
 
 run "apt update && apt install cri-o kubelet kubeadm -y"
 
-run "curl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl'"
-run "sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl"
-run "rm kubectl"
+run "curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl' | chmod +x /usr/local/bin/kubectl"
 
 # download and install nerdctl for kind installation
 #run "curl -sSL https://github.com/containerd/nerdctl/releases/download/v2.0.0/nerdctl-2.0.0-linux-amd64.tar.gz | tar xzf -C /usr/local/bin && chmod +x /usr/local/bin/nerdctl"
