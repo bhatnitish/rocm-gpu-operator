@@ -16,7 +16,15 @@ then
   exit 0
 fi
 
-echo "Copying gpu-operator artifacts..."
+tag_prefix="${RELEASE%-*}"
+
+if [ "$tag_prefix" == "operator-0.0.1" ]; then
+  tag="latest"
+else
+  tag="$tag_prefix"
+fi
+
+echo "Copying gpu-operator artifacts and pushing docker image with tag:$tag"
 
 setup_dir () {
     ls -al /gpu-operator/
@@ -41,21 +49,23 @@ docker_push () {
     # push operator controller image to internal registry
     docker load -i /gpu-operator/amd-gpu-operator-latest.tar.gz
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator:latest | grep "HOURLY"
-    docker push registry.test.pensando.io:5000/amd-gpu-operator:latest
+    docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest registry.test.pensando.io:5000/amd-gpu-operator:$tag
+    docker push registry.test.pensando.io:5000/amd-gpu-operator:$tag
     # push OLM bundle image to internal registry
     docker load -i /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest | grep "HOURLY"
-    docker push registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest
+    docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag
+    docker push registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag
     # push final release to docker hub for public access
     if [ -z $DOCKERHUB_TOKEN ]
     then
       echo "DOCKERHUB_TOKEN is not set"
     else
       docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
-      docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest amdpsdo/gpu-operator:latest
-      docker push amdpsdo/gpu-operator:latest
-      docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest amdpsdo/gpu-operator-olm-bundle:latest
-      docker push amdpsdo/gpu-operator-olm-bundle:latest
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$tag
+      docker push amdpsdo/gpu-operator:$tag
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag amdpsdo/gpu-operator-olm-bundle:$tag
+      docker push amdpsdo/gpu-operator-olm-bundle:$tag
     fi
 }
 
