@@ -41,6 +41,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -188,6 +189,21 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		},
 	}
 
+	if devConfig.Spec.DevicePlugin.UpgradePolicy != nil {
+		up := devConfig.Spec.DevicePlugin.UpgradePolicy
+		upgradeStrategy := appsv1.RollingUpdateDaemonSetStrategyType
+		if up.UpgradeStrategy == "OnDelete" {
+			upgradeStrategy = appsv1.OnDeleteDaemonSetStrategyType
+		}
+		ds.Spec.UpdateStrategy = appsv1.DaemonSetUpdateStrategy{
+			Type: upgradeStrategy,
+		}
+		if upgradeStrategy == appsv1.RollingUpdateDaemonSetStrategyType {
+			ds.Spec.UpdateStrategy.RollingUpdate = &appsv1.RollingUpdateDaemonSet{
+				MaxUnavailable: &intstr.IntOrString{IntVal: int32(up.MaxUnavailable)},
+			}
+		}
+	}
 	if devConfig.Spec.DevicePlugin.NodeLabellerImagePullPolicy != "" {
 		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.NodeLabellerImagePullPolicy)
 	}

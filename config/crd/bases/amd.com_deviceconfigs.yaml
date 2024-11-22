@@ -76,6 +76,25 @@ spec:
                     - IfNotPresent
                     - Never
                     type: string
+                  upgradePolicy:
+                    description: upgrade policy for device plugin and node labeller
+                      daemons
+                    properties:
+                      maxUnavailable:
+                        default: 1
+                        description: MaxUnavailable specifies the maximum number of
+                          Pods that can be unavailable during the update process.
+                          Applicable for RollingUpdate only. Default value is 1.
+                        format: int32
+                        type: integer
+                      upgradeStrategy:
+                        description: UpgradeStrategy specifies the type of the DaemonSet
+                          update. Valid values are "RollingUpdate" (default) or "OnDelete".
+                        enum:
+                        - RollingUpdate
+                        - OnDelete
+                        type: string
+                    type: object
                 type: object
               driver:
                 description: driver
@@ -295,6 +314,24 @@ spec:
                     - ClusterIP
                     - NodePort
                     type: string
+                  upgradePolicy:
+                    description: upgrade policy for metrics exporter daemons
+                    properties:
+                      maxUnavailable:
+                        default: 1
+                        description: MaxUnavailable specifies the maximum number of
+                          Pods that can be unavailable during the update process.
+                          Applicable for RollingUpdate only. Default value is 1.
+                        format: int32
+                        type: integer
+                      upgradeStrategy:
+                        description: UpgradeStrategy specifies the type of the DaemonSet
+                          update. Valid values are "RollingUpdate" (default) or "OnDelete".
+                        enum:
+                        - RollingUpdate
+                        - OnDelete
+                        type: string
+                    type: object
                 type: object
               selector:
                 additionalProperties:

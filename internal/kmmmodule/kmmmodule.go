@@ -53,6 +53,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -340,6 +341,21 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 				},
 			},
 		},
+	}
+	if devConfig.Spec.DevicePlugin.UpgradePolicy != nil {
+		up := devConfig.Spec.DevicePlugin.UpgradePolicy
+		upgradeStrategy := appsv1.RollingUpdateDaemonSetStrategyType
+		if up.UpgradeStrategy == "OnDelete" {
+			upgradeStrategy = appsv1.OnDeleteDaemonSetStrategyType
+		}
+		ds.Spec.UpdateStrategy = appsv1.DaemonSetUpdateStrategy{
+			Type: upgradeStrategy,
+		}
+		if upgradeStrategy == appsv1.RollingUpdateDaemonSetStrategyType {
+			ds.Spec.UpdateStrategy.RollingUpdate = &appsv1.RollingUpdateDaemonSet{
+				MaxUnavailable: &intstr.IntOrString{IntVal: int32(up.MaxUnavailable)},
+			}
+		}
 	}
 	if devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy != "" {
 		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy)

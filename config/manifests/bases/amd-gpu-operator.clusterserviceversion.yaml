@@ -62,6 +62,24 @@ spec:
         path: devicePlugin.nodeLabellerImagePullPolicy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:NodeLabellerImagePullPolicy
+      - description: upgrade policy for device plugin and node labeller daemons
+        displayName: UpgradePolicy
+        path: devicePlugin.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: devicePlugin.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: devicePlugin.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
       - description: driver
         displayName: Driver
         path: driver
@@ -258,6 +276,24 @@ spec:
         path: metricsExporter.serviceType
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
+      - description: upgrade policy for metrics exporter daemons
+        displayName: UpgradePolicy
+        path: metricsExporter.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: metricsExporter.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: metricsExporter.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
       - description: Selector describes on which nodes the GPU Operator should enable
           the GPU device.
         displayName: Selector

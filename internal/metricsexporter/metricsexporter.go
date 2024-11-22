@@ -311,6 +311,21 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			},
 		},
 	}
+	if devConfig.Spec.MetricsExporter.UpgradePolicy != nil {
+		up := devConfig.Spec.MetricsExporter.UpgradePolicy
+		upgradeStrategy := appsv1.RollingUpdateDaemonSetStrategyType
+		if up.UpgradeStrategy == "OnDelete" {
+			upgradeStrategy = appsv1.OnDeleteDaemonSetStrategyType
+		}
+		ds.Spec.UpdateStrategy = appsv1.DaemonSetUpdateStrategy{
+			Type: upgradeStrategy,
+		}
+		if upgradeStrategy == appsv1.RollingUpdateDaemonSetStrategyType {
+			ds.Spec.UpdateStrategy.RollingUpdate = &appsv1.RollingUpdateDaemonSet{
+				MaxUnavailable: &intstr.IntOrString{IntVal: int32(up.MaxUnavailable)},
+			}
+		}
+	}
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
 }

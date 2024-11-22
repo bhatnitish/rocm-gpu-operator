@@ -236,6 +236,24 @@ type DevicePluginSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="EnableNodeLabeller",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enableNodeLabeller"}
 	// +kubebuilder:default=true
 	EnableNodeLabeller *bool `json:"enableNodeLabeller,omitempty"`
+
+	// upgrade policy for device plugin and node labeller daemons
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+}
+
+type DaemonSetUpgradeSpec struct {
+	// UpgradeStrategy specifies the type of the DaemonSet update. Valid values are "RollingUpdate" (default) or "OnDelete".
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradeStrategy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy"}
+	// +kubebuilder:validation:Enum=RollingUpdate;OnDelete
+	// +optional
+	UpgradeStrategy string `json:"upgradeStrategy,omitempty"`
+
+	// MaxUnavailable specifies the maximum number of Pods that can be unavailable during the update process. Applicable for RollingUpdate only. Default value is 1.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MaxUnavailable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable"}
+	// +kubebuilder:default=1
+	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
 }
 
 type ImageSignSpec struct {
@@ -318,6 +336,11 @@ type MetricsExporterSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`
+
+	// upgrade policy for metrics exporter daemons
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
 }
 
 // KubeRbacConfig contains configs for kube-rbac-proxy sidecar
