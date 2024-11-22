@@ -9,9 +9,16 @@ RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noar
     dnf install dnf-plugin-config-manager -y && \
     dnf clean all
 
-RUN echo -e "[amdgpu] \n\
+RUN dnf install -y 'dnf-command(config-manager)' && \
+    dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/ && \
+    dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/ && \
+    rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official && \
+    dnf clean all
+
+RUN source /etc/os-release && \
+    echo -e "[amdgpu] \n\
 name=amdgpu \n\
-baseurl=https://repo.radeon.com/amdgpu/${DRIVERS_VERSION}/el/9.4/main/x86_64/ \n\
+baseurl=https://repo.radeon.com/amdgpu/${DRIVERS_VERSION}/el/${VERSION_ID}/main/x86_64/ \n\
 enabled=1 \n\
 priority=50 \n\
 gpgcheck=1 \n\
