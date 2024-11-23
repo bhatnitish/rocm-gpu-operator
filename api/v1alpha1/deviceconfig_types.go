@@ -123,7 +123,7 @@ type DriverSpec struct {
 	// policy to upgrade the drivers
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
-	UpgradePolicy *UpgradePolicySpec `json:"upgradePolicy,omitempty"`
+	UpgradePolicy *DriverUpgradePolicySpec `json:"upgradePolicy,omitempty"`
 }
 
 // UpgradeState captures the state of the upgrade process on a node
@@ -155,7 +155,7 @@ const (
 	UpgradeStateDrainFailed UpgradeState = "Drain-Failed"
 )
 
-type UpgradePolicySpec struct {
+type DriverUpgradePolicySpec struct {
 	// enable upgrade policy, disabled by default
 	// If disabled, user has to manually upgrade all the nodes.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}

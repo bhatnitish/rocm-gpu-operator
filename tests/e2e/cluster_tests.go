@@ -1316,7 +1316,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	upgradePolicy := v1alpha1.UpgradePolicySpec{
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable: &enable,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
@@ -1365,7 +1365,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	upgradePolicy := v1alpha1.UpgradePolicySpec{
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		MaxParallelUpgrades: 2,
 	}
@@ -1422,7 +1422,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 		Force:          &force,
 		TimeoutSeconds: 300,
 	}
-	upgradePolicy := v1alpha1.UpgradePolicySpec{
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		MaxParallelUpgrades: 2,
 		NodeDrainPolicy:     &drainPolicy,
@@ -1480,7 +1480,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 		Force:          &force,
 		TimeoutSeconds: 300,
 	}
-	upgradePolicy := v1alpha1.UpgradePolicySpec{
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		MaxParallelUpgrades: 2,
 		PodDeletionPolicy:   &podDeletionPolicy,
