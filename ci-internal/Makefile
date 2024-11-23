@@ -16,7 +16,13 @@ docker/build-shell-image: docker/install_box
 	cd ../; BOX_INCLUDE_ENV="USER USER_UID USER_GID GROUP_NAME HOST_HOSTNAME HOST_WORKSPACE" USER_UID=$$(id -u) USER_GID=$$(id -g) GROUP_NAME=$$(id -gn) HOST_HOSTNAME=$$(hostname) box -t pensando/gpu-operator:test box.rb
 
 docker/shell: docker/build-shell-image
-	docker run --rm --privileged --cgroupns=host -v /lib/modules:/lib/modules:ro -v /sys/fs/cgroup:/sys/fs/cgroup --network host --name gpu-operator -v $(shell pwd):/gpu-operator -w /gpu-operator -it pensando/gpu-operator:test su -l $(shell whoami)
+	docker run --rm --privileged --cgroupns=host -v /lib/modules:/lib/modules:ro -v /sys/fs/cgroup:/sys/fs/cgroup -p 6443:6443 --name gpu-operator -v "$(shell pwd)/../":/gpu-operator -w /gpu-operator -it pensando/gpu-operator:test su -l $(shell whoami)
+
+build-kind-node:
+	docker build -t registry.test.pensando.io:5000/kindest-node:v1.31.2 -f Dockerfile_kind .
+
+push-kind-node:
+	docker push registry.test.pensando.io:5000/kindest-node:v1.31.2
 
 deploy-k8s-kind-1c:
 	/usr/local/bin/kind create cluster --config=./deploy/kind-config.yaml --name dind-cluster
