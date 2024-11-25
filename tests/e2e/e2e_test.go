@@ -148,6 +148,7 @@ func (s *E2ESuite) TearDownTest(c *C) {
 	}
 
 	_ = s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{})
+	time.Sleep(30 * time.Second)
 }
 
 func (s *E2ESuite) TearDownSuite(c *C) {

@@ -1,19 +1,20 @@
 ---
 version: 2.0
 targets:
-  operator-sim:
+  operator-e2e-sim:
     commands: ["sh", "-cx",
     "./deploy_k8s_by_kind.sh; ls -al ~/.kube; cat ~/.kube/config;
     kubectl cluster-info; kubectl get pods -A; kubectl get nodes -o wide;
-    helm repo add jetstack https://charts.jetstack.io --force-update;
-    helm install cert-manager jetstack/cert-manager --namespace cert-manager  --create-namespace --version v1.15.1 --set crds.enabled=true;
-    wget https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz;
-    helm install gpu-operator ./gpu-operator-charts-v1.0.0.tgz -n kube-amd-gpu --create-namespace;
-    kubectl get pods -A"]
-    owners: ["email:qiwa@pensando.io"]
+    ./setup_e2e.sh;
+    cd /go/src/github.com/pensando/gpu-operator && docker run -d -p 5000:5000 --name registry --restart always registry:2 && SIM_ENABLE=1 make && SIM_ENABLE=1 make docker-push && helm repo add jetstack https://charts.jetstack.io --force-update && helm install cert-manager jetstack/cert-manager --namespace cert-manager  --create-namespace --version v1.15.1 --set crds.enabled=true && SIM_ENABLE=1 make helm-install && sleep 60 && kubectl get pods -A | grep amd && SIM_ENABLE=1 make -C tests/e2e/ && kubectl get pods -A | grep amd"]
+    owners: ["email:sajmera@amd.com"]
     area:
     sub-area:
     feature:
+    repo-dependencies:
+      /ws/builder/kernel-module-management:
+        repository: https://github.com/pensando/kernel-module-management
+        reference: main
 
 image:
   bind_dir: "/go/src/github.com/pensando/gpu-operator"
