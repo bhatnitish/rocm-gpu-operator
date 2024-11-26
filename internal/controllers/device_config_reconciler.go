@@ -171,6 +171,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		if k8serrors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
 			logger.Info("DeviceConfig CR deleted")
+			r.helper.updateNodeAssignments(req.NamespacedName.String(), nil, true)
 			return ctrl.Result{}, nil
 		}
 		return res, fmt.Errorf("failed to get the requested %s CR: %v", req.NamespacedName, err)
@@ -953,8 +954,16 @@ func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(deviceConfigList 
 
 func (dcrh *deviceConfigReconcilerHelper) updateNodeAssignments(namespacedName string, nodes *v1.NodeList, isFinalizer bool) {
 	if isFinalizer {
-		for _, node := range nodes.Items {
-			delete(dcrh.nodeAssignments, node.Name)
+		if nodes != nil {
+			for _, node := range nodes.Items {
+				delete(dcrh.nodeAssignments, node.Name)
+			}
+		} else {
+			for k, v := range dcrh.nodeAssignments {
+				if v == namespacedName {
+					delete(dcrh.nodeAssignments, k)
+				}
+			}
 		}
 		return
 	}

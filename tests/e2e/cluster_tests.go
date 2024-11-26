@@ -975,9 +975,6 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-clusterip", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-clusterip exists")
@@ -1003,9 +1000,6 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 
@@ -1097,9 +1091,6 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 
