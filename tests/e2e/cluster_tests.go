@@ -975,7 +975,9 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
-
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-clusterip", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-clusterip exists")
 
@@ -995,11 +997,16 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
-	assert.NoError(c, err, "failed to reboot nodes")
+	if !s.simEnable {
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 
@@ -1091,6 +1098,9 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 

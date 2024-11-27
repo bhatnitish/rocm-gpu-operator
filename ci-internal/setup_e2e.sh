@@ -8,14 +8,14 @@ HOST_IP=$(hostname -I | awk '{print $1}')
 REGISTRY_PORT="5000"
 
 # Edit Makefile to use custom local registry paths for e2e
-MAKEFILE_PATH="/go/src/github.com/pensando/gpu-operator/Makefile"
+MAKEFILE_PATH="/gpu-operator/Makefile"
 sudo sed -i "s#^DOCKER_REGISTRY ?= registry.test.pensando.io:5000#DOCKER_REGISTRY ?= $HOST_IP:$REGISTRY_PORT#" "$MAKEFILE_PATH"
 sudo sed -i 's/^IMAGE_NAME ?= amd-gpu-operator/IMAGE_NAME ?= root-e2e/' "$MAKEFILE_PATH"
 
 # # Edit e2e testcase config to use local registry IP
-TESTSUITE_PATH="/go/src/github.com/pensando/gpu-operator/tests/e2e/cluster_tests.go"
+TESTSUITE_PATH="/gpu-operator/tests/e2e/cluster_tests.go"
 sed -i "s#registry.test.pensando.io:5000/e2e#$HOST_IP:$REGISTRY_PORT/root-e2e#g" "$TESTSUITE_PATH"
-cat /go/src/github.com/pensando/gpu-operator/tests/e2e/cluster_tests.go
+cat /gpu-operator/tests/e2e/cluster_tests.go
 
 # Add insecure registry to Docker daemon.json on the host
 sudo apt-get update
