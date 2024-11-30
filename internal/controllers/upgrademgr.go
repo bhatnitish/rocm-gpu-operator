@@ -42,6 +42,7 @@ import (
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 
+	utils "github.com/pensando/gpu-operator/internal"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -296,8 +297,9 @@ func (h *upgradeMgrHelper) isNodeReady(ctx context.Context, node *v1.Node, devic
 
 	// Move the node state to complete if the driver install is done
 	if nodeStatus, ok := deviceConfig.Status.NodeModuleStatus[node.Name]; ok {
-
-		if strings.HasSuffix(nodeStatus.ContainerImage, deviceConfig.Spec.Driver.Version) {
+		// If driver install is done but CR version not specified, get default version
+		driverVersion, _ := utils.GetDriverVersion(*node, *deviceConfig)
+		if strings.HasSuffix(nodeStatus.ContainerImage, driverVersion) {
 
 			currentState := h.getNodeStatus(node.Name)
 
@@ -628,7 +630,10 @@ func (h *upgradeMgrHelper) updateModuleVersionOnNode(ctx context.Context, device
 			return err
 		}
 		nodeObjCopy := nodeObj.DeepCopy()
-		nodeObj.Labels[fmt.Sprintf("kmm.node.kubernetes.io/version-module.%s.%s", deviceConfig.Namespace, deviceConfig.Name)] = deviceConfig.Spec.Driver.Version
+		driverVersion, err := utils.GetDriverVersion(*node, *deviceConfig)
+		if err == nil {
+			nodeObj.Labels[fmt.Sprintf("kmm.node.kubernetes.io/version-module.%s.%s", deviceConfig.Namespace, deviceConfig.Name)] = driverVersion
+		}
 		return h.client.Patch(ctx, nodeObj, client.MergeFrom(nodeObjCopy))
 
 	}); retryErr != nil {

@@ -36,7 +36,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -47,6 +46,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	utils "github.com/pensando/gpu-operator/internal"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -141,7 +141,7 @@ func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig
 			continue
 		}
 		if labelVal == "" {
-			defaultVersion, err := getDefaultDriversVersion(node)
+			defaultVersion, err := utils.GetDefaultDriversVersion(node)
 			if err != nil {
 				logger.Error(err, fmt.Sprintf("failed to get default version for node %+v err %+v", node.GetName(), err))
 			}
@@ -473,7 +473,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
 	} else {
 		if driversVersion == "" {
-			driversVersion, err = getDefaultDriversVersion(node)
+			driversVersion, err = utils.GetDefaultDriversVersion(node)
 			if err != nil {
 				return kmmv1beta1.KernelMapping{}, "", err
 			}
@@ -548,16 +548,6 @@ func addNodeInfoSuffixToImageTag(imgStr string, osName, driversVersion string) s
 	return imgStr + ":" + tag
 }
 
-func getDefaultDriversVersion(node v1.Node) (string, error) {
-	osImageStr := strings.ToLower(node.Status.NodeInfo.OSImage)
-	for os, mapper := range defaultDriverversionsMappers {
-		if strings.Contains(osImageStr, os) {
-			return mapper(osImageStr)
-		}
-	}
-	return "", fmt.Errorf("OS: %s not supported. Should be one of %v", osImageStr, maps.Keys(cmNameMappers))
-}
-
 func GetCMName(osName string, devCfg *amdv1alpha1.DeviceConfig) string {
 	return osName + "-" + devCfg.Name + "-" + devCfg.Namespace
 }
@@ -580,32 +570,6 @@ func GetOSName(node v1.Node, devCfg *amdv1alpha1.DeviceConfig) (string, error) {
 	}
 
 	return "", fmt.Errorf("OS: %s not supported. Should be one of %v", osImageStr, maps.Keys(cmNameMappers))
-}
-
-var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string, error){
-	"ubuntu": ubuntuDefaultDriverVersionsMapper,
-	"rhel": func(f string) (string, error) {
-		return defaultOcDriversVersion, nil
-	},
-	"redhat": func(f string) (string, error) {
-		return defaultOcDriversVersion, nil
-	},
-	"red hat": func(f string) (string, error) {
-		return defaultOcDriversVersion, nil
-	},
-}
-
-func ubuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
-	if strings.Contains(fullImageStr, "20.04") {
-		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
-	}
-	if strings.Contains(fullImageStr, "22.04") {
-		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
-	}
-	if strings.Contains(fullImageStr, "24.04") {
-		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
-	}
-	return "", errors.New("invalid ubuntu version, should be one of [20.04, 22.04]")
 }
 
 var cmNameMappers = map[string]func(fullImageStr string) string{
