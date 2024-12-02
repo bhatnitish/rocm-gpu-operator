@@ -27,4 +27,7 @@ done
 
 echo "Docker is running."
 
+# start local docker registry for sanity ci test
+docker run -d -p 5000:5000 --name registry --restart always registry.test.pensando.io:5000/pensando/registry:2
+
 make deploy-k8s-kind-1c2w
