@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-11-29T16:31:35Z"
+    createdAt: "2024-12-04T08:10:51Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -213,6 +213,11 @@ spec:
         path: driver.upgradePolicy.podDeletionPolicy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy
+      - description: reboot between driver upgrades, disabled by default
+        displayName: RebootRequired
+        path: driver.upgradePolicy.rebootRequired
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:rebootRequired
       - description: 'version of the drivers source code, can be used as part of image
           of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
           coreOS: 6.2.2'
@@ -496,6 +501,7 @@ spec:
           resources:
           - pods
           verbs:
+          - create
           - delete
           - get
           - list

@@ -153,6 +153,10 @@ const (
 	UpgradeStateUncordonFailed UpgradeState = "Uncordon-Failed"
 	// Node drain failed
 	UpgradeStateDrainFailed UpgradeState = "Drain-Failed"
+	// Node reboot in progress
+	UpgradeStateRebootInProgress UpgradeState = "Reboot-In-Progress"
+	// Node reboot failed
+	UpgradeStateRebootFailed UpgradeState = "Reboot-Failed"
 )
 
 type DriverUpgradePolicySpec struct {
@@ -176,6 +180,10 @@ type DriverUpgradePolicySpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodDeletionPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy"}
 	// +optional
 	PodDeletionPolicy *PodDeletionSpec `json:"podDeletionPolicy,omitempty"`
+	// reboot between driver upgrades, disabled by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RebootRequired",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:rebootRequired"}
+	// +optional
+	RebootRequired *bool `json:"rebootRequired,omitempty"`
 }
 
 type DrainSpec struct {

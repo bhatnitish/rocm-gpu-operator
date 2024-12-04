@@ -164,6 +164,18 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteOrDrainPods(ctx, deviceConf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteOrDrainPods", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).deleteOrDrainPods), ctx, deviceConfig, node)
 }
 
+// deleteRebootPod mocks base method.
+func (m *MockupgradeMgrHelperAPI) deleteRebootPod(ctx context.Context, nodeName string, dc *v1alpha1.DeviceConfig, force bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "deleteRebootPod", ctx, nodeName, dc, force)
+}
+
+// deleteRebootPod indicates an expected call of deleteRebootPod.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteRebootPod(ctx, nodeName, dc, force any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteRebootPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).deleteRebootPod), ctx, nodeName, dc, force)
+}
+
 // getNodeStatus mocks base method.
 func (m *MockupgradeMgrHelperAPI) getNodeStatus(nodeName string) v1alpha1.UpgradeState {
 	m.ctrl.T.Helper()
@@ -193,6 +205,20 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) getPodsToDrainOrDelete(ctx, devic
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getPodsToDrainOrDelete", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).getPodsToDrainOrDelete), ctx, deviceConfig, node)
 }
 
+// getRebootPod mocks base method.
+func (m *MockupgradeMgrHelperAPI) getRebootPod(nodeName string, dc *v1alpha1.DeviceConfig) *v1.Pod {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRebootPod", nodeName, dc)
+	ret0, _ := ret[0].(*v1.Pod)
+	return ret0
+}
+
+// getRebootPod indicates an expected call of getRebootPod.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) getRebootPod(nodeName, dc any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRebootPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).getRebootPod), nodeName, dc)
+}
+
 // handleInitStatus mocks base method.
 func (m *MockupgradeMgrHelperAPI) handleInitStatus(ctx context.Context, node *v1.Node) {
 	m.ctrl.T.Helper()
@@ -203,6 +229,18 @@ func (m *MockupgradeMgrHelperAPI) handleInitStatus(ctx context.Context, node *v1
 func (mr *MockupgradeMgrHelperAPIMockRecorder) handleInitStatus(ctx, node any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleInitStatus", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).handleInitStatus), ctx, node)
+}
+
+// handleNodeReboot mocks base method.
+func (m *MockupgradeMgrHelperAPI) handleNodeReboot(ctx context.Context, node *v1.Node, dc *v1alpha1.DeviceConfig) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "handleNodeReboot", ctx, node, dc)
+}
+
+// handleNodeReboot indicates an expected call of handleNodeReboot.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) handleNodeReboot(ctx, node, dc any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeReboot", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).handleNodeReboot), ctx, node, dc)
 }
 
 // handleNodeUpgrade mocks base method.
@@ -313,6 +351,20 @@ func (m *MockupgradeMgrHelperAPI) isNodeStateUpgradeInProgress(ctx context.Conte
 func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeStateUpgradeInProgress(ctx, node, deviceConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeStateUpgradeInProgress", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeStateUpgradeInProgress), ctx, node, deviceConfig)
+}
+
+// isNodeStateUpgradeStarted mocks base method.
+func (m *MockupgradeMgrHelperAPI) isNodeStateUpgradeStarted(node *v1.Node) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isNodeStateUpgradeStarted", node)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isNodeStateUpgradeStarted indicates an expected call of isNodeStateUpgradeStarted.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeStateUpgradeStarted(node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeStateUpgradeStarted", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeStateUpgradeStarted), node)
 }
 
 // isUpgradePolicyViolated mocks base method.

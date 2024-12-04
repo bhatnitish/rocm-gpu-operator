@@ -421,7 +421,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			{
 				Key:      "amd-gpu-operator-upgrade-in-progress",
 				Value:    "true",
-				Operator: v1.TolerationOpExists,
+				Operator: v1.TolerationOpEqual,
 				Effect:   v1.TaintEffectNoSchedule,
 			},
 		}

@@ -228,6 +228,9 @@ spec:
                             minimum: 0
                             type: integer
                         type: object
+                      rebootRequired:
+                        description: reboot between driver upgrades, disabled by default
+                        type: boolean
                     type: object
                   version:
                     description: 'version of the drivers source code, can be used as

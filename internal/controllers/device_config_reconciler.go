@@ -149,7 +149,7 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 //+kubebuilder:rbac:groups=apps,resources=daemonsets/finalizers,verbs=create;get;update;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=services/finalizers,verbs=create;get;update;watch
-//+kubebuilder:rbac:groups=core,resources=pods,verbs=delete;get;list;watch
+//+kubebuilder:rbac:groups=core,resources=pods,verbs=delete;get;list;watch;create
 //+kubebuilder:rbac:groups=core,resources=pods/status,verbs=delete;get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=delete;get;list;watch
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
