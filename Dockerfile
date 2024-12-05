@@ -36,7 +36,7 @@ COPY --from=builder /opt/app-root/src/${TARGET} /usr/local/bin/manager
 COPY --from=builder /opt/app-root/src/kubectl /usr/local/bin/kubectl
 
 RUN microdnf update -y && \
-    microdnf install -y shadow-utils && \
+    microdnf install -y shadow-utils jq && \
     microdnf clean all
 
 RUN ["groupadd", "--system", "-g", "201", "amd-gpu"]
