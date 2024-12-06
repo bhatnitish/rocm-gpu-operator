@@ -733,6 +733,17 @@ func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, 
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateRebootFailed)
 		return
 	}
+
+	waitForRebootPod := func() {
+		for i := uint(0); i < 300; _, i = <-time.NewTicker(2*time.Second).C, i+1 {
+			if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: rebootPod.Name}, pod); err == nil {
+				return
+			}
+		}
+	}
+	// Wait for the rebootPod to get spawned
+	waitForRebootPod()
+
 	h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateRebootInProgress)
 
 	h.deleteRebootPod(ctx, node.Name, dc, false)
@@ -743,9 +754,6 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 
 	logger := log.FromContext(ctx)
 	rebootPod := h.getRebootPod(nodeName, dc)
-
-	// Set for state transition
-	defer h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 
 	pod := &v1.Pod{}
 	if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: rebootPod.Name}, pod); err != nil {
@@ -764,6 +772,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 						if err := h.client.Delete(ctx, rebootPod); err != nil {
 							logger.Error(err, fmt.Sprintf("Node: %v State: %v RebootPod Delete failed with Error: %v", nodeName, h.getNodeStatus(nodeName), err))
 						}
+						h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 						return
 					} else {
 						logger.Info(fmt.Sprintf("Node: %v State: %v Reboot pod ContainerStatus Not as desired: %v", nodeName, h.getNodeStatus(nodeName), containerStatus.State.Terminated))
@@ -782,6 +791,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 	if err := h.client.Delete(ctx, rebootPod); err != nil {
 		logger.Error(err, fmt.Sprintf("Node: %v State: %v RebootPod Delete failed with Error: %v", nodeName, h.getNodeStatus(nodeName), err))
 	}
+	h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 }
 
 func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceConfig) *v1.Pod {
