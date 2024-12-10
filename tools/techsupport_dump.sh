@@ -99,6 +99,7 @@ ${KUBECTL} version >${TECH_SUPPORT_FILE}/kubectl.txt || die "${KUBECTL} failed"
 NFD_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
 KMM_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
 GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator | awk '{ print $1 }' | sort -u | head -n1)
+[ -z "${GPUOPER_NS}" ] && die "no gpu operator"
 
 echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS" >${TECH_SUPPORT_FILE}/namespace.txt
 log "NFD_NAMESPACE:$NFD_NS"
@@ -198,7 +199,7 @@ for node in ${NODES}; do
 	GPUAGENT_LOGS="gpu-agent.log gpu-agent-api.log gpu-agent-err.log"
 	for l in ${GPUAGENT_LOGS}; do
 		for expod in ${EXPORTER_PODS}; do
-	                mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-agent
+			mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-agent
 			pod=$(basename ${expod})
 			${KUBECTL} cp ${GPUOPER_NS}/${pod}:"/run/$l" ${TECH_SUPPORT_FILE}/${node}/gpu-agent/$l >/dev/null || true
 		done
@@ -207,17 +208,17 @@ for node in ${NODES}; do
 	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator")
 	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
 
-	${KUBECTL} get nodes -l "node-role.kubernetes.io/control-plane=NoSchedule" 2>/dev/null | grep ${node} && continue # skip master nodes
-
 	# node logs
-	dbgpod=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport")
+	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport")
 
 	# wait for the debug pod
-	${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
-	log "   lsmod"
-	${KUBECTL} exec -it ${dbgpod} -- sh -c "lsmod | grep amdgpu || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
-	log "   dmesg"
-	${KUBECTL} exec -it ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
+	for dbgpod in ${dbgpods}; do
+		${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
+		log "   lsmod"
+		${KUBECTL} exec -it ${dbgpod} -- sh -c "lsmod | grep amdgpu || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
+		log "   dmesg"
+		${KUBECTL} exec -it ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
+	done
 done
 ${KUBECTL} delete -f /tmp/techsupport.json
 
