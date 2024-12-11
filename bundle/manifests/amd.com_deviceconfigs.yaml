@@ -191,6 +191,15 @@ spec:
                           will be upgraded in parallel
                         minimum: 0
                         type: integer
+                      maxUnavailableNodes:
+                        default: 0
+                        description: MaxUnavailableNodes indicates maximum number
+                          of nodes that can be in a failed upgrade state beyond which
+                          upgrades will stop to keep cluster at a minimal healthy
+                          state 0 means no limit, upgrades will keep happening regardless
+                          of how many nodes are in a failed upgrade state
+                        minimum: 0
+                        type: integer
                       nodeDrainPolicy:
                         description: Node draining policy
                         properties:

@@ -85,7 +85,7 @@ func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config) upgradeM
 func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodeList *v1.NodeList) (ctrl.Result, error) {
 
 	var candidateNodes []v1.Node
-	var upgradeDone, upgradeInProgress int
+	var upgradeDone, upgradeInProgress, upgradeFailedState int
 
 	if deviceConfig.Spec.Driver.UpgradePolicy == nil ||
 		(deviceConfig.Spec.Driver.UpgradePolicy.Enable != nil &&
@@ -113,8 +113,17 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	}
 
 	if n.helper.specChanged(deviceConfig) {
-		/* Reset internal states */
-		n.helper.clearNodeStatus()
+		/* Reset internal states for nodes not in failed state or if in failed state but uncordoned */
+		for i := 0; i < len(nodeList.Items); i++ {
+			if n.helper.isNodeStateUpgradeFailed(&nodeList.Items[i]) {
+				if !nodeList.Items[i].Spec.Unschedulable {
+					n.helper.setNodeStatus(ctx, nodeList.Items[i].Name, amdv1alpha1.UpgradeStateEmpty)
+				}
+				continue
+			} else {
+				n.helper.setNodeStatus(ctx, nodeList.Items[i].Name, amdv1alpha1.UpgradeStateEmpty)
+			}
+		}
 	}
 	n.helper.setcurrentSpec(deviceConfig)
 
@@ -125,6 +134,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 
 		// 2. Handle failed nodes
 		if n.helper.isNodeStateUpgradeFailed(&nodeList.Items[i]) {
+			upgradeFailedState++
 			continue
 		}
 
@@ -171,6 +181,14 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	if policyViolated {
 		// Re-try after 20 seconds as the policy does not allow more parallel nodes
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
+	}
+
+	// Check if we have breached max number of unavailable nodes if the parameter is set
+	maxUnavailableNodes := deviceConfig.Spec.Driver.UpgradePolicy.MaxUnavailableNodes
+	if maxUnavailableNodes > 0 {
+		if upgradeFailedState >= maxUnavailableNodes {
+			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
+		}
 	}
 
 	// Add nodes per policy

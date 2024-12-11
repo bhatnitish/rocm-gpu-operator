@@ -173,6 +173,14 @@ spec:
         path: driver.upgradePolicy.maxParallelUpgrades
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:maxParallelUpgrades
+      - description: MaxUnavailableNodes indicates maximum number of nodes that can
+          be in a failed upgrade state beyond which upgrades will stop to keep cluster
+          at a minimal healthy state 0 means no limit, upgrades will keep happening
+          regardless of how many nodes are in a failed upgrade state
+        displayName: MaxUnavailableNodes
+        path: driver.upgradePolicy.maxUnavailableNodes
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailableNodes
       - description: Node draining policy
         displayName: NodeDrainPolicy
         path: driver.upgradePolicy.nodeDrainPolicy
