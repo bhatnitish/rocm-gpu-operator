@@ -35,6 +35,7 @@ package v1alpha1
 import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // DeviceConfigSpec describes how the AMD GPU operator should enable AMD GPU device for customer's use.
@@ -173,12 +174,11 @@ type DriverUpgradePolicySpec struct {
 	// +kubebuilder:validation:Minimum:=0
 	MaxParallelUpgrades int `json:"maxParallelUpgrades,omitempty"`
 	// MaxUnavailableNodes indicates maximum number of nodes that can be in a failed upgrade state beyond which upgrades will stop to keep cluster at a minimal healthy state
-	// 0 means no limit, upgrades will keep happening regardless of how many nodes are in a failed upgrade state
+	// Value can be an integer (ex: 2) which would mean atmost 2 nodes can be in failed state after which new upgrades will not start. Or it can be a percentage string(ex: "50%") from which absolute number will be calculated and round up
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MaxUnavailableNodes",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailableNodes"}
 	// +optional
-	// +kubebuilder:default:=0
-	// +kubebuilder:validation:Minimum:=0
-	MaxUnavailableNodes int `json:"maxUnavailableNodes,omitempty"`
+	// +kubebuilder:default:="25%"
+	MaxUnavailableNodes intstr.IntOrString `json:"maxUnavailableNodes,omitempty"`
 	// Node draining policy
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeDrainPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeDrainPolicy"}
 	// +optional

@@ -188,14 +188,19 @@ spec:
                         minimum: 0
                         type: integer
                       maxUnavailableNodes:
-                        default: 0
-                        description: MaxUnavailableNodes indicates maximum number
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 25%
+                        description: 'MaxUnavailableNodes indicates maximum number
                           of nodes that can be in a failed upgrade state beyond which
                           upgrades will stop to keep cluster at a minimal healthy
-                          state 0 means no limit, upgrades will keep happening regardless
-                          of how many nodes are in a failed upgrade state
-                        minimum: 0
-                        type: integer
+                          state Value can be an integer (ex: 2) which would mean atmost
+                          2 nodes can be in failed state after which new upgrades
+                          will not start. Or it can be a percentage string(ex: "50%")
+                          from which absolute number will be calculated and round
+                          up'
+                        x-kubernetes-int-or-string: true
                       nodeDrainPolicy:
                         description: Node draining policy
                         properties:

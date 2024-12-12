@@ -48,6 +48,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
@@ -176,19 +177,11 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		return ctrl.Result{}, nil
 	}
 
-	maxParallelUpgrades, policyViolated := n.helper.isUpgradePolicyViolated(upgradeInProgress, deviceConfig)
+	maxParallelUpgrades, policyViolated := n.helper.isUpgradePolicyViolated(upgradeInProgress, upgradeFailedState, len(nodeList.Items), deviceConfig)
 
 	if policyViolated {
 		// Re-try after 20 seconds as the policy does not allow more parallel nodes
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
-	}
-
-	// Check if we have breached max number of unavailable nodes if the parameter is set
-	maxUnavailableNodes := deviceConfig.Spec.Driver.UpgradePolicy.MaxUnavailableNodes
-	if maxUnavailableNodes > 0 {
-		if upgradeFailedState >= maxUnavailableNodes {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
-		}
 	}
 
 	// Add nodes per policy
@@ -236,7 +229,7 @@ type upgradeMgrHelperAPI interface {
 	isNodeStateInstallInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeStateUpgradeInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeStateUpgradeFailed(node *v1.Node) bool
-	isUpgradePolicyViolated(upgradeInProgress int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool)
+	isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool)
 
 	// Helper APIs for upgrade-in-progress nodes
 	cordonOrUncordonNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node, add bool) error
@@ -413,11 +406,15 @@ func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(node *v1.Node) bool {
 
 }
 
-func (h *upgradeMgrHelper) isUpgradePolicyViolated(upgradeInProgress int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool) {
+func (h *upgradeMgrHelper) isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool) {
 
 	maxParallelUpdates := deviceConfig.Spec.Driver.UpgradePolicy.MaxParallelUpgrades
+	maxUnavailableNodes, err := intstr.GetScaledValueFromIntOrPercent(&deviceConfig.Spec.Driver.UpgradePolicy.MaxUnavailableNodes, totalNodes, true)
+	if err != nil {
+		return maxParallelUpdates, true
+	}
 
-	return maxParallelUpdates, upgradeInProgress >= maxParallelUpdates
+	return maxParallelUpdates, (upgradeInProgress >= maxParallelUpdates) || (upgradeFailedState >= maxUnavailableNodes)
 
 }
 
