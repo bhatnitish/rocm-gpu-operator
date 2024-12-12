@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-12-12T07:59:45Z"
+    createdAt: "2024-12-12T00:57:24Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -654,6 +654,7 @@ spec:
           verbs:
           - get
           - list
+          - update
         - apiGroups:
           - security.openshift.io
           resourceNames:

@@ -14,6 +14,6 @@ spec:
     app.kubernetes.io/name: kmm
     app.kubernetes.io/part-of: kmm
     control-plane: controller
-  {{- include "kmm.selectorLabels" . | nindent 4 }}
+    {{- include "kmm.selectorLabels" . | nindent 4 }}
   ports:
-	{{- .Values.controllerMetricsService.ports | toYaml | nindent 2 }}
+  {{- .Values.controllerMetricsService.ports | toYaml | nindent 2 }}

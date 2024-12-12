@@ -14,6 +14,6 @@ spec:
     app.kubernetes.io/name: kmm
     app.kubernetes.io/part-of: kmm
     control-plane: webhook-server
-  {{- include "kmm.selectorLabels" . | nindent 4 }}
+    {{- include "kmm.selectorLabels" . | nindent 4 }}
   ports:
-	{{- .Values.webhookService.ports | toYaml | nindent 2 }}
+  {{- .Values.webhookService.ports | toYaml | nindent 2 }}
