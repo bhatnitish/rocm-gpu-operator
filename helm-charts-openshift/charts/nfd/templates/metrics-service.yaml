@@ -11,6 +11,6 @@ spec:
   type: {{ .Values.metricsService.type }}
   selector:
     control-plane: controller-manager
-    {{- include "nfd.selectorLabels" . | nindent 4 }}
+  {{- include "nfd.selectorLabels" . | nindent 4 }}
   ports:
-  {{- .Values.metricsService.ports | toYaml | nindent 2 }}
+	{{- .Values.metricsService.ports | toYaml | nindent 2 }}

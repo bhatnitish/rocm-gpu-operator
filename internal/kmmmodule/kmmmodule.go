@@ -315,7 +315,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 							},
 							{
 								Name:      "health",
-								MountPath: "/var/lib/amd-metrics-exporter/",
+								MountPath: "/var/lib/",
 							},
 						},
 					},
@@ -346,7 +346,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name: "health",
 						VolumeSource: v1.VolumeSource{
 							HostPath: &v1.HostPathVolumeSource{
-								Path: "/var/lib/amd-metrics-exporter/",
+								Path: "/var/lib/",
 								Type: &hostPathDirectory,
 							},
 						},

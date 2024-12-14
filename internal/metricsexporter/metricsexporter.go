@@ -96,7 +96,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		},
 		{
 			Name:      "health",
-			MountPath: "/var/lib/amd-metrics-exporter/",
+			MountPath: "/var/lib/",
 		},
 	}
 
@@ -134,7 +134,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			Name: "health",
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
-					Path: "/var/lib/amd-metrics-exporter/",
+					Path: "/var/lib/",
 					Type: &hostPathDirectory,
 				},
 			},
