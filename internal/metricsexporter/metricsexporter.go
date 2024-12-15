@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	defaultMetricsExporterImage       = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
+	defaultMetricsExporterImage       = "docker.io/rocm/device-metrics-exporter:v1.1.0"
 	defaultKubeRbacProxyImage         = "quay.io/brancz/kube-rbac-proxy:v0.18.1"
 	servicePort                 int32 = 5000
 	nobodyUser                        = 65532

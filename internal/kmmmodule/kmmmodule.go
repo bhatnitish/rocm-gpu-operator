@@ -74,6 +74,7 @@ const (
 	kmmNodeVersionLabelTemplate    = "kmm.node.kubernetes.io/version-module.%s.%s"
 	// check the device plugin image tags here: https://hub.docker.com/r/rocm/k8s-device-plugin/tags
 	defaultDevicePluginImage      = "rocm/k8s-device-plugin:1.31.0.0"
+	defaultUbiDevicePluginImage   = "rocm/k8s-device-plugin:rhubi-latest"
 	defaultOcDriversImageTemplate = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
@@ -214,6 +215,8 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$AMDGPU_BUILD", devBuildinfo[2], -1)
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$ROCM_BUILD", devBuildinfo[3], -1)
 		}
+	case "coreos":
+		dockerfileTemplate = buildOcDockerfile
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -245,10 +248,13 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	var devicePluginImage string
 
 	if devConfig.Spec.DevicePlugin.DevicePluginImage == "" {
-		devicePluginImage = defaultDevicePluginImage
+		if km.isOpenShift {
+			devicePluginImage = defaultUbiDevicePluginImage
+		} else {
+			devicePluginImage = defaultDevicePluginImage
+		}
 	} else {
 		devicePluginImage = devConfig.Spec.DevicePlugin.DevicePluginImage
-
 	}
 	hostPathDirectory := v1.HostPathDirectory
 
@@ -699,13 +705,26 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 func getKmodsToSign(isOpenShift bool, kernelVersion string) []string {
 	if isOpenShift {
 		return []string{
-			"/opt/lib/modules/" + kernelVersion + "/amd/amdgpu/amdgpu.ko",
-			"/opt/lib/modules/" + kernelVersion + "/amd/amdkcl/amdkcl.ko",
-			"/opt/lib/modules/" + kernelVersion + "/amd/amdxcp/amdxcp.ko",
-			"/opt/lib/modules/" + kernelVersion + "/scheduler/amd-sched.ko",
-			"/opt/lib/modules/" + kernelVersion + "/ttm/amdttm.ko",
-			"/opt/lib/modules/" + kernelVersion + "/amddrm_buddy.ko",
-			"/opt/lib/modules/" + kernelVersion + "/amddrm_ttm_helper.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amdgpu.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amdkcl.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amdxcp.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amd-sched.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amdttm.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amddrm_buddy.ko",
+			"/opt/lib/modules/" + kernelVersion + "/extra/amddrm_ttm_helper.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/gpu/drm/drm_exec.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/gpu/drm/drm_suballoc_helper.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/gpu/drm/display/drm_display_helper.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/acpi/video.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/platform/x86/wmi.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/i2c/algos/i2c-algo-bit.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/media/cec/core/cec.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/gpu/drm/drm_kms_helper.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/video/fbdev/core/syscopyarea.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/video/fbdev/core/sysfillrect.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/video/fbdev/core/sysimgblt.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/video/fbdev/core/fb_sys_fops.ko",
+			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/gpu/drm/drm.ko",
 		}
 	}
 	return []string{

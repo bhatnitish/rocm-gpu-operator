@@ -42,13 +42,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/discovery"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
-	rocmDevicePluginRepo     = "rocm/k8s-device-plugin"
-	defaultNodeLabellerImage = "rocm/k8s-device-plugin:labeller-latest"
+	rocmDevicePluginRepo        = "rocm/k8s-device-plugin"
+	rocmUbiNodeLabellerRepo     = "rocm/k8s-node-labeller"
+	defaultNodeLabellerImage    = "rocm/k8s-device-plugin:labeller-latest"
+	defaultUbiNodeLabellerImage = "rocm/k8s-node-labeller:rhubi-latest"
 )
 
 //go:generate mockgen -source=nodelabeller.go -package=nodelabeller -destination=mock_nodelabeller.go NodeLabeller
@@ -57,13 +61,28 @@ type NodeLabeller interface {
 }
 
 type nodeLabeller struct {
-	scheme *runtime.Scheme
+	scheme      *runtime.Scheme
+	isOpenShift bool
 }
 
 func NewNodeLabeller(scheme *runtime.Scheme) NodeLabeller {
 	return &nodeLabeller{
-		scheme: scheme,
+		scheme:      scheme,
+		isOpenShift: isOpenshift(),
 	}
+}
+
+func isOpenshift() bool {
+	if dc, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie()); err == nil {
+		if gplist, err := dc.ServerGroups(); err == nil {
+			for _, gp := range gplist.Groups {
+				if gp.Name == "route.openshift.io" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -174,7 +193,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 						},
 						Name:            "node-labeller-container",
 						WorkingDir:      "/root",
-						Image:           getNodeLabellerImage(devConfig),
+						Image:           nl.getNodeLabellerImage(devConfig),
 						ImagePullPolicy: v1.PullAlways,
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts:    containerVolumeMounts,
@@ -212,12 +231,18 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 
 }
 
-func getNodeLabellerImage(devConfig *amdv1alpha1.DeviceConfig) string {
+func (nl *nodeLabeller) getNodeLabellerImage(devConfig *amdv1alpha1.DeviceConfig) string {
 	if devConfig.Spec.DevicePlugin.NodeLabellerImage != "" {
 		// if the node labeller image is clearly specified, directly use the user provided image
 		return devConfig.Spec.DevicePlugin.NodeLabellerImage
 	} else if version := getDevicePluginVersion(devConfig); version != "" {
+		if nl.isOpenShift {
+			return rocmUbiNodeLabellerRepo + ":" + version
+		}
 		return rocmDevicePluginRepo + ":labeller-" + version
+	}
+	if nl.isOpenShift {
+		return defaultUbiNodeLabellerImage
 	}
 	return defaultNodeLabellerImage
 }

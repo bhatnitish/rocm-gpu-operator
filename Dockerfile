@@ -20,6 +20,9 @@ COPY Makefile Makefile
 COPY .git .git
 COPY dev.env dev.env
 
+# Copy the License
+COPY LICENSE LICENSE
+
 ARG TARGET
 
 # Build
@@ -34,6 +37,7 @@ ARG TARGET
 
 COPY --from=builder /opt/app-root/src/${TARGET} /usr/local/bin/manager
 COPY --from=builder /opt/app-root/src/kubectl /usr/local/bin/kubectl
+COPY --from=builder /opt/app-root/src/LICENSE /licenses/LICENSE
 
 RUN microdnf update -y && \
     microdnf install -y shadow-utils jq && \

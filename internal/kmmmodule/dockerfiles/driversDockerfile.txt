@@ -3,6 +3,7 @@ ARG DTK_AUTO
 FROM ${DTK_AUTO} as builder
 ARG KERNEL_VERSION
 ARG DRIVERS_VERSION
+ARG REPO_URL
 RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm -y && \
     crb enable && \
     sed -i "s/\$releasever/9/g" /etc/yum.repos.d/epel*.repo && \
@@ -18,15 +19,17 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
 RUN source /etc/os-release && \
     echo -e "[amdgpu] \n\
 name=amdgpu \n\
-baseurl=https://repo.radeon.com/amdgpu/${DRIVERS_VERSION}/el/${VERSION_ID}/main/x86_64/ \n\
+baseurl=${REPO_URL}/amdgpu/${DRIVERS_VERSION}/el/${VERSION_ID}/main/x86_64/ \n\
 enabled=1 \n\
 priority=50 \n\
 gpgcheck=1 \n\
-gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key" > /etc/yum.repos.d/amdgpu.repo
+gpgkey=${REPO_URL}/rocm/rocm.gpg.key" > /etc/yum.repos.d/amdgpu.repo
 
 RUN dnf clean all && \
     cat /etc/yum.repos.d/amdgpu.repo && \
     dnf install amdgpu-dkms -y && \
+    depmod ${KERNEL_VERSION} && \
+    find /lib/modules/${KERNEL_VERSION} -name "*.ko.xz" -exec xz -d {} \; && \
     depmod ${KERNEL_VERSION}
 
 RUN mkdir -p /modules_files && \
