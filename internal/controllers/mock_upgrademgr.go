@@ -369,18 +369,18 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeStateUpgradeStarted(node an
 }
 
 // isUpgradePolicyViolated mocks base method.
-func (m *MockupgradeMgrHelperAPI) isUpgradePolicyViolated(upgradeInProgress int, deviceConfig *v1alpha1.DeviceConfig) (int, bool) {
+func (m *MockupgradeMgrHelperAPI) isUpgradePolicyViolated(upgradeInProgress, upgradeFailedState, totalNodes int, deviceConfig *v1alpha1.DeviceConfig) (int, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "isUpgradePolicyViolated", upgradeInProgress, deviceConfig)
+	ret := m.ctrl.Call(m, "isUpgradePolicyViolated", upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
 // isUpgradePolicyViolated indicates an expected call of isUpgradePolicyViolated.
-func (mr *MockupgradeMgrHelperAPIMockRecorder) isUpgradePolicyViolated(upgradeInProgress, deviceConfig any) *gomock.Call {
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isUpgradePolicyViolated(upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isUpgradePolicyViolated", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isUpgradePolicyViolated), upgradeInProgress, deviceConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isUpgradePolicyViolated", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isUpgradePolicyViolated), upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig)
 }
 
 // setNodeStatus mocks base method.

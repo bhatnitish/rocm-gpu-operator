@@ -19,3 +19,6 @@ resources:
   - metrics_exporter_rbac_proxy_service_account.yaml
   - metrics_exporter_rbac_proxy_cluster_role.yaml
   - metrics_exporter_rbac_proxy_role_binding.yaml
+  - test_runner_service_account.yaml
+  - test_runner_role.yaml
+  - test_runner_role_binding.yaml

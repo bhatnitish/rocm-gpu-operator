@@ -40,6 +40,7 @@ import (
 	"sync"
 
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
+	"github.com/pensando/gpu-operator/internal/testrunner"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
@@ -85,9 +86,10 @@ func NewDeviceConfigReconciler(
 	client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
-	metricsHandler metricsexporter.MetricsExporter) *DeviceConfigReconciler {
+	metricsHandler metricsexporter.MetricsExporter,
+	testrunnerHandler testrunner.TestRunner) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler)
 	podEventHandler := newPodEventHandler(client)
 	return &DeviceConfigReconciler{
 		helper:          helper,
@@ -264,6 +266,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle metrics exporter for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	logger.Info("start test runner reconciliation", "enable", devConfig.Spec.TestRunner.Enable)
+	if err := r.helper.handleTestRunner(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle test runner for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	err = r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to build status for DeviceConfig %s: %v", req.NamespacedName, err)
@@ -299,6 +306,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error
 	deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
@@ -310,6 +318,7 @@ type deviceConfigReconcilerHelper struct {
 	kmmHandler        kmmmodule.KMMModuleAPI
 	nlHandler         nodelabeller.NodeLabeller
 	metricsHandler    metricsexporter.MetricsExporter
+	testrunnerHandler testrunner.TestRunner
 	nodeAssignments   map[string]string
 	conditionUpdater  conditions.ConditionUpdater
 	validator         validator.ValidatorAPI
@@ -320,7 +329,8 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	upgradeMgrHandler upgradeMgrAPI,
-	metricsHandler metricsexporter.MetricsExporter) deviceConfigReconcilerHelperAPI {
+	metricsHandler metricsexporter.MetricsExporter,
+	testrunnerHandler testrunner.TestRunner) deviceConfigReconcilerHelperAPI {
 	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
 	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
@@ -328,6 +338,7 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 		kmmHandler:        kmmHandler,
 		nlHandler:         nlHandler,
 		metricsHandler:    metricsHandler,
+		testrunnerHandler: testrunnerHandler,
 		nodeAssignments:   make(map[string]string),
 		conditionUpdater:  conditionUpdater,
 		validator:         validator,
@@ -555,8 +566,36 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Co
 	return nil
 }
 
+func (dcrh *deviceConfigReconcilerHelper) finalizeTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+
+	trDS := appsv1.DaemonSet{}
+	dsName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-" + testrunner.TestRunnerName,
+	}
+
+	if err := dcrh.client.Get(ctx, dsName, &trDS); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get test runner daemonset %s: %v", dsName, err)
+		}
+	} else {
+		logger.Info("deleting test runner daemonset", "daemonset", dsName)
+		if err := dcrh.client.Delete(ctx, &trDS); err != nil {
+			return fmt.Errorf("failed to delete test runner daemonset %s: %v", dsName, err)
+		}
+	}
+
+	return nil
+}
+
 func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
+
+	// finalize test runner before metrics exporter
+	if err := dcrh.finalizeTestRunner(ctx, devConfig); err != nil {
+		return err
+	}
 
 	// finalize metrics exporter and metrics service
 	// this should be removed firstly
@@ -854,6 +893,31 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 		return err
 	}
 	logger.Info("Reconciled metrics service", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + testrunner.TestRunnerName},
+	}
+
+	// delete if disabled
+	// if metrics exporter is disabled, disable the test runner as well
+	// because the test runner's auto unhealthy GPU watch functionality is depending on metrics exporter
+	if (devConfig.Spec.TestRunner.Enable == nil || !*devConfig.Spec.TestRunner.Enable) ||
+		(devConfig.Spec.MetricsExporter.Enable == nil || !*devConfig.Spec.MetricsExporter.Enable) {
+		return dcrh.finalizeTestRunner(ctx, devConfig)
+	}
+
+	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
+		return dcrh.testrunnerHandler.SetTestRunnerAsDesired(ds, devConfig)
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("Reconciled test runner", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
 	return nil
 }

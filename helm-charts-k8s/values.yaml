@@ -60,6 +60,9 @@ nodeLabeller:
 metricsExporter:
   serviceAccount:
     annotations: {}
+testRunner:
+  serviceAccount:
+    annotations: {}
 global:
   proxy:
     env: {}

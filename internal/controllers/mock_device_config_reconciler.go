@@ -262,6 +262,20 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNodeLabeller(ct
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeLabeller", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleNodeLabeller), ctx, devConfig, nodes)
 }
 
+// handleTestRunner mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleTestRunner(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleTestRunner", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// handleTestRunner indicates an expected call of handleTestRunner.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleTestRunner(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleTestRunner", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleTestRunner), ctx, devConfig)
+}
+
 // listDeviceConfigs mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) listDeviceConfigs(ctx context.Context) (*v1alpha1.DeviceConfigList, error) {
 	m.ctrl.T.Helper()

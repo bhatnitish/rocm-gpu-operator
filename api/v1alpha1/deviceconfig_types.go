@@ -55,6 +55,11 @@ type DeviceConfigSpec struct {
 	// +optional
 	DevicePlugin DevicePluginSpec `json:"devicePlugin,omitempty"`
 
+	// test runner
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TestRunner",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:testRunner"}
+	// +optional
+	TestRunner TestRunnerSpec `json:"testRunner,omitempty"`
+
 	// Selector describes on which nodes the GPU Operator should enable the GPU device.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
 	// +optional
@@ -389,6 +394,45 @@ type MetricsConfig struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Name",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:name"}
 	// +optional
 	Name string `json:"name,omitempty"`
+}
+
+type TestRunnerSpec struct {
+	// enable test runner, disabled by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	// +optional
+	Enable *bool `json:"enable,omitempty"`
+
+	// test runner image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	Image string `json:"image,omitempty"`
+
+	// image pull policy for test runner
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+
+	// test runner image registry secret used to pull/push images
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+
+	// config map to customize the config for test runner, if not specified default test config will be aplied
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Secret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configmap"}
+	// +optional
+	Config *v1.LocalObjectReference `json:"config,omitempty"`
+
+	// Selector describes on which nodes to enable test runner
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
+	// +optional
+	Selector map[string]string `json:"selector,omitempty"`
+
+	// upgrade policy for test runner daemonset
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during

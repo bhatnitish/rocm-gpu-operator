@@ -37,6 +37,7 @@ import (
 	"fmt"
 
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
+	"github.com/pensando/gpu-operator/internal/testrunner"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -192,7 +193,7 @@ var _ = Describe("getLabelsPerModules", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -237,7 +238,7 @@ var _ = Describe("setFinalizer", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -273,7 +274,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -305,6 +306,11 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		Namespace: devConfigNamespace,
 	}
 
+	testrunnerNN := types.NamespacedName{
+		Name:      devConfigName + "-" + testrunner.TestRunnerName,
+		Namespace: devConfigNamespace,
+	}
+
 	nn := types.NamespacedName{
 		Name:      devConfigName,
 		Namespace: devConfigNamespace,
@@ -322,6 +328,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		}
 
 		kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1)
+		kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1)
 		kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2)
 		kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(fmt.Errorf("some error"))
 
@@ -358,6 +365,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		}
 
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
@@ -378,6 +386,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		}
 
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
@@ -400,6 +409,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		controllerutil.AddFinalizer(devConfig, deviceConfigFinalizer)
 
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
@@ -430,6 +440,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		controllerutil.AddFinalizer(devConfig, deviceConfigFinalizer)
 
 		gomock.InOrder(
+			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
@@ -459,7 +470,7 @@ var _ = Describe("handleKMMModule", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -527,7 +538,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -594,7 +605,7 @@ var _ = Describe("handleNodeLabeller", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		nodeLabellerHelper = nodelabeller.NewMockNodeLabeller(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nodeLabellerHelper, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nodeLabellerHelper, nil, nil, nil)
 	})
 
 	ctx := context.Background()

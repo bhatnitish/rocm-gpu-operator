@@ -363,6 +363,67 @@ spec:
                 description: Selector describes on which nodes the GPU Operator should
                   enable the GPU device.
                 type: object
+              testRunner:
+                description: test runner
+                properties:
+                  config:
+                    description: config map to customize the config for test runner,
+                      if not specified default test config will be aplied
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  enable:
+                    description: enable test runner, disabled by default
+                    type: boolean
+                  image:
+                    description: test runner image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  imagePullPolicy:
+                    description: image pull policy for test runner
+                    enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                    type: string
+                  imageRegistrySecret:
+                    description: test runner image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  selector:
+                    additionalProperties:
+                      type: string
+                    description: Selector describes on which nodes to enable test runner
+                    type: object
+                  upgradePolicy:
+                    description: upgrade policy for test runner daemonset
+                    properties:
+                      maxUnavailable:
+                        default: 1
+                        description: MaxUnavailable specifies the maximum number of
+                          Pods that can be unavailable during the update process. Applicable
+                          for RollingUpdate only. Default value is 1.
+                        format: int32
+                        type: integer
+                      upgradeStrategy:
+                        description: UpgradeStrategy specifies the type of the DaemonSet
+                          update. Valid values are "RollingUpdate" (default) or "OnDelete".
+                        enum:
+                        - RollingUpdate
+                        - OnDelete
+                        type: string
+                    type: object
+                type: object
             type: object
           status:
             description: DeviceConfigStatus defines the observed state of Module.

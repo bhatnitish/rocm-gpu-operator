@@ -315,6 +315,60 @@ spec:
         path: selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: test runner
+        displayName: TestRunner
+        path: testRunner
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:testRunner
+      - description: config map to customize the config for test runner, if not specified
+          default test config will be aplied
+        displayName: Secret
+        path: testRunner.config
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configmap
+      - description: enable test runner, disabled by default
+        displayName: Enable
+        path: testRunner.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: test runner image
+        displayName: Image
+        path: testRunner.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for test runner
+        displayName: ImagePullPolicy
+        path: testRunner.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: test runner image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: testRunner.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: Selector describes on which nodes to enable test runner
+        displayName: Selector
+        path: testRunner.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: upgrade policy for test runner daemonset
+        displayName: UpgradePolicy
+        path: testRunner.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: testRunner.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: testRunner.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
       statusDescriptors:
       - description: number of the actually deployed and running pods
         displayName: AvailableNumber
