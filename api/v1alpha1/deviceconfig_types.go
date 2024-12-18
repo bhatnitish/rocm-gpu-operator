@@ -455,6 +455,7 @@ type ModuleStatus struct {
 	KernelVersion      string       `json:"kernelVersion,omitempty"`
 	LastTransitionTime string       `json:"lastTransitionTime,omitempty"`
 	Status             UpgradeState `json:"status,omitempty"`
+	UpgradeStartTime   string       `json:"upgradeStartTime,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.

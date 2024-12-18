@@ -479,14 +479,27 @@ func (dcrh *deviceConfigReconcilerHelper) getDeviceConfigOwnedKMMModule(ctx cont
 
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
+	previousUpgradeTimes := make(map[string]string)
+	// Persist the UpgradeStartTime
+	for nodeName, moduleStatus := range devConfig.Status.NodeModuleStatus {
+		previousUpgradeTimes[nodeName] = moduleStatus.UpgradeStartTime
+	}
 	devConfig.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{}
 
 	// for each node, fetch its status of modules configured by given DeviceConfig
 	for _, node := range nodes.Items {
 		// if there is no module configured for given node
-		// the info under that node name will have only status
+		// the info under that node name will have only status and upgrade start time
 		// then it will be clear to see which node didn't get module configured
-		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name)}
+		upgradeStartTime := previousUpgradeTimes[node.Name]
+
+		currentStatus := dcrh.upgradeMgrHandler.GetNodeStatus(node.Name)
+		if currentStatus == amdv1alpha1.UpgradeStateFailed || currentStatus == amdv1alpha1.UpgradeStateCordonFailed || currentStatus == amdv1alpha1.UpgradeStateUncordonFailed || currentStatus == amdv1alpha1.UpgradeStateDrainFailed || currentStatus == amdv1alpha1.UpgradeStateRebootFailed || currentStatus == amdv1alpha1.UpgradeStateComplete || currentStatus == amdv1alpha1.UpgradeStateInstallComplete {
+			upgradeStartTime = ""
+		} else if upgradeStartTime == "" {
+			upgradeStartTime = dcrh.upgradeMgrHandler.GetNodeUpgradeStartTime(node.Name)
+		}
+		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name), UpgradeStartTime: upgradeStartTime}
 
 		nmc := kmmv1beta1.NodeModulesConfig{}
 		err := dcrh.client.Get(ctx, types.NamespacedName{Name: node.Name}, &nmc)
@@ -507,6 +520,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 						KernelVersion:      module.Config.KernelVersion,
 						LastTransitionTime: module.LastTransitionTime.String(),
 						Status:             dcrh.upgradeMgrHandler.GetNodeStatus(node.Name),
+						UpgradeStartTime:   upgradeStartTime,
 					}
 				}
 			}

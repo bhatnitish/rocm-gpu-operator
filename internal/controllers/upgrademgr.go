@@ -68,6 +68,7 @@ type upgradeMgrAPI interface {
 	HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (ctrl.Result, error)
 	HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (ctrl.Result, error)
 	GetNodeStatus(nodeName string) amdv1alpha1.UpgradeState
+	GetNodeUpgradeStartTime(nodeName string) string
 }
 
 func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config) upgradeMgrAPI {
@@ -116,7 +117,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	if n.helper.specChanged(deviceConfig) {
 		/* Reset internal states for nodes not in failed state or if in failed state but uncordoned */
 		for i := 0; i < len(nodeList.Items); i++ {
-			if n.helper.isNodeStateUpgradeFailed(&nodeList.Items[i]) {
+			if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
 				if !nodeList.Items[i].Spec.Unschedulable {
 					n.helper.setNodeStatus(ctx, nodeList.Items[i].Name, amdv1alpha1.UpgradeStateEmpty)
 				}
@@ -134,7 +135,8 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		n.helper.handleInitStatus(ctx, &nodeList.Items[i])
 
 		// 2. Handle failed nodes
-		if n.helper.isNodeStateUpgradeFailed(&nodeList.Items[i]) {
+		if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
+			n.helper.clearUpgradeStartTime(nodeList.Items[i].Name)
 			upgradeFailedState++
 			continue
 		}
@@ -147,6 +149,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 
 		// 4. Handle Completed nodes
 		if n.helper.isNodeReady(ctx, &nodeList.Items[i], deviceConfig) {
+			n.helper.clearUpgradeStartTime(nodeList.Items[i].Name)
 			upgradeDone++
 			continue
 		}
@@ -189,6 +192,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 
 		// Mark the state as progress
 		n.helper.setNodeStatus(ctx, candidateNodes[i].Name, amdv1alpha1.UpgradeStateStarted)
+		n.helper.setUpgradeStartTime(candidateNodes[i].Name)
 		// Drain/Delete the pods and set the expected module version in module-config label of the ndoe
 		go n.helper.handleNodeUpgrade(ctx, *deviceConfig, candidateNodes[i])
 
@@ -215,6 +219,11 @@ func (n *upgradeMgr) GetNodeStatus(nodeName string) (status amdv1alpha1.UpgradeS
 	return n.helper.getNodeStatus(nodeName)
 }
 
+// GetNodeStaGetNodeUpgradeStartTimetus returns the time when upgrade started on the node
+func (n *upgradeMgr) GetNodeUpgradeStartTime(nodeName string) string {
+	return n.helper.getUpgradeStartTime(nodeName)
+}
+
 /*=========================================== Upgrade Manager Helper APIs ==========================================*/
 
 //go:generate mockgen -source=upgrademgr.go -package=controllers -destination=mock_upgrademgr.go upgradeMgrHelperAPI
@@ -228,7 +237,7 @@ type upgradeMgrHelperAPI interface {
 	isNodeStateUpgradeStarted(node *v1.Node) bool
 	isNodeStateInstallInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeStateUpgradeInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
-	isNodeStateUpgradeFailed(node *v1.Node) bool
+	isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool)
 
 	// Helper APIs for upgrade-in-progress nodes
@@ -247,17 +256,22 @@ type upgradeMgrHelperAPI interface {
 	setcurrentSpec(deviceConfig *amdv1alpha1.DeviceConfig)
 	getNodeStatus(nodeName string) amdv1alpha1.UpgradeState
 	setNodeStatus(ctx context.Context, nodeName string, status amdv1alpha1.UpgradeState)
+	getUpgradeStartTime(nodeName string) string
+	setUpgradeStartTime(nodeName string)
+	clearUpgradeStartTime(nodeName string)
+	checkUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	clearNodeStatus()
 	isInit() bool
 }
 
 type upgradeMgrHelper struct {
-	client       client.Client
-	k8sInterface kubernetes.Interface
-	drainHelper  *drain.Helper
-	nodeStatus   *sync.Map
-	init         bool
-	currentSpec  driverSpec
+	client               client.Client
+	k8sInterface         kubernetes.Interface
+	drainHelper          *drain.Helper
+	nodeStatus           *sync.Map
+	nodeUpgradeStartTime *sync.Map
+	init                 bool
+	currentSpec          driverSpec
 }
 
 type driverSpec struct {
@@ -268,9 +282,10 @@ type driverSpec struct {
 // Initialize upgrade manager helper interface
 func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) upgradeMgrHelperAPI {
 	return &upgradeMgrHelper{
-		client:       client,
-		k8sInterface: k8sInterface,
-		nodeStatus:   new(sync.Map),
+		client:               client,
+		k8sInterface:         k8sInterface,
+		nodeStatus:           new(sync.Map),
+		nodeUpgradeStartTime: new(sync.Map),
 	}
 }
 
@@ -396,9 +411,15 @@ func (h *upgradeMgrHelper) isNodeStateUpgradeInProgress(ctx context.Context, nod
 }
 
 // Check the Failure status for nodes that are being upgraded.
-func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(node *v1.Node) bool {
+func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool {
 
+	var nodeUpgradeTimeout bool
 	nodeStatus := h.getNodeStatus(node.Name)
+	nodeUpgradeTimeout = h.checkUpgradeTimeExceeded(ctx, node.Name, deviceConfig)
+	if nodeUpgradeTimeout {
+		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateFailed)
+		return true
+	}
 	return (nodeStatus == amdv1alpha1.UpgradeStateFailed ||
 		nodeStatus == amdv1alpha1.UpgradeStateCordonFailed ||
 		nodeStatus == amdv1alpha1.UpgradeStateUncordonFailed ||
@@ -416,6 +437,47 @@ func (h *upgradeMgrHelper) isUpgradePolicyViolated(upgradeInProgress int, upgrad
 
 	return maxParallelUpdates, (upgradeInProgress >= maxParallelUpdates) || (upgradeFailedState >= maxUnavailableNodes)
 
+}
+
+func (h *upgradeMgrHelper) getUpgradeStartTime(nodeName string) string {
+	if value, ok := h.nodeUpgradeStartTime.Load(nodeName); ok {
+		return value.(string)
+	}
+
+	return ""
+}
+
+func (h *upgradeMgrHelper) setUpgradeStartTime(nodeName string) {
+	currentTime := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
+	h.nodeUpgradeStartTime.Store(nodeName, currentTime)
+}
+
+func (h *upgradeMgrHelper) clearUpgradeStartTime(nodeName string) {
+	h.nodeUpgradeStartTime.Store(nodeName, "")
+}
+
+func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool {
+	// Fetch upgrade time started from node module status to ensure handling timeouts across operator restarts
+	for name, moduleStatus := range deviceConfig.Status.NodeModuleStatus {
+		if name == nodeName {
+			upgradeStartTime := moduleStatus.UpgradeStartTime
+
+			if upgradeStartTime == "" {
+				return false
+			}
+
+			upgradeTime, err := time.Parse("2006-01-02 15:04:05 UTC", upgradeStartTime)
+			if err != nil {
+				return false
+			}
+
+			// Check if Upgrade has been in progress for more than an hour
+			if time.Since(upgradeTime) > time.Hour {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (h *upgradeMgrHelper) getNodeStatus(nodeName string) amdv1alpha1.UpgradeState {

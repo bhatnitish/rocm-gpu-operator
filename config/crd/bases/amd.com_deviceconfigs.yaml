@@ -560,6 +560,8 @@ spec:
                       description: UpgradeState captures the state of the upgrade
                         process on a node
                       type: string
+                    upgradeStartTime:
+                      type: string
                   type: object
                 description: NodeModuleStatus contains per node status of driver module
                   installation
