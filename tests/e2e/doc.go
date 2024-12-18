@@ -34,4 +34,5 @@ type E2ESuite struct {
 	defaultDriverVersion string
 	openshift            bool
 	simEnable            bool
+	ciEnv                bool
 }

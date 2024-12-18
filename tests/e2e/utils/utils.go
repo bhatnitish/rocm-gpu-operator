@@ -44,6 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -1278,5 +1279,33 @@ func RebootNodesWithWait(ctx context.Context, cl *kubernetes.Clientset, nodes []
 		return <-errCh
 	}
 
+	return nil
+}
+
+func PatchKMMDeploymentWithCIENVFlag(cl *kubernetes.Clientset) error {
+	patch := []map[string]interface{}{
+		{
+			"op":    "add",
+			"path":  "/spec/template/spec/containers/0/env/-",
+			"value": map[string]string{"name": "CI_ENV", "value": "true"},
+		},
+	}
+
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch: %v", err)
+	}
+
+	_, err = cl.AppsV1().Deployments("kube-amd-gpu").Patch(
+		context.TODO(),
+		"amd-gpu-operator-kmm-controller",
+		types.JSONPatchType,
+		patchBytes,
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to patch KMM controller deployment: %v", err)
+	}
+	time.Sleep(60 * time.Second)
 	return nil
 }

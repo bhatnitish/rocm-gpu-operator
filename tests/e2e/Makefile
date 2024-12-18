@@ -10,6 +10,11 @@ ifdef SIM_ENABLE
 	TEST_ARGS += "-simEnable"
 endif
 
+ifdef CI_ENV
+	TEST_ARGS += "-ciEnv"
+endif
+
+
 all:
 	go test -test.timeout=360m -v $(TEST_ARGS);
 lint:

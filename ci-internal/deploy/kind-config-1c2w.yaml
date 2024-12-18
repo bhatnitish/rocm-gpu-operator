@@ -29,8 +29,8 @@ nodes:
   - role: control-plane
     image: registry.test.pensando.io:5000/kindest-node:v1.31.2
     extraMounts:
-      - hostPath: /sys/fs/cgroup
-        containerPath: /sys/fs/cgroup
+      - hostPath: /sys/module
+        containerPath: /sys/module
     # Configure Kubelet to use cgroup v1
     kubeadmConfigPatches:
       - |
@@ -40,8 +40,8 @@ nodes:
   - role: worker
     image: registry.test.pensando.io:5000/kindest-node:v1.31.2
     extraMounts:
-      - hostPath: /sys/fs/cgroup
-        containerPath: /sys/fs/cgroup
+      - hostPath: /sys/module
+        containerPath: /sys/module
     # Configure Kubelet to use cgroup v1
     kubeadmConfigPatches:
       - |
@@ -51,8 +51,8 @@ nodes:
   - role: worker
     image: registry.test.pensando.io:5000/kindest-node:v1.31.2
     extraMounts:
-      - hostPath: /sys/fs/cgroup
-        containerPath: /sys/fs/cgroup
+      - hostPath: /sys/module
+        containerPath: /sys/module
     # Configure Kubelet to use cgroup v1
     kubeadmConfigPatches:
       - |
