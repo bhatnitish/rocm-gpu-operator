@@ -7,28 +7,12 @@ data:
   config.json: |
     {
       "SystemConfig": {
-        "RunnerLogPath": "/var/run/test-runner/test-runner.log",
-        "ResultLogDir": "/var/run/test-runner/results/",
-        "StatusDBPath": "/var/run/test-runner/status.db"
+        "ResultLogDir": "/var/run/test-runner/results/"
       },
       "TestConfig": {
         "GPU_HEALTH_CHECK": {
           "TestLocationTrigger": {
             "global": {
-              "TestParameters": {
-                "AUTO_UNHEALTHY_GPU_WATCH": {
-                  "TestCases": [
-                    {
-                      "Recipe": "mem",
-                      "Iterations": 1,
-                      "StopOnFailure": true,
-                      "TimeoutSeconds": 600
-                    }
-                  ]
-                }
-              }
-            },
-            "node1": {
               "TestParameters": {
                 "AUTO_UNHEALTHY_GPU_WATCH": {
                   "TestCases": [

@@ -181,6 +181,14 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 					},
 				},
 				{
+					Name: "NODE_NAME",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{
+							FieldPath: "spec.nodeName",
+						},
+					},
+				},
+				{
 					Name:  "TEST_CATEGORY",
 					Value: "GPU_HEALTH_CHECK",
 				},
