@@ -452,7 +452,7 @@ func (s *E2ESuite) deleteDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
 
 func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 	devCfg := s.getDeviceConfig(c)
-	driverEnable := false
+	driverEnable := true
 	devCfg.Spec.Driver.Enable = &driverEnable
 	log.Infof("create %v", s.cfgName)
 	s.createDeviceConfig(devCfg, c)

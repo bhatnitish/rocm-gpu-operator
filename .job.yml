@@ -60,6 +60,7 @@ targets:
     "cd ci-internal && ./setup_e2e.sh;
     cd ../ && SIM_ENABLE=1 make && SIM_ENABLE=1 make docker-push && helm repo add jetstack https://charts.jetstack.io --force-update && helm install cert-manager jetstack/cert-manager --namespace cert-manager  --create-namespace --version v1.15.1 --set crds.enabled=true && SIM_ENABLE=1 make helm-install && sleep 60 && kubectl get pods -A | grep amd && CI_ENV=1 SIM_ENABLE=1 make -C tests/e2e/ && kubectl get pods -A | grep amd"]
     owners: ["email:sajmera@amd.com"]
+    queue_name: ubuntu2204
     area:
     sub-area:
     feature:
@@ -78,3 +79,6 @@ jobs:
     labels: ["CI-Sanity-Build"]
       # ci-internal:
     #    labels: [""]
+host_mounts:
+  "/sys/module": "/sys/module"
+  "/lib/modules": "/lib/modules"
