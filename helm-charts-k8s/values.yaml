@@ -11,7 +11,7 @@ controllerManager:
       allowPrivilegeEscalation: false
     image:
       repository: registry.test.pensando.io:5000/amd-gpu-operator
-      tag: dev
+      tag: latest
     imagePullPolicy: Always
     imagePullSecrets: ""
     resources:

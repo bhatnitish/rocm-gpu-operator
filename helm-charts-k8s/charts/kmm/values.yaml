@@ -6,14 +6,14 @@ controller:
       allowPrivilegeEscalation: false
     env:
       relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
-      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:dev
-      relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:dev
+      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:latest
+      relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:latest
       relatedImageBuildPullSecret: ""
       relatedImageSignPullSecret: ""
       relatedImageWorkerPullSecret: ""
     image:
       repository: registry.test.pensando.io:5000/kernel-module-management-operator
-      tag: dev
+      tag: latest
     imagePullPolicy: Always
     imagePullSecrets: ""
     resources:
@@ -75,7 +75,7 @@ webhookServer:
       allowPrivilegeEscalation: false
     image:
       repository: registry.test.pensando.io:5000/kernel-module-management-webhook-server
-      tag: dev
+      tag: latest
     imagePullPolicy: Always
     imagePullSecrets: ""
     resources:
