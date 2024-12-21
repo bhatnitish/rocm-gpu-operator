@@ -269,6 +269,24 @@ func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
 	log.Info(fmt.Sprintf("updated device config %+v", result))
 }
 
+func (s *E2ESuite) patchDevicePluginImage(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchDevicePluginImage(devCfg)
+	assert.NoError(c, err, "failed to update %v", devCfg.Name)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
+func (s *E2ESuite) patchNodeLabellerImage(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchNodeLabellerImage(devCfg)
+	assert.NoError(c, err, "failed to update %v", devCfg.Name)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
+func (s *E2ESuite) patchMetricsExporterImage(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchMetricsExporterImage(devCfg)
+	assert.NoError(c, err, "failed to update %v", devCfg.Name)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
 func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
 		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
@@ -452,7 +470,7 @@ func (s *E2ESuite) deleteDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
 
 func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 	devCfg := s.getDeviceConfig(c)
-	driverEnable := true
+	driverEnable := false
 	devCfg.Spec.Driver.Enable = &driverEnable
 	log.Infof("create %v", s.cfgName)
 	s.createDeviceConfig(devCfg, c)
@@ -460,9 +478,6 @@ func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 }
 
 func (s *E2ESuite) TestDeployment(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -505,9 +520,6 @@ func (s *E2ESuite) TestDeployment(c *C) {
 // 5. make sure the new version driver was loaded
 
 func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -566,9 +578,6 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 // 4. update the worker node label to the new driver version
 // 5. make sure the new version driver was loaded
 func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -804,9 +813,6 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 }
 
 func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 
 	ctx := context.TODO()
 	noamdWorkerList := utils.GetNonAMDGpuWorker(s.clientSet)
@@ -1245,9 +1251,6 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 }
 
 func (s *E2ESuite) TestDifferentCRsForDifferentNodes(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	var nodes []v1.Node
 	if s.simEnable {
 		nodes = utils.GetNonAMDGpuWorker(s.clientSet)
@@ -1310,9 +1313,6 @@ func (s *E2ESuite) TestDifferentCRsForDifferentNodes(c *C) {
 }
 
 func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -1361,9 +1361,6 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 }
 
 func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -1415,9 +1412,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 }
 
 func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -1475,9 +1469,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 }
 
 func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -1535,9 +1526,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 }
 
 func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -1586,9 +1574,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 }
 
 func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
@@ -1634,4 +1619,69 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
+}
+
+func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.DevicePlugin.DevicePluginImage = "rocm/k8s-device-plugin:1.31.0.0"
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = "rocm/k8s-device-plugin:labeller-1.31.0.0"
+	upgradePolicy := v1alpha1.DaemonSetUpgradeSpec{
+		UpgradeStrategy: "RollingUpdate",
+		MaxUnavailable:  1,
+	}
+	devCfg.Spec.DevicePlugin.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+
+	// upgrade
+	// update the CR's device plugin with image
+	devCfg.Spec.DevicePlugin.DevicePluginImage = "rocm/k8s-device-plugin:latest"
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = "rocm/k8s-device-plugin:labeller-latest"
+	s.patchDevicePluginImage(devCfg, c)
+	s.patchNodeLabellerImage(devCfg, c)
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+}
+
+func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	upgradePolicy := v1alpha1.DaemonSetUpgradeSpec{
+		UpgradeStrategy: "RollingUpdate",
+		MaxUnavailable:  2,
+	}
+	devCfg.Spec.MetricsExporter.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
+
+	// upgrade
+	// update the CR's device plugin with image
+	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/rocm-metrics-exporter:v1"
+	s.patchMetricsExporterImage(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
 }

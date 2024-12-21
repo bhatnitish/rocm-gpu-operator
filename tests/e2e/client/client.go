@@ -67,6 +67,9 @@ type DeviceConfigsInterface interface {
 	Update(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	List(opts metav1.ListOptions) (*v1alpha1.DeviceConfigList, error)
 	PatchDriversVersion(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	PatchDevicePluginImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	PatchNodeLabellerImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	PatchMetricsExporterImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	Get(name string, options metav1.GetOptions) (*v1alpha1.DeviceConfig, error)
 	Delete(name string) (*v1alpha1.DeviceConfig, error)
 }
@@ -144,6 +147,90 @@ func (c *deviceConfigsClient) PatchDriversVersion(devCfg *v1alpha1.DeviceConfig)
 		"spec": map[string]interface{}{
 			"driver": map[string]string{
 				"version": devCfg.Spec.Driver.Version,
+			},
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) PatchDevicePluginImage(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"devicePlugin": map[string]string{
+				"devicePluginImage": devCfg.Spec.DevicePlugin.DevicePluginImage,
+			},
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) PatchNodeLabellerImage(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"devicePlugin": map[string]string{
+				"nodeLabellerImage": devCfg.Spec.DevicePlugin.NodeLabellerImage,
+			},
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) PatchMetricsExporterImage(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"metricsExporter": map[string]string{
+				"image": devCfg.Spec.MetricsExporter.Image,
 			},
 		},
 	}
