@@ -5,8 +5,8 @@ external_projects_remote_repository = ""
 external_projects = ["amd-gpu-operator"]
 external_projects_current_project = "amd-gpu-operator"
 
-project = "AMD GPU Operator"
-version = "1.0.0"
+project = "AMD Instinct Hub"
+version = "1.1.0"
 release = version
 html_title = f"{project} {version}"
 author = "Advanced Micro Devices, Inc."

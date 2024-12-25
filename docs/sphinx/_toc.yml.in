@@ -6,8 +6,12 @@ subtrees:
   - caption: Usage
     entries:
     - file: overview
+    - file: releasenotes
+      title: Release Notes
     - file: usage
-    - file: troubleshooting     
+    - file: troubleshooting
+    - file: knownlimitations
+      title: Known Limitations    
   - caption: Installation
     entries:
       - file: installation/kubernetes-helm
@@ -24,7 +28,7 @@ subtrees:
       - file: drivers/precompiled-driver
       - file: drivers/secure-boot
       - file: drivers/upgrading
-      - file: drivers/kernel
+      - file: upgrades/kernel
   - caption: Metrics
     entries:
       - file: metrics/exporter
@@ -36,5 +40,6 @@ subtrees:
   - caption: Contributing
     entries:
       - file: contributing/developer-guide
+      - file: contributing/documentation-build-guide
       - file: contributing/documentation-standards
 
