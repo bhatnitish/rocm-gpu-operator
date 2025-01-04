@@ -2,7 +2,16 @@
 TEST_CONTAINER_URL ?= registry.test.pensando.io:5000/pensando/gpu-op
 TEST_CONTAINER_VERSION ?=1.2
 
-# CHANNELS define the bundle channels used in the bundle.
+install-docker:
+	mkdir tmp_pkgs; cd tmp_pkgs; \
+		for pkg in "containerd.io_1.6.21-1_amd64.deb" \
+		"docker-ce_24.0.2-1~debian.12~bookworm_amd64.deb" \
+		"docker-ce-rootless-extras_24.0.2-1~debian.12~bookworm_amd64.deb" \
+		"docker-buildx-plugin_0.10.5-1~debian.12~bookworm_amd64.deb" \
+		"docker-ce-cli_24.0.2-1~debian.12~bookworm_amd64.deb" \
+		"docker-compose-plugin_2.18.1-1~debian.12~bookworm_amd64.deb"; \
+		do wget http://pm.test.pensando.io/cicd/docker/$${pkg}; done; sudo dpkg -i *.deb; cd ../; rm -r tmp_pkgs
+
 docker/install_box:
 	@if [ ! -x /usr/local/bin/box ]; then echo "Installing box, sudo is required"; curl -sSL pm.test.pensando.io/tools/box-builder/install.sh | sudo bash; fi
 
