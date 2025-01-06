@@ -49,9 +49,13 @@ import (
 
 const (
 	// TODO: determine where to host the test runner image and put the registry URL here
-	defaultTestRunnerImage = "registry.test.pensando.io:5000/test-runner/test-runner:dev"
-	TestRunnerName         = "test-runner"
-	defaultSAName          = "amd-gpu-operator-test-runner"
+	defaultTestRunnerImage       = "registry.test.pensando.io:5000/test-runner/test-runner:dev"
+	TestRunnerName               = "test-runner"
+	defaultSAName                = "amd-gpu-operator-test-runner"
+	defaultTestRunnerDirHostPath = "/var/run/amd-test-runner"
+	defaultTestRunnerMountPath   = "/var/run/amd-test-runner"
+	resultLogDirEnv              = "RESULT_LOG_MOUNT_DIR"
+	statusDBDirEnv               = "STATUS_DB_MOUNT_DIR"
 )
 
 var testRunnerLabelPair = []string{"app.kubernetes.io/name", TestRunnerName}
@@ -76,6 +80,17 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
 	}
 	trSpec := devConfig.Spec.TestRunner
+
+	statusDBHostPath := defaultTestRunnerDirHostPath
+	if trSpec.StatusDB.HostPath != "" {
+		statusDBHostPath = trSpec.StatusDB.HostPath
+	}
+
+	statusDBMountPath := defaultTestRunnerMountPath
+	if trSpec.StatusDB.MountPath != "" {
+		statusDBMountPath = trSpec.StatusDB.MountPath
+	}
+
 	containerVolumeMounts := []v1.VolumeMount{
 		{
 			Name:      "dev-volume",
@@ -86,12 +101,17 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 			MountPath: "/sys",
 		},
 		{
+			Name:      "test-runner-volume",
+			MountPath: statusDBMountPath,
+		},
+		{
 			Name:      "health",
 			MountPath: "/var/lib/amd-metrics-exporter/",
 		},
 	}
 
 	hostPathDirectory := v1.HostPathDirectory
+	hostPathDirectoryOrCreate := v1.HostPathDirectoryOrCreate
 
 	volumes := []v1.Volume{
 		{
@@ -109,6 +129,15 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 				HostPath: &v1.HostPathVolumeSource{
 					Path: "/sys",
 					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "test-runner-volume",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: statusDBHostPath,
+					Type: &hostPathDirectoryOrCreate,
 				},
 			},
 		},
@@ -189,8 +218,8 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 					},
 				},
 				{
-					Name:  "TEST_CATEGORY",
-					Value: "GPU_HEALTH_CHECK",
+					Name:  statusDBDirEnv,
+					Value: statusDBMountPath,
 				},
 				{
 					Name:  "TEST_TRIGGER",

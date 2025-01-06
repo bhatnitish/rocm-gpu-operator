@@ -6,9 +6,6 @@ metadata:
 data:
   config.json: |
     {
-      "SystemConfig": {
-        "ResultLogDir": "/var/run/test-runner/results/"
-      },
       "TestConfig": {
         "GPU_HEALTH_CHECK": {
           "TestLocationTrigger": {
@@ -17,7 +14,7 @@ data:
                 "AUTO_UNHEALTHY_GPU_WATCH": {
                   "TestCases": [
                     {
-                      "Recipe": "mem",
+                      "Recipe": "gst_single",
                       "Iterations": 1,
                       "StopOnFailure": true,
                       "TimeoutSeconds": 600

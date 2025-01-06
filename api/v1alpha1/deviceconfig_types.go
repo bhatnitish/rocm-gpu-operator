@@ -433,6 +433,26 @@ type TestRunnerSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+
+	// config the status db that persists the test running status
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="StatusDB",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:statusDB"}
+	// +optional
+	StatusDB StatusDBConfig `json:"statusDB,omitempty"`
+}
+
+// StatusDBConfig contains the specific config for storing test runner status db
+type StatusDBConfig struct {
+	// host path to store test runner internal status db in order to persist test running status
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HostPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:hostPath"}
+	// +kubebuilder:default="/var/run/amd-test-runner"
+	// +optional
+	HostPath string `json:"hostPath,omitempty"`
+
+	// volume mount destination within test runner container
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MountPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:mountPath"}
+	// +kubebuilder:default="/var/run/amd-test-runner"
+	// +optional
+	MountPath string `json:"mountPath,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during

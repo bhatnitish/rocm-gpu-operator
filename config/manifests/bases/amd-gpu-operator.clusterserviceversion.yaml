@@ -351,6 +351,22 @@ spec:
         path: testRunner.selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: config the status db that persists the test running status
+        displayName: StatusDB
+        path: testRunner.statusDB
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:statusDB
+      - description: host path to store test runner internal status db in order to
+          persist test running status
+        displayName: HostPath
+        path: testRunner.statusDB.hostPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:hostPath
+      - description: volume mount destination within test runner container
+        displayName: MountPath
+        path: testRunner.statusDB.mountPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:mountPath
       - description: upgrade policy for test runner daemonset
         displayName: UpgradePolicy
         path: testRunner.upgradePolicy
