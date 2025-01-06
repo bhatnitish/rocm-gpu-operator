@@ -52,10 +52,9 @@ const (
 	defaultTestRunnerImage       = "registry.test.pensando.io:5000/test-runner/test-runner:dev"
 	TestRunnerName               = "test-runner"
 	defaultSAName                = "amd-gpu-operator-test-runner"
-	defaultTestRunnerDirHostPath = "/var/run/amd-test-runner"
-	defaultTestRunnerMountPath   = "/var/run/amd-test-runner"
-	resultLogDirEnv              = "RESULT_LOG_MOUNT_DIR"
-	statusDBDirEnv               = "STATUS_DB_MOUNT_DIR"
+	defaultTestRunnerDirHostPath = "/var/log/amd-test-runner"
+	defaultTestRunnerMountPath   = "/var/log/amd-test-runner"
+	LogDirEnv                    = "LOG_MOUNT_DIR"
 )
 
 var testRunnerLabelPair = []string{"app.kubernetes.io/name", TestRunnerName}
@@ -81,14 +80,14 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 	}
 	trSpec := devConfig.Spec.TestRunner
 
-	statusDBHostPath := defaultTestRunnerDirHostPath
-	if trSpec.StatusDB.HostPath != "" {
-		statusDBHostPath = trSpec.StatusDB.HostPath
+	logsHostPath := defaultTestRunnerDirHostPath
+	if trSpec.LogsLocation.HostPath != "" {
+		logsHostPath = trSpec.LogsLocation.HostPath
 	}
 
-	statusDBMountPath := defaultTestRunnerMountPath
-	if trSpec.StatusDB.MountPath != "" {
-		statusDBMountPath = trSpec.StatusDB.MountPath
+	logsMountPath := defaultTestRunnerMountPath
+	if trSpec.LogsLocation.MountPath != "" {
+		logsMountPath = trSpec.LogsLocation.MountPath
 	}
 
 	containerVolumeMounts := []v1.VolumeMount{
@@ -102,7 +101,7 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 		},
 		{
 			Name:      "test-runner-volume",
-			MountPath: statusDBMountPath,
+			MountPath: logsMountPath,
 		},
 		{
 			Name:      "health",
@@ -136,7 +135,7 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 			Name: "test-runner-volume",
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
-					Path: statusDBHostPath,
+					Path: logsHostPath,
 					Type: &hostPathDirectoryOrCreate,
 				},
 			},
@@ -218,8 +217,8 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 					},
 				},
 				{
-					Name:  statusDBDirEnv,
-					Value: statusDBMountPath,
+					Name:  LogDirEnv,
+					Value: logsMountPath,
 				},
 				{
 					Name:  "TEST_TRIGGER",

@@ -397,25 +397,24 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  logsLocation:
+                    description: mount config for test runner logs
+                    properties:
+                      hostPath:
+                        default: /var/log/amd-test-runner
+                        description: host path to store test runner internal status
+                          db in order to persist test running status
+                        type: string
+                      mountPath:
+                        default: /var/log/amd-test-runner
+                        description: volume mount destination within test runner container
+                        type: string
+                    type: object
                   selector:
                     additionalProperties:
                       type: string
                     description: Selector describes on which nodes to enable test
                       runner
-                    type: object
-                  statusDB:
-                    description: config the status db that persists the test running
-                      status
-                    properties:
-                      hostPath:
-                        default: /var/run/amd-test-runner
-                        description: host path to store test runner internal status
-                          db in order to persist test running status
-                        type: string
-                      mountPath:
-                        default: /var/run/amd-test-runner
-                        description: volume mount destination within test runner container
-                        type: string
                     type: object
                   upgradePolicy:
                     description: upgrade policy for test runner daemonset

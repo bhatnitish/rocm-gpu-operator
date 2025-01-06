@@ -346,27 +346,27 @@ spec:
         path: testRunner.imageRegistrySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: mount config for test runner logs
+        displayName: LogsLocation
+        path: testRunner.logsLocation
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:logsLocation
+      - description: host path to store test runner internal status db in order to
+          persist test running status
+        displayName: HostPath
+        path: testRunner.logsLocation.hostPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:hostPath
+      - description: volume mount destination within test runner container
+        displayName: MountPath
+        path: testRunner.logsLocation.mountPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:mountPath
       - description: Selector describes on which nodes to enable test runner
         displayName: Selector
         path: testRunner.selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
-      - description: config the status db that persists the test running status
-        displayName: StatusDB
-        path: testRunner.statusDB
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:statusDB
-      - description: host path to store test runner internal status db in order to
-          persist test running status
-        displayName: HostPath
-        path: testRunner.statusDB.hostPath
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:hostPath
-      - description: volume mount destination within test runner container
-        displayName: MountPath
-        path: testRunner.statusDB.mountPath
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:mountPath
       - description: upgrade policy for test runner daemonset
         displayName: UpgradePolicy
         path: testRunner.upgradePolicy

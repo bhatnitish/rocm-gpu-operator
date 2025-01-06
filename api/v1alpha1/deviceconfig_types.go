@@ -434,25 +434,25 @@ type TestRunnerSpec struct {
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
 
-	// config the status db that persists the test running status
-	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="StatusDB",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:statusDB"}
+	// mount config for test runner logs
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="LogsLocation",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:logsLocation"}
 	// +optional
-	StatusDB StatusDBConfig `json:"statusDB,omitempty"`
+	LogsLocation LogsLocationConfig `json:"logsLocation,omitempty"`
 }
 
-// StatusDBConfig contains the specific config for storing test runner status db
-type StatusDBConfig struct {
-	// host path to store test runner internal status db in order to persist test running status
-	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HostPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:hostPath"}
-	// +kubebuilder:default="/var/run/amd-test-runner"
-	// +optional
-	HostPath string `json:"hostPath,omitempty"`
-
+// LogsLocationConfig contains the specific config for mounting test runner logs
+type LogsLocationConfig struct {
 	// volume mount destination within test runner container
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MountPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:mountPath"}
-	// +kubebuilder:default="/var/run/amd-test-runner"
+	// +kubebuilder:default="/var/log/amd-test-runner"
 	// +optional
 	MountPath string `json:"mountPath,omitempty"`
+
+	// host path to store test runner internal status db in order to persist test running status
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HostPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:hostPath"}
+	// +kubebuilder:default="/var/log/amd-test-runner"
+	// +optional
+	HostPath string `json:"hostPath,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during
