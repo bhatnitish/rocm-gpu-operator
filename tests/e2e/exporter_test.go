@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func (s *E2ESuite) verifyNoMetricsExporter(devCfg *v1alpha1.DeviceConfig, c *C) {
@@ -269,4 +270,200 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 	assert.True(c, len(pods.Items) == 1, "> 1 pods", len(pods.Items))
 	assert.True(c, pods.Items[0].Spec.NodeName == nodes.Items[0].Name, fmt.Sprintf("mismatch in scheduled node got [%v], want [%v]",
 		pods.Items[0].Spec.NodeName, nodes.Items[0].Name))
+}
+
+func (s *E2ESuite) TestHealthCheckFeature(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	exporterEnable := true
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
+
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1"
+	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
+	devCfg.Spec.MetricsExporter.NodePort = 32500
+	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeNodePort
+	devCfg.Spec.DevicePlugin = v1alpha1.DevicePluginSpec{
+		DevicePluginImage:           "registry.test.pensando.io:5000/k8s-device-plugin/deviceplugin:v1",
+		DevicePluginImagePullPolicy: "Always",
+	}
+	log.Infof("create device-config %+v", devCfg)
+	s.createDeviceConfig(devCfg, c)
+
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+	s.verifyNodePortMetrics(c, devCfg, []string{}, []string{})
+
+	// add configmap with custom labels/fields, verify metrics
+	cmFields := []string{"gpu_package_power", "gpu_edge_temperature", "gpu_health"}
+	cmLabels := []string{"gpu_id", "pod", "container"}
+	cfgData, err := json.Marshal(struct {
+		GPUConfig struct {
+			Fields []string
+			Labels []string
+		}
+	}{
+		GPUConfig: struct {
+			Fields []string
+			Labels []string
+		}{
+			Fields: cmFields,
+			Labels: cmLabels,
+		},
+	})
+	assert.NoError(c, err, "failed to marshal config data")
+
+	mcfgMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      devCfg.Name,
+			Namespace: devCfg.Namespace,
+		},
+		Data: map[string]string{
+			"config.json": string(cfgData),
+		},
+	}
+
+	_, err = s.clientSet.CoreV1().ConfigMaps(devCfg.Namespace).Create(context.TODO(), mcfgMap, metav1.CreateOptions{})
+	assert.NoError(c, err, "failed to create configmap %v", mcfgMap.Data)
+
+	// enable Node port
+	updConfig, err := s.dClient.DeviceConfigs(devCfg.Namespace).Get(devCfg.Name, metav1.GetOptions{})
+	assert.NoError(c, err, "failed to read deviceconfig")
+	updConfig.Spec.MetricsExporter.Config = v1alpha1.MetricsConfig{Name: devCfg.Name}
+
+	log.Infof("update exporter-config %+v", updConfig)
+	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
+	assert.NoError(c, err, "failed to update %v", updConfig.Name)
+	log.Infof("Verifying exporter status and metrics")
+	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeNodePort, c)
+	s.verifyNodePortMetrics(c, devCfg, cmFields, cmLabels)
+	s.verifyNodeGPULabel(devCfg, c)
+
+	labelMap := make(map[string]string)
+	labelMap["amdgpu.exporter.gpu.0.state"] = "healthy"
+	log.Print("Verify healthy label on node(s)")
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelMap).String(),
+		})
+		if err != nil || len(nodes.Items) == 0 {
+			return false
+		}
+		log.Printf("Got %d nodes with healthy label", len(nodes.Items))
+		return true
+	}, 2*time.Minute, 10*time.Second, "expected gpu 0 to be healthy but got unhealthy")
+
+	log.Infof("Marking GPU unhealthy")
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy")
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
+	labelMap["amdgpu.exporter.gpu.0.state"] = "unhealthy"
+	log.Print("Verifying unhealthy label on the node(s)")
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelMap).String(),
+		})
+		if err != nil || len(nodes.Items) == 0 {
+			return false
+		}
+		log.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
+		return true
+	}, 2*time.Minute, 10*time.Second, "expected gpu 0 to become unhealthy but got healthy")
+
+	log.Infof("Creating ROCM Pod on node with Unhealthy GPU. Expect it to be in Pending state")
+	var rocmLabel = map[string]string{
+		"e2e": "true",
+	}
+	err = utils.CreateDaemonset(s.clientSet, "default", "e2e-rocm", "busybox:1.36", rocmLabel, nil)
+	assert.NoError(c, err, "failed to create ROCM pod")
+	assert.Eventually(c, func() bool {
+		pods, err := s.clientSet.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
+		})
+		if err != nil {
+			log.Printf("Error occured when trying to get the pod. Error: %v", err)
+			return false
+		}
+		if pods == nil || len(pods.Items) == 0 {
+			log.Print("No ROCM Pods found")
+			return false
+		}
+		if pods.Items[0].Status.Phase == "Pending" {
+			return true
+		}
+		return false
+	}, 2*time.Minute, 10*time.Second, "Expected ROCM Pod to be in Pending State")
+	log.Print("Verified ROCM Pod is in pending state")
+
+	log.Print("Clear GPU error and verify ROCM Pod goes to Running state")
+	log.Infof("Marking GPU healthy")
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy")
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
+	labelMap["amdgpu.exporter.gpu.0.state"] = "healthy"
+	log.Print("Verifying healthy label on the node(s)")
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelMap).String(),
+		})
+		if err != nil || len(nodes.Items) == 0 {
+			return false
+		}
+		log.Printf("Got %d nodes with healthy label", len(nodes.Items))
+		return true
+	}, 90*time.Second, 10*time.Second, "expected gpu 0 to become healthy but got unhealthy")
+	log.Print("Verifying ROCM Pod moved to Running state")
+	assert.Eventually(c, func() bool {
+		pods, err := s.clientSet.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
+		})
+		if err != nil {
+			log.Printf("Error occured when trying to get the pod. Error: %v", err)
+			return false
+		}
+		if pods == nil || len(pods.Items) == 0 {
+			log.Print("No ROCM Pods found")
+			return false
+		}
+		if pods.Items[0].Status.Phase == "Running" {
+			return true
+		}
+		return false
+	}, 2*time.Minute, 10*time.Second, "Expected ROCM Pod to be in Running State")
+	log.Print("Verified ROCM Pod is in Running state")
+
+	log.Infof("Marking GPU unhealthy")
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy")
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
+	labelMap["amdgpu.exporter.gpu.0.state"] = "unhealthy"
+	log.Print("Verifying unhealthy label on the node(s)")
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelMap).String(),
+		})
+		if err != nil || len(nodes.Items) == 0 {
+			return false
+		}
+		log.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
+		return true
+	}, 90*time.Second, 10*time.Second, "expected gpu 0 to become unhealthy but got healthy")
+	assert.Eventually(c, func() bool {
+		pods, err := s.clientSet.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
+		})
+		if err != nil {
+			log.Printf("Error occured when trying to get the pod. Error: %v", err)
+			return false
+		}
+		if pods == nil || len(pods.Items) == 0 {
+			log.Print("No ROCM Pods found")
+			return false
+		}
+		if pods.Items[0].Status.Phase == "Running" {
+			return true
+		}
+		return false
+	}, 2*time.Minute, 10*time.Second, "Expected ROCM Pod to be in Running State")
+	log.Print("Verified ROCM Pod is in Running state")
 }

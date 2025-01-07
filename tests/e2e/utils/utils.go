@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
+	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	log "github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -288,8 +289,8 @@ var rocmDs = "e2e-rocm"
 func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset,
 	res *v1.ResourceRequirements) error {
 
-	err := CreateDaemonset(ctx, cl, v1.NamespaceDefault, rocmDs,
-		"rocm/tensorflow:latest", rocmLabel, res)
+	err := CreateDaemonsetVerify(ctx, cl, v1.NamespaceDefault, rocmDs,
+		"busybox:1.36", rocmLabel, res)
 	if err != nil {
 		return fmt.Errorf("failed to create e2e pods %v", err)
 	}
@@ -382,7 +383,7 @@ func DeleteTLSSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns str
 	return cl.CoreV1().Secrets(ns).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
-func CreateDaemonset(ctx context.Context, cl *kubernetes.Clientset, ns string,
+func CreateDaemonsetVerify(ctx context.Context, cl *kubernetes.Clientset, ns string,
 	name string, image string, matchLabels map[string]string,
 	res *v1.ResourceRequirements) error {
 
@@ -1434,4 +1435,79 @@ func GetRebootPod(nodeName string) *v1.Pod {
 			},
 		},
 	}
+}
+
+func CreateDaemonset(cl *kubernetes.Clientset, ns string, name string, image string, matchLabels map[string]string, res *v1.ResourceRequirements) error {
+
+	if res == nil {
+		res = &v1.ResourceRequirements{
+			Limits: v1.ResourceList{
+				"amd.com/gpu": resource.MustParse("1"),
+			},
+
+			Requests: v1.ResourceList{
+				"amd.com/gpu": resource.MustParse("1"),
+			},
+		}
+	}
+
+	dsCli := cl.AppsV1().DaemonSets(ns)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: matchLabels,
+			},
+
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: matchLabels,
+				},
+				Spec: v1.PodSpec{
+					NodeSelector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
+					Containers: []v1.Container{
+						{
+							Name:      name,
+							Image:     image,
+							Command:   []string{"sh", "-c", "--"},
+							Args:      []string{"sleep infinity"},
+							Resources: *res,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create Deployment
+	_, err := dsCli.Create(context.TODO(), ds, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create daemonset %v", err)
+	}
+	return nil
+}
+
+func SetGPUHealthOnNode(cl *kubernetes.Clientset, ns, gpuid, health string) error {
+	pods, err := cl.CoreV1().Pods(ns).List(context.TODO(),
+		metav1.ListOptions{LabelSelector: kmmmodule.MapToLabelSelector(
+			map[string]string{"app.kubernetes.io/name": metricsexporter.ExporterName})})
+	if err != nil {
+		return err
+	}
+	var cmd1 string
+	if health == "healthy" {
+		cmd1 = fmt.Sprintf(`echo "{\"ID\": \"%s\",\"Fields\": [\"GPU_ECC_UNCORRECT_SEM\",\"GPU_ECC_UNCORRECT_FUSE\"],\"Counts\" : [0, 0]}" > /tmp/ecc.json`, gpuid)
+	} else {
+		cmd1 = fmt.Sprintf(`echo "{\"ID\": \"%s\",\"Fields\": [\"GPU_ECC_UNCORRECT_SEM\",\"GPU_ECC_UNCORRECT_FUSE\"],\"Counts\" : [1, 2]}" > /tmp/ecc.json`, gpuid)
+
+	}
+	_, err = ExecPodCmd(cmd1, ns, pods.Items[0].Name, metricsexporter.ExporterName+"-container")
+	if err != nil {
+		return err
+	}
+	cmd2 := "metricsclient -ecc-file-path /tmp/ecc.json"
+	_, err = ExecPodCmd(cmd2, ns, pods.Items[0].Name, metricsexporter.ExporterName+"-container")
+	return err
 }
