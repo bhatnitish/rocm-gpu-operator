@@ -1,4 +1,4 @@
-# AMD GPU Operator - Health Check Feature
+# Health Checks
 
 ## Features
 Health Monitoring is done by the metrics exporter and this data is exposed
