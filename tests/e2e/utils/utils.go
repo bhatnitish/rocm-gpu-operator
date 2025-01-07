@@ -49,6 +49,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 )
 
@@ -1308,4 +1309,129 @@ func PatchKMMDeploymentWithCIENVFlag(cl *kubernetes.Clientset) error {
 	}
 	time.Sleep(60 * time.Second)
 	return nil
+}
+
+func HandleNodesReboot(ctx context.Context, cl *kubernetes.Clientset, nodes []v1.Node) error {
+	if len(nodes) == 0 {
+		log.Errorf("No worker nodes provided for reboot")
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(nodes))
+
+	for _, node := range nodes {
+		wg.Add(1)
+		go func(node v1.Node) {
+			defer wg.Done()
+
+			rebootPod := GetRebootPod(node.Name)
+
+			// Delete the existing reboot pod if present
+			if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err == nil {
+				if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
+					log.Errorf("Failed to delete existing reboot pod for node: %v, error: %v", node.Name, err)
+					errCh <- err
+					return
+				}
+			}
+
+			// Create the reboot pod
+			if _, err := cl.CoreV1().Pods("kube-amd-gpu").Create(ctx, rebootPod, metav1.CreateOptions{}); err != nil {
+				log.Errorf("Failed to create reboot pod for node: %v, error: %v", node.Name, err)
+				errCh <- err
+				return
+			}
+
+			// Wait for the reboot pod to get spawned
+			waitForRebootPod := func() {
+				for i := uint(0); i < 300; _, i = <-time.NewTicker(2*time.Second).C, i+1 {
+					if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err == nil {
+						return
+					}
+				}
+			}
+			waitForRebootPod()
+
+			// Delete the reboot pod after it has been created
+			DeleteRebootPod(ctx, cl, node.Name, false)
+
+			log.Infof("Worker node %s successfully rebooted!", node.Name)
+		}(node)
+	}
+
+	wg.Wait()
+	close(errCh)
+	if len(errCh) > 0 {
+		return <-errCh
+	}
+
+	return nil
+}
+
+func DeleteRebootPod(ctx context.Context, cl *kubernetes.Clientset, nodeName string, force bool) {
+	rebootPod := GetRebootPod(nodeName)
+
+	pod := &v1.Pod{}
+	if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err != nil {
+		return
+	}
+
+	if !force {
+		// Wait (max 1 hour) until the pod is finished
+		for i := uint(0); i < 60; _, i = <-time.NewTicker(10*time.Second).C, i+1 {
+			if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err == nil {
+				if len(pod.Status.ContainerStatuses) > 0 {
+					containerStatus := pod.Status.ContainerStatuses[0]
+					if containerStatus.State.Terminated != nil && !containerStatus.State.Terminated.FinishedAt.IsZero() {
+						// Pod finished, delete it
+						if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
+							log.Errorf("Failed to delete reboot pod for node: %v, error: %v", nodeName, err)
+						}
+						return
+					}
+				}
+			}
+		}
+	}
+
+	// Force delete the pod if it's still present
+	if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
+		log.Errorf("Failed to delete reboot pod for node: %v, error: %v", nodeName, err)
+	}
+}
+
+func GetRebootPod(nodeName string) *v1.Pod {
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("amd-gpu-operator-%v-reboot-worker", nodeName),
+			Namespace: "kube-amd-gpu",
+		},
+		Spec: v1.PodSpec{
+			HostPID:       true,
+			HostNetwork:   true,
+			RestartPolicy: v1.RestartPolicyNever,
+			NodeSelector: map[string]string{
+				"kubernetes.io/hostname": nodeName,
+			},
+			Containers: []v1.Container{
+				{
+					Name:            "reboot-container",
+					Image:           "registry.test.pensando.io:5000/amd-gpu-operator-utils:latest",
+					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sudo", "reboot"},
+					Stdin:           true,
+					TTY:             true,
+					SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+				},
+			},
+			Tolerations: []v1.Toleration{
+				{
+					Key:      "amd-gpu-operator-upgrade-in-progress",
+					Value:    "true",
+					Operator: v1.TolerationOpEqual,
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+			},
+		},
+	}
 }

@@ -147,7 +147,7 @@ func (s *E2ESuite) TearDownTest(c *C) {
 		}
 		if len(l.Items) > 0 && !s.simEnable {
 			nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-			if err := utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes); err != nil {
+			if err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes); err != nil {
 				c.Fatalf(err.Error())
 			}
 		}

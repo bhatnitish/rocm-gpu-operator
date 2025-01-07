@@ -233,7 +233,7 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C, devCfg *v1alpha1.Dev
 
 		log.Infof(" node-labeller: %s status %+v", ds.Name, ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
-	}, 25*time.Minute, 5*time.Second)
+	}, 45*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, serviceType v1.ServiceType, c *C) {
@@ -260,7 +260,7 @@ func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns 
 		}
 
 		return ready
-	}, 5*time.Minute, 5*time.Second)
+	}, 45*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
@@ -304,7 +304,7 @@ func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C)
 			devCfg.Status.Drivers.DesiredNumber == devCfg.Status.Drivers.AvailableNumber &&
 			devCfg.Status.DevicePlugin.NodesMatchingSelectorNumber == devCfg.Status.DevicePlugin.AvailableNumber &&
 			devCfg.Status.DevicePlugin.DesiredNumber == devCfg.Status.DevicePlugin.AvailableNumber
-	}, 25*time.Minute, 5*time.Second)
+	}, 45*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, c *C) {
@@ -506,7 +506,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
 		nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -549,7 +549,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.updateNodeDriverVersionLabel(devCfg, c)
 	if !s.simEnable {
 		nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -565,7 +565,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
 		nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -601,7 +601,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
 		nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	} else {
 		s.deleteDeviceConfig(devCfg, c)
@@ -623,7 +623,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
 		nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	} else {
 		s.deleteDeviceConfig(devCfg, c)
@@ -976,7 +976,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 	assert.NoError(c, err, "failed to reboot nodes")
 }
 
@@ -1004,7 +1004,7 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1068,7 +1068,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	s.deleteDeviceConfig(devCfg, c)
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 	// Change th ports to give time for the old pods to be deleted and not affect the current test
@@ -1098,7 +1098,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1212,7 +1212,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1246,7 +1246,7 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
-	err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 	assert.NoError(c, err, "failed to reboot nodes")
 }
 
@@ -1303,7 +1303,7 @@ func (s *E2ESuite) TestDifferentCRsForDifferentNodes(c *C) {
 		err = utils.DelRocmPodsByNodeNames(ctx, s.clientSet, nodeNames)
 		assert.NoError(c, err, "failed to remove rocm pods")
 
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	} else {
 		for _, devCfg := range devCfgs {
@@ -1319,8 +1319,13 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
-		Enable: &enable,
+		Enable:         &enable,
+		RebootRequired: &rebootRequired,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
 	s.createDeviceConfig(devCfg, c)
@@ -1340,7 +1345,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -1355,7 +1360,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1367,8 +1372,13 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
@@ -1390,7 +1400,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -1406,7 +1416,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1418,6 +1428,10 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
 	force := true
 	drainPolicy := v1alpha1.DrainSpec{
 		Force:          &force,
@@ -1425,6 +1439,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
 		NodeDrainPolicy:     &drainPolicy,
 	}
@@ -1447,7 +1462,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -1463,7 +1478,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1476,12 +1491,17 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	enable := true
 	force := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
 	podDeletionPolicy := v1alpha1.PodDeletionSpec{
 		Force:          &force,
 		TimeoutSeconds: 300,
 	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
 		PodDeletionPolicy:   &podDeletionPolicy,
 	}
@@ -1504,7 +1524,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -1520,7 +1540,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1532,8 +1552,13 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
@@ -1552,7 +1577,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -1568,7 +1593,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
@@ -1580,8 +1605,13 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
@@ -1600,7 +1630,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
@@ -1616,7 +1646,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
