@@ -235,6 +235,11 @@ type DevicePluginSpec struct {
 	// +optional
 	DevicePluginImagePullPolicy string `json:"devicePluginImagePullPolicy,omitempty"`
 
+	// tolerations for the device plugin DaemonSet
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginTolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePluginTolerations"}
+	// +optional
+	DevicePluginTolerations []v1.Toleration `json:"devicePluginTolerations,omitempty"`
+
 	// node labeller image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage"}
 	// +optional
@@ -246,6 +251,11 @@ type DevicePluginSpec struct {
 	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
 	// +optional
 	NodeLabellerImagePullPolicy string `json:"nodeLabellerImagePullPolicy,omitempty"`
+
+	// tolerations for the node labeller DaemonSet
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerTolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations"}
+	// +optional
+	NodeLabellerTolerations []v1.Toleration `json:"nodeLabellerTolerations,omitempty"`
 
 	// node labeller image registry secret used to pull/push images
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
@@ -323,6 +333,11 @@ type MetricsExporterSpec struct {
 	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
 	// +optional
 	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+
+	// tolerations for metrics exporter
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Tolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tolerations"}
+	// +optional
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
 
 	// Port is the internal port used for in-cluster and node access to pull metrics from the metrics-exporter (default 5000).
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Port",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:port"}
@@ -413,6 +428,11 @@ type TestRunnerSpec struct {
 	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
 	// +optional
 	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+
+	// tolerations for test runner
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Tolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tolerations"}
+	// +optional
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
 
 	// test runner image registry secret used to pull/push images
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}

@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2025-01-06T08:25:36Z"
+    createdAt: "2025-01-09T09:37:04Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -71,6 +71,11 @@ spec:
         path: devicePlugin.devicePluginImagePullPolicy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:DevicePluginImagePullPolicy
+      - description: tolerations for the device plugin DaemonSet
+        displayName: DevicePluginTolerations
+        path: devicePlugin.devicePluginTolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginTolerations
       - description: enable or disable the node labeller
         displayName: EnableNodeLabeller
         path: devicePlugin.enableNodeLabeller
@@ -91,6 +96,11 @@ spec:
         path: devicePlugin.nodeLabellerImagePullPolicy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:NodeLabellerImagePullPolicy
+      - description: tolerations for the node labeller DaemonSet
+        displayName: NodeLabellerTolerations
+        path: devicePlugin.nodeLabellerTolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations
       - description: upgrade policy for device plugin and node labeller daemons
         displayName: UpgradePolicy
         path: devicePlugin.upgradePolicy
@@ -320,6 +330,11 @@ spec:
         path: metricsExporter.serviceType
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
+      - description: tolerations for metrics exporter
+        displayName: Tolerations
+        path: metricsExporter.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
       - description: upgrade policy for metrics exporter daemons
         displayName: UpgradePolicy
         path: metricsExporter.upgradePolicy
@@ -396,6 +411,11 @@ spec:
         path: testRunner.selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: tolerations for test runner
+        displayName: Tolerations
+        path: testRunner.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
       - description: upgrade policy for test runner daemonset
         displayName: UpgradePolicy
         path: testRunner.upgradePolicy

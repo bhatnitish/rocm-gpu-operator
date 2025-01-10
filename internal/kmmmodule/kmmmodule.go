@@ -379,6 +379,11 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	if devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy != "" {
 		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy)
 	}
+	if len(devConfig.Spec.DevicePlugin.DevicePluginTolerations) > 0 {
+		ds.Spec.Template.Spec.Tolerations = devConfig.Spec.DevicePlugin.DevicePluginTolerations
+	} else {
+		ds.Spec.Template.Spec.Tolerations = nil
+	}
 	return controllerutil.SetControllerReference(devConfig, ds, km.scheme)
 }
 

@@ -296,5 +296,10 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 			}
 		}
 	}
+	if len(devConfig.Spec.TestRunner.Tolerations) > 0 {
+		ds.Spec.Template.Spec.Tolerations = devConfig.Spec.TestRunner.Tolerations
+	} else {
+		ds.Spec.Template.Spec.Tolerations = nil
+	}
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 }

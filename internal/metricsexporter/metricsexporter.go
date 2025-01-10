@@ -339,6 +339,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			}
 		}
 	}
+	if len(devConfig.Spec.MetricsExporter.Tolerations) > 0 {
+		ds.Spec.Template.Spec.Tolerations = devConfig.Spec.MetricsExporter.Tolerations
+	} else {
+		ds.Spec.Template.Spec.Tolerations = nil
+	}
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
 }
