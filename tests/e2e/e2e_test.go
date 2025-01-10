@@ -123,12 +123,6 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 			c.Fatalf("%v", err)
 		}
 	}
-	if err := utils.DeleteNodeAppDaemonSet(s.clientSet); err != nil {
-		log.Infof("%v", err)
-	}
-	if err := utils.DeployNodeAppDaemonSet(cs); err != nil {
-		c.Fatalf(err.Error())
-	}
 }
 
 func (s *E2ESuite) SetUpTest(c *C) {
@@ -170,7 +164,4 @@ func (s *E2ESuite) TearDownSuite(c *C) {
 	}
 	_ = s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{})
 
-	if err := utils.DeleteNodeAppDaemonSet(s.clientSet); err != nil {
-		log.Infof("%v", err)
-	}
 }
