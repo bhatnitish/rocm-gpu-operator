@@ -6,3 +6,6 @@ rules:
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["create", "list", "get", "update", "watch"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["patch"]
