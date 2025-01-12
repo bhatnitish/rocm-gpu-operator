@@ -34,13 +34,15 @@ setup_dir () {
 
 copy_artifacts () {
     # copy gpu-opertar container image
-    cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/
+    cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/amd-gpu-operator-latest-$(RELEASE).tar.gz
     # copy k8s helm package
-    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/
+    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-k8s-$PROJECT_VERSION-$(RELEASE).tgz
     # copy openshift helm package
-    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/
-    # copy gpuuperator bundle package
-    cp /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/
+    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-openshift-$PROJECT_VERSION-$(RELEASE).tgz
+    # copy gpu operator OLM bundle package
+    cp /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/internal-gpu-operator-olm-bundle-$(RELEASE).tar.gz
+    # copy gpu operator OLM bundle package for amdpsdo repository
+    cp /gpu-operator/amdpsdo-gpu-operator-olm-bundle.tar.gz $BUNDLE_DIR/amdpsdo-gpu-operator-olm-bundle-$(RELEASE).tar.gz
     # list the artifacts copied out
     ls -la $BUNDLE_DIR
 }
@@ -52,10 +54,12 @@ docker_push () {
     docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest registry.test.pensando.io:5000/amd-gpu-operator:$tag
     docker push registry.test.pensando.io:5000/amd-gpu-operator:$tag
     # push OLM bundle image to internal registry
-    docker load -i /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz
-    docker inspect registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest | grep "HOURLY"
-    docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:latest registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag
+    docker load -i /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz
+    docker inspect registry.test.pensando.io:5000/amd-gpu-operator-bundle:$PROJECT_VERSION | grep "HOURLY"
+    docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:$PROJECT_VERSION registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag
     docker push registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag
+    # load amdpsdo OLM bundle image
+    docker load -i /gpu-operator/amdpsdo-gpu-operator-olm-bundle.tar.gz  
     # push final release to docker hub for public access
     if [ -z $DOCKERHUB_TOKEN ]
     then
@@ -64,7 +68,8 @@ docker_push () {
       docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
       docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$tag
       docker push amdpsdo/gpu-operator:$tag
-      docker tag registry.test.pensando.io:5000/amd-gpu-operator-bundle:$tag amdpsdo/gpu-operator-olm-bundle:$tag
+      # push OLM bundle images 
+      docker tag amdpsdo/gpu-operator-bundle:$tag amdpsdo/gpu-operator-olm-bundle:$tag
       docker push amdpsdo/gpu-operator-olm-bundle:$tag
     fi
 }

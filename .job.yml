@@ -4,13 +4,18 @@ builds:
   build-gpu-operator:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
                HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=latest make docker-build && \
-               IMAGE_TAG=latest make docker-save && \
-               make bundle-build && \
-               make bundle-save"]
+               HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=latest make docker-save && \
+               DOCKER_REGISTRY=registry.test.pensando.io:5000 IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
+               DOCKER_REGISTRY=registry.test.pensando.io:5000 IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
+               mv amd-gpu-operator-olm-bundle.tar.gz internal-gpu-operator-olm-bundle.tar.gz && \
+               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
+               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
+               mv gpu-operator-olm-bundle.tar.gz amdpsdo-gpu-operator-olm-bundle.tar.gz"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
      - /gpu-operator/amd-gpu-operator-latest.tar.gz
-     - /gpu-operator/amd-gpu-operator-olm-bundle.tar.gz
+     - /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz
+     - /gpu-operator/amdpsdo-gpu-operator-olm-bundle.tar.gz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
@@ -40,11 +45,7 @@ builds:
 
 targets:
   gpu-operator-sanity:
-    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && \
-                                    make generate && \
-                                    make vet && \
-                                    make lint && \
-                                    make unit-test"]
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make generate && make vet && make lint && make unit-test"]
     owners: ["email:mharkara@amd.com"]
     area:
     sub-area:

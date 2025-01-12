@@ -132,7 +132,7 @@ help: ## Display this help.
 
 ##@ Development
 
-.PHONY: manifests update-registry
+.PHONY: update-registry
 update-registry:
 	# updating registry information in yaml files
 	sed -i -e 's|image:.*$$|image: ${IMG}|' bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml
@@ -154,7 +154,21 @@ update-registry:
 	-e 's|relatedImageWorker:.*$$|relatedImageWorker: ${KMM_WORKER_IMG}|' \
 	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
-manifests: controller-gen update-registry ## Generate ClusterRole and CustomResourceDefinition objects.
+.PHONY: update-version
+update-version:
+	# updating project version in manifests
+	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/k8s-patch/metadata-patch/Chart.yaml
+	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
+	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/openshift-patch/metadata-patch/Chart.yaml
+	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/openshift-patch/metadata-patch/Chart.yaml
+	# updating project version in CI job config
+	sed -i -e 's|PROJECT_VERSION=[^ ]*|PROJECT_VERSION=${PROJECT_VERSION}|' .job.yml
+	sed -i 's|gpu-operator-helm-k8s-.*\.tgz|gpu-operator-helm-k8s-${PROJECT_VERSION}.tgz|' .job.yml
+	sed -i 's|gpu-operator-helm-openshift-.*\.tgz|gpu-operator-helm-openshift-${PROJECT_VERSION}.tgz|' .job.yml
+	sed -i 's|PROJECT_VERSION:-.*$$|PROJECT_VERSION:-${PROJECT_VERSION}\}|' asset-build/gpuoperator-asset-push.sh
+
+.PHONY: manifests
+manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./internal/controllers" output:rbac:artifacts:config=config/rbac
 
