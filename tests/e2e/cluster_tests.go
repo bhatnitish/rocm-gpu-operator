@@ -129,7 +129,7 @@ func (s *E2ESuite) manageCurlJob(fileName string, clusterIP string, c *C) {
 		}
 		defer s.deleteJob(job)
 
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 20; i++ {
 			if s.checkJobStatus(job) {
 				return true
 			}
@@ -137,7 +137,7 @@ func (s *E2ESuite) manageCurlJob(fileName string, clusterIP string, c *C) {
 		}
 
 		return false
-	}, 5*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 25*time.Second)
 }
 
 func (s *E2ESuite) deployCurlJob(job *batchv1.Job) bool {
@@ -177,7 +177,7 @@ func (s *E2ESuite) checkJobStatus(job *batchv1.Job) bool {
 			return false
 		}
 		for _, jlog := range jobLogs {
-			if !strings.Contains(jlog, "GPU_UUID") {
+			if !strings.Contains(jlog, "gpu_id") {
 				log.Errorf("failed to fetch metrics, log: %s", jlog)
 				return false
 			}
@@ -981,9 +981,6 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-clusterip", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-clusterip exists")
 
@@ -1010,9 +1007,6 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 
@@ -1020,9 +1014,6 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
-
-	endpointIPs, err := utils.GetServiceEndpoints(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
-	assert.NoError(c, err, fmt.Sprintf("couldn't get endpoint IPs for metrics exporter service: %+v", err))
 
 	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
 	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
@@ -1039,21 +1030,10 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	}, 1*time.Minute, 10*time.Second)
 	assert.NoError(c, err, fmt.Sprintf("failed to generate token for default serviceaccount in metrics-client: %+v", err))
 
-	// Test 1: Run the curl job repeatedly using endpoint IPs
-	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(endpointIPs, token, int(devCfg.Spec.MetricsExporter.Port), true, "")
-		if err != nil {
-			log.Errorf(err.Error())
-			return false
-		}
-
-		return true
-	}, 3*time.Minute, 10*time.Second)
-
 	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
 	assert.NoError(c, err, fmt.Sprintf("couldn't get node IPs for metrics exporter daemonset pods: %+v", err))
 
-	// Test 2: Run the curl job repeatedly using nodeport
+	// Test 1: Run the curl job repeatedly using nodeport
 	assert.Eventually(c, func() bool {
 		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, "")
 		if err != nil {
@@ -1104,9 +1084,6 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
-	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
-	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-nodeport", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 

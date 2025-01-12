@@ -1202,7 +1202,7 @@ func CurlMetrics(endpointIPs []string, token string, port int, secure bool, caCe
 		if err != nil {
 			return fmt.Errorf("failed to curl endpoint %s: %v", ip, err)
 		}
-		if !strings.Contains(string(output), "GPU_UUID") && !strings.Contains(string(output), "gpu_uuid") {
+		if !strings.Contains(string(output), "gpu_id") {
 			return fmt.Errorf("failed to fetch metrics, log: %s curl command: %s", string(output), cmd)
 		}
 	}
