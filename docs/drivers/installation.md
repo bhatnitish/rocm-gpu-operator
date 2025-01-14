@@ -73,7 +73,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: registry.test.pensando.io:5000/amd/exporter:v1
+     image: docker.io/rocm/device-metrics-exporter:v1.1.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
@@ -103,7 +103,7 @@ spec:
     blacklist: true
     # Specify your repository to host driver image
     # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
-    image: registry.test.pensando.io:5000/username/repo
+    image: docker.io/username/repo
     # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
     # you can create the docker-registry type secret by running command like:
     # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
@@ -123,7 +123,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: registry.test.pensando.io:5000/amd/exporter:v1
+     image: docker.io/rocm/device-metrics-exporter:v1.1.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:

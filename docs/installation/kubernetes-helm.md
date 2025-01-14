@@ -223,7 +223,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: registry.test.pensando.io:5000/amd/exporter:v1
+     image: docker.io/rocm/device-metrics-exporter:v1.1.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
@@ -273,7 +273,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: registry.test.pensando.io:5000/amd/exporter:v1
+     image: docker.io/rocm/device-metrics-exporter:v1.1.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
