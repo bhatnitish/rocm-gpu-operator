@@ -34,15 +34,15 @@ setup_dir () {
 
 copy_artifacts () {
     # copy gpu-opertar container image
-    cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/amd-gpu-operator-latest-$(RELEASE).tar.gz
+    cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/amd-gpu-operator-latest-$RELEASE.tar.gz
     # copy k8s helm package
-    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-k8s-$PROJECT_VERSION-$(RELEASE).tgz
+    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
     # copy openshift helm package
-    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-openshift-$PROJECT_VERSION-$(RELEASE).tgz
+    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-openshift-$PROJECT_VERSION-$RELEASE.tgz
     # copy gpu operator OLM bundle package
-    cp /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/internal-gpu-operator-olm-bundle-$(RELEASE).tar.gz
+    cp /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/internal-gpu-operator-olm-bundle-$RELEASE.tar.gz
     # copy gpu operator OLM bundle package for amdpsdo repository
-    cp /gpu-operator/amdpsdo-gpu-operator-olm-bundle.tar.gz $BUNDLE_DIR/amdpsdo-gpu-operator-olm-bundle-$(RELEASE).tar.gz
+    cp /gpu-operator/amdpsdo-gpu-operator-olm-bundle.tar.gz $BUNDLE_DIR/amdpsdo-gpu-operator-olm-bundle-$RELEASE.tar.gz
     # list the artifacts copied out
     ls -la $BUNDLE_DIR
 }
