@@ -71,6 +71,7 @@ const (
 	DeviceConfigReconcilerName = "DriverAndPluginReconciler"
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
 	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
+	testRunnerNodeLabelPrefix  = "amd.testrunner"
 )
 
 // ModuleReconciler reconciles a Module object
@@ -268,7 +269,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("start test runner reconciliation", "enable", devConfig.Spec.TestRunner.Enable)
-	if err := r.helper.handleTestRunner(ctx, devConfig); err != nil {
+	if err := r.helper.handleTestRunner(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle test runner for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
@@ -307,7 +308,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
-	handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error
 	deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
@@ -581,7 +582,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Co
 	return nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) finalizeTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+func (dcrh *deviceConfigReconcilerHelper) finalizeTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
 	trDS := appsv1.DaemonSet{}
@@ -601,6 +602,38 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeTestRunner(ctx context.Context
 		}
 	}
 
+	// clean up test running node label in case test runner gets disabled during test run
+	for _, node := range nodes.Items {
+		// add retry logic here
+		// in case Node resource is being updated by multiple clients concurrently
+		if retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			updated := false
+			nodeObj := &v1.Node{}
+			if err := dcrh.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
+				return err
+			}
+			nodeObjCopy := nodeObj.DeepCopy()
+
+			for k := range nodeObjCopy.Labels {
+				if strings.HasPrefix(k, testRunnerNodeLabelPrefix) {
+					delete(nodeObj.Labels, k)
+					updated = true
+				}
+			}
+
+			// use PATCH instead of UPDATE
+			// to minimize the resource usage, compared to update the whole Node resource
+			if updated {
+				logger.Info(fmt.Sprintf("removing test runner labels in %v", nodeObj.Name))
+				return dcrh.client.Patch(ctx, nodeObj, client.MergeFrom(nodeObjCopy))
+			}
+
+			return nil
+		}); retryErr != nil {
+			logger.Error(retryErr, fmt.Sprintf("failed to remove test runner labels from node %+v", node.Name))
+		}
+	}
+
 	return nil
 }
 
@@ -608,7 +641,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	logger := log.FromContext(ctx)
 
 	// finalize test runner before metrics exporter
-	if err := dcrh.finalizeTestRunner(ctx, devConfig); err != nil {
+	if err := dcrh.finalizeTestRunner(ctx, devConfig, nodes); err != nil {
 		return err
 	}
 
@@ -912,7 +945,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 	return nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + testrunner.TestRunnerName},
@@ -923,7 +956,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, 
 	// because the test runner's auto unhealthy GPU watch functionality is depending on metrics exporter
 	if (devConfig.Spec.TestRunner.Enable == nil || !*devConfig.Spec.TestRunner.Enable) ||
 		(devConfig.Spec.MetricsExporter.Enable == nil || !*devConfig.Spec.MetricsExporter.Enable) {
-		return dcrh.finalizeTestRunner(ctx, devConfig)
+		return dcrh.finalizeTestRunner(ctx, devConfig, nodes)
 	}
 
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
