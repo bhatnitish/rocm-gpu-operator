@@ -4,6 +4,8 @@ kind: Job
 metadata:
   name: check-leftover-deviceconfigs
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helm-charts-k8s.labels" . | nindent 4 }}
   annotations:
     # hook with lower weight value will run firstly
     "helm.sh/hook-weight": "0"
@@ -42,6 +44,8 @@ kind: Job
 metadata:
   name: delete-custom-resource-definitions
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helm-charts-k8s.labels" . | nindent 4 }}
   annotations:
     # hook with lower weight value will run firstly
     "helm.sh/hook-weight": "1"

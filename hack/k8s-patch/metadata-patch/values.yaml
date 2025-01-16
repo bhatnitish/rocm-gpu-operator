@@ -3,6 +3,7 @@ node-feature-discovery:
 kmm:
   enabled: true  # Set to false to disable kmm
 installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
+upgradeCRD: true # CRD will be patched as pre-upgrade hook when doing helm upgrade to current helm chart
 controllerManager:
   manager:
     args:
