@@ -206,6 +206,26 @@ func (s *E2ESuite) checkNFDWorkerStatus(ns string, c *C, workerName string) {
 	}, 5*time.Minute, 5*time.Second)
 }
 
+func (s *E2ESuite) checkKMMOperatorStatus(ns string, c *C, operatorName string) {
+	if operatorName == "" {
+		operatorName = "amd-gpu-operator-kmm-controller"
+	}
+
+	assert.Eventually(c, func() bool {
+		deployment, err := s.clientSet.AppsV1().Deployments(ns).Get(context.TODO(), operatorName, metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get KMM operator deployment: %v", err)
+			return false
+		}
+
+		log.Infof("KMM operator deployment status: %+v", deployment.Status)
+		return deployment.Status.Replicas > 0 &&
+			deployment.Status.Replicas == deployment.Status.AvailableReplicas &&
+			deployment.Status.Replicas == deployment.Status.UpdatedReplicas &&
+			deployment.Status.Replicas == deployment.Status.ReadyReplicas
+	}, 5*time.Minute, 5*time.Second)
+}
+
 func (s *E2ESuite) verifyDevicePluginStatus(ns string, c *C, devCfg *v1alpha1.DeviceConfig) {
 	assert.Eventually(c, func() bool {
 		pods, err := s.clientSet.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{})
@@ -1691,4 +1711,49 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 	// delete
 	s.deleteDeviceConfig(devCfg, c)
 
+}
+
+func (s *E2ESuite) TestKMMOperatorUpgrade(c *C) {
+	if s.openshift {
+		c.Skip("Skipping for openshift testbed")
+	}
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	s.createDeviceConfig(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkKMMOperatorStatus(s.ns, c, "")
+
+	// Upgrade KMM using the new helm chart
+	log.Infof("Upgrading KMM operator to new version")
+	chartPath := "./yamls/charts/gpu-operator-helm-k8s-v1.0.0.tgz"
+	upgradeCmd := exec.Command("helm", "upgrade", "amd-gpu-operator", chartPath, "-n", s.ns)
+	output, err := upgradeCmd.CombinedOutput()
+	log.Infof("Helm upgrade output: %s", string(output))
+	assert.NoError(c, err, "Helm upgrade failed")
+
+	// Verify the status of NFD and KMM after upgrade
+	log.Infof("Checking NFD worker status post-upgrade")
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	log.Infof("Checking KMM operator status post-upgrade")
+	s.checkKMMOperatorStatus(s.ns, c, "")
+
+	// Rollback to the previous version
+	log.Infof("Rolling back KMM operator to the previous version")
+	rollbackCmd := exec.Command("helm", "rollback", "amd-gpu-operator", "1", "-n", s.ns)
+	rollbackOutput, rollbackErr := rollbackCmd.CombinedOutput()
+	log.Infof("Helm rollback output: %s", string(rollbackOutput))
+	assert.NoError(c, rollbackErr, "Helm rollback failed")
+
+	// Verify the status again after rollback
+	log.Infof("Checking NFD worker status post-rollback")
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	log.Infof("Checking KMM operator status post-rollback")
+	s.checkKMMOperatorStatus(s.ns, c, "")
+
+	log.Infof("Deleting device configuration")
+	s.deleteDeviceConfig(devCfg, c)
 }
