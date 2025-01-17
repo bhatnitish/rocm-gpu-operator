@@ -24,11 +24,12 @@ controllerManager:
         memory: 64Mi
   nodeSelector: {}
   nodeAffinity:
-    nodeSelectorTerms:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-      - key: node-role.kubernetes.io/master
-        operator: Exists
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}

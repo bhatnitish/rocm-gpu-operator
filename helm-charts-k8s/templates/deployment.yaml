@@ -27,21 +27,24 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
-      {{- if .Values.controllerManager.nodeAffinity.nodeSelectorTerms }}
+      {{- if .Values.controllerManager.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
       affinity:
         nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            {{- range .Values.controllerManager.nodeAffinity.nodeSelectorTerms }}
-            - matchExpressions:
-              - key: {{ .key }}
-                operator: {{ .operator }}
-                {{- if .values }}
-                values:
-                {{- range .values }}
-                - {{ . }}
-                {{- end }}
-                {{- end}}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            {{- range .Values.controllerManager.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
+            - weight: {{ .weight }}
+              preference:
+                matchExpressions:
+                  {{- range .preference.matchExpressions }}
+                  - key: {{ .key }}
+                    operator: {{ .operator }}
+                    {{- if .values }}
+                    values:
+                    {{- range .values }}
+                    - {{ . }}
+                    {{- end }}
+                    {{- end }}
+                  {{- end }}
             {{- end }}
       {{- end }}
       nodeSelector: {{- toYaml .Values.controllerManager.nodeSelector | nindent 8 }}
