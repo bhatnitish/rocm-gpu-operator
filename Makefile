@@ -389,7 +389,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	rm $(shell pwd)/helm-charts-k8s/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
-	mv $(shell pwd)/helm-charts-k8s/gpu-operator-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
+	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
 
 .PHONY: helm-openshift
 helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
@@ -417,7 +417,7 @@ helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshif
 	rm $(shell pwd)/helm-charts-openshift/templates/*crd.yaml
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/ --destination ./helm-charts-openshift
-	mv $(shell pwd)/helm-charts-openshift/gpu-operator-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
+	mv $(shell pwd)/helm-charts-openshift/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
 
 .PHONY: helm-install
 helm-install:

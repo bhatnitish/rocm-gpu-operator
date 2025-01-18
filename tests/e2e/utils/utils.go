@@ -91,7 +91,7 @@ func CheckDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) er
 	for _, d := range []struct {
 		ns, name string
 	}{
-		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-gpu-operator-charts-controller-manager"},
 		{ns: "kmm-operator-system", name: "kmm-operator-controller"},
 		{ns: "kmm-operator-system", name: "kmm-operator-webhook-server"},
 		{ns: "node-feature-discovery", name: "nfd-master"},
@@ -137,7 +137,7 @@ func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) 
 	for _, d := range []struct {
 		ns, name string
 	}{
-		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-gpu-operator-charts-controller-manager"},
 		{ns: "openshift-kmm", name: "kmm-operator-controller"},
 		{ns: "openshift-kmm", name: "kmm-operator-webhook-server"},
 		{ns: "openshift-nfd", name: "nfd-controller-manager"},
@@ -185,7 +185,7 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
 	for _, d := range []struct {
 		ns, name string
 	}{
-		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-gpu-operator-charts-controller-manager"},
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-kmm-controller"},
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-kmm-webhook-server"},
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-nfd-controller-manager"},
@@ -235,7 +235,7 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string, create bool) error
 		{ns: "cert-manager", name: "cert-manager"},
 		{ns: "cert-manager", name: "cert-manager-cainjector"},
 		{ns: "cert-manager", name: "cert-manager-webhook"},
-		{ns: "kube-amd-gpu", name: "amd-gpu-operator-controller-manager"},
+		{ns: "kube-amd-gpu", name: "amd-gpu-operator-gpu-operator-charts-controller-manager"},
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-kmm-controller"},
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-kmm-webhook-server"},
 		{ns: "kube-amd-gpu", name: "amd-gpu-operator-node-feature-discovery-gc"},
