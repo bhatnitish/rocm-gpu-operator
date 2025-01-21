@@ -36,6 +36,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -61,6 +62,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	event "sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -109,12 +111,32 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.DaemonSet{}).
 		Owns(&v1.Service{}).
 		Named(DeviceConfigReconcilerName).
-		Watches(
+		Watches( // watch NMC for updating the DeviceConfigs CR status
 			&kmmv1beta1.NodeModulesConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForNMC),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
-		Watches(
+		Watches(&v1.Secret{}, // watch for KMM build/sign/install related secrets
+			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForSecret),
+			builder.WithPredicates(
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return true
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						return true
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return true
+					},
+				},
+			),
+		).
+		Watches(&v1.Node{}, // watch for Node resource to get latest kernel mapping for KMM CR
+			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsWithKMM),
+			builder.WithPredicates(NodeKernelVersionPredicate{}),
+		).
+		Watches( // watch for KMM builder pod event to auto-clean unknown status builder pod
 			&v1.Pod{},
 			r.podEventHandler,
 			builder.WithPredicates(PodLabelPredicate{}), // only watch for event from kmm builder pod
@@ -301,6 +323,8 @@ type deviceConfigReconcilerHelperAPI interface {
 	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
+	findDeviceConfigsForSecret(ctx context.Context, secret client.Object) []reconcile.Request
+	findDeviceConfigsWithKMM(ctx context.Context, node client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
@@ -325,6 +349,7 @@ type deviceConfigReconcilerHelper struct {
 	conditionUpdater  conditions.ConditionUpdater
 	validator         validator.ValidatorAPI
 	upgradeMgrHandler upgradeMgrAPI
+	namespace         string
 }
 
 func newDeviceConfigReconcilerHelper(client client.Client,
@@ -345,6 +370,7 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 		conditionUpdater:  conditionUpdater,
 		validator:         validator,
 		upgradeMgrHandler: upgradeMgrHandler,
+		namespace:         os.Getenv("OPERATOR_NAMESPACE"),
 	}
 }
 
@@ -386,6 +412,80 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 			})
 		}
 	}
+	return reqs
+}
+
+// findDeviceConfigsForSecret when a secret changed, only trigger reconcile for related DeviceConfig
+func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForSecret(ctx context.Context, secret client.Object) []reconcile.Request {
+	reqs := []reconcile.Request{}
+	logger := log.FromContext(ctx)
+	secretObj, ok := secret.(*v1.Secret)
+	if !ok {
+		logger.Error(fmt.Errorf("failed to convert object %+v to Secret", secret), "")
+		return reqs
+	}
+	if secretObj.Namespace != drch.namespace {
+		return reqs
+	}
+	deviceConfigList, err := drch.listDeviceConfigs(ctx)
+	if err != nil || deviceConfigList == nil {
+		logger.Error(err, "failed to list deviceconfigs")
+		return reqs
+	}
+	for _, dcfg := range deviceConfigList.Items {
+		if dcfg.Namespace == drch.namespace &&
+			drch.hasSecretReference(secretObj.Name, dcfg) {
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: dcfg.Namespace,
+					Name:      dcfg.Name,
+				},
+			})
+		}
+	}
+
+	return reqs
+}
+
+func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, dcfg amdv1alpha1.DeviceConfig) bool {
+	// these secrets are KMM driver build/sign/install related secrets
+	// wrong configuration of them is hard to debug unless dumping logs
+	// when their secrets are corrected up and a secret event kicks in
+	// reconcile the corresponding deviceconfigs CRs who have references
+	if dcfg.Spec.Driver.ImageRegistrySecret != nil && dcfg.Spec.Driver.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+	if dcfg.Spec.Driver.ImageSign.KeySecret != nil && dcfg.Spec.Driver.ImageSign.KeySecret.Name == secretName {
+		return true
+	}
+	if dcfg.Spec.Driver.ImageSign.CertSecret != nil && dcfg.Spec.Driver.ImageSign.CertSecret.Name == secretName {
+		return true
+	}
+	return false
+}
+
+// findDeviceConfigsWithKMM only reconcile deviceconfigs with KMM enabled to manage out-of-tree kernel module
+func (drch *deviceConfigReconcilerHelper) findDeviceConfigsWithKMM(ctx context.Context, node client.Object) []reconcile.Request {
+	reqs := []reconcile.Request{}
+	logger := log.FromContext(ctx)
+	deviceConfigList, err := drch.listDeviceConfigs(ctx)
+	if err != nil || deviceConfigList == nil {
+		logger.Error(err, "failed to list deviceconfigs")
+		return reqs
+	}
+	for _, dcfg := range deviceConfigList.Items {
+		if dcfg.Namespace == drch.namespace &&
+			dcfg.Spec.Driver.Enable != nil &&
+			*dcfg.Spec.Driver.Enable {
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: dcfg.Namespace,
+					Name:      dcfg.Name,
+				},
+			})
+		}
+	}
+
 	return reqs
 }
 
