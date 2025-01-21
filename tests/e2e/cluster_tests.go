@@ -307,6 +307,27 @@ func (s *E2ESuite) patchMetricsExporterImage(devCfg *v1alpha1.DeviceConfig, c *C
 	log.Info(fmt.Sprintf("updated device config %+v", result))
 }
 
+func (s *E2ESuite) isUpgradeInProgress(devCfg *v1alpha1.DeviceConfig) bool {
+	// Define the blocked states that indicate an upgrade is in progress
+	blockedStates := map[v1alpha1.UpgradeState]bool{
+		v1alpha1.UpgradeStateNotStarted:        true,
+		v1alpha1.UpgradeStateStarted:           true,
+		v1alpha1.UpgradeStateInstallInProgress: true,
+		v1alpha1.UpgradeStateInProgress:        true,
+	}
+
+	// Iterate over NodeModuleStatus in DeviceConfigStatus
+	for nodeName, moduleStatus := range devCfg.Status.NodeModuleStatus {
+		if blockedStates[moduleStatus.Status] {
+			log.Infof("Upgrade in progress for node %s with state %s", nodeName, moduleStatus.Status)
+			return true
+		}
+	}
+
+	log.Infof("No nodes in blocked states. Upgrade not in progress.")
+	return false
+}
+
 func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
 		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
@@ -1756,4 +1777,79 @@ func (s *E2ESuite) TestKMMOperatorUpgrade(c *C) {
 
 	log.Infof("Deleting device configuration")
 	s.deleteDeviceConfig(devCfg, c)
+}
+
+func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
+		Enable:         &enable,
+		RebootRequired: &rebootRequired,
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// Initiate Driver Version Upgrade
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.1b"
+	} else {
+		devCfg.Spec.Driver.Version = "6.2.2"
+	}
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.patchDriversVersion(devCfg, c)
+
+	// Check if the upgrade is in progress
+	assert.Eventually(c, func() bool {
+		updatedCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get deviceConfig %v", err)
+			return false
+		}
+		return s.isUpgradeInProgress(updatedCfg)
+	}, 10*time.Minute, 5*time.Second, "Upgrade did not enter in-progress state as expected")
+
+	chartPath := "./yamls/charts/gpu-operator-helm-k8s-v1.0.0.tgz"
+	upgradeCmd := exec.Command("helm", "upgrade", "amd-gpu-operator", chartPath, "-n", s.ns)
+	expectedError := "Error: UPGRADE FAILED: pre-upgrade hooks failed: 1 error occurred:\n\t* job pre-upgrade-check failed: BackoffLimitExceeded"
+
+	output, err := upgradeCmd.CombinedOutput()
+	log.Infof("Helm upgrade output: %s", string(output))
+	if assert.Error(c, err, "Helm upgrade should fail during upgrade-in-progress state") {
+		// Check that the error message contains the expected substring
+		assert.Contains(c, string(output), expectedError, "Upgrade failed, but the error message is not as expected")
+		log.Infof("Upgrade failed as expected with the correct error: %s", expectedError)
+	} else {
+		log.Errorf("Unexpected error during helm upgrade: %v", err)
+	}
+
+	if s.openshift {
+		devCfg.Spec.Driver.Version = "el9-6.1.0"
+	} else {
+		devCfg.Spec.Driver.Version = "6.1.0"
+	}
+	s.patchDriversVersion(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// Clean Up DeviceConfig
+	s.deleteDeviceConfig(devCfg, c)
+
+	if !s.simEnable {
+		s.verifyROCMPOD(false, c)
+		err = utils.DelRocmPods(context.TODO(), s.clientSet)
+		assert.NoError(c, err, "failed to remove rocm pods")
+		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
 }
