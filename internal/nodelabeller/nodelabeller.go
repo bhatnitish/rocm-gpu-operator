@@ -179,7 +179,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				InitContainers: initContainers,
 				Containers: []v1.Container{
 					{
-						Args:    []string{"-c", "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family"},
+						Args:    []string{"-c", "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family -product-name"},
 						Command: []string{"sh"},
 						Env: []v1.EnvVar{
 							{
