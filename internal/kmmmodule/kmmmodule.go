@@ -257,6 +257,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		devicePluginImage = devConfig.Spec.DevicePlugin.DevicePluginImage
 	}
 	hostPathDirectory := v1.HostPathDirectory
+	healthCreateHostDirectory := v1.HostPathDirectoryOrCreate
 
 	if ds == nil {
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
@@ -321,7 +322,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 							},
 							{
 								Name:      "health",
-								MountPath: "/var/lib/",
+								MountPath: "/var/lib/amd-metrics-exporter",
 							},
 						},
 					},
@@ -352,8 +353,8 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name: "health",
 						VolumeSource: v1.VolumeSource{
 							HostPath: &v1.HostPathVolumeSource{
-								Path: "/var/lib/",
-								Type: &hostPathDirectory,
+								Path: "/var/lib/amd-metrics-exporter",
+								Type: &healthCreateHostDirectory,
 							},
 						},
 					},
