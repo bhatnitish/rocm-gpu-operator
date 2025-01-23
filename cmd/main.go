@@ -61,6 +61,7 @@ import (
 var (
 	GitCommit = "undefined"
 	Version   = "undefined"
+	BuildTag  = "undefined"
 	scheme    = runtime.NewScheme()
 )
 
@@ -87,7 +88,7 @@ func main() {
 
 	setupLogger := logger.WithName("setup")
 
-	setupLogger.Info("Creating manager", "version", Version, "git commit", GitCommit)
+	setupLogger.Info("Creating manager", "version", Version, "git commit", GitCommit, "build tag", BuildTag)
 
 	setupLogger.Info("Parsing configuration file", "path", configFile)
 
