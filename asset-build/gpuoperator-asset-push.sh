@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROJECT_VERSION=${PROJECT_VERSION:-v1.0.0}
+PROJECT_VERSION=${PROJECT_VERSION:-v1.2.0}
 
 if [ -z $RELEASE ]
 then

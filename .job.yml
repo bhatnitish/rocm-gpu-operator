@@ -5,11 +5,11 @@ builds:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
                HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=latest make docker-build && \
                HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=latest make docker-save && \
-               DOCKER_REGISTRY=registry.test.pensando.io:5000 IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
-               DOCKER_REGISTRY=registry.test.pensando.io:5000 IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
+               DOCKER_REGISTRY=registry.test.pensando.io:5000 IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.2.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
+               DOCKER_REGISTRY=registry.test.pensando.io:5000 IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.2.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
                mv amd-gpu-operator-olm-bundle.tar.gz internal-gpu-operator-olm-bundle.tar.gz && \
-               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
-               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.0.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
+               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.2.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
+               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.2.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
                mv gpu-operator-olm-bundle.tar.gz amdpsdo-gpu-operator-olm-bundle.tar.gz"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
@@ -23,10 +23,10 @@ builds:
 
   build-gpu-operator-k8s:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
-               IMAGE_TAG=latest KMM_IMAGE_TAG=latest PROJECT_VERSION=v1.0.0 make helm"]
+               IMAGE_TAG=latest KMM_IMAGE_TAG=latest PROJECT_VERSION=v1.2.0 make helm"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
-     - /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz
+     - /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.2.0.tgz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
@@ -34,10 +34,10 @@ builds:
 
   build-gpu-operator-openshift:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
-               IMAGE_TAG=latest OPENSHIFT=1 PROJECT_VERSION=v1.0.0 make helm"]
+               IMAGE_TAG=latest OPENSHIFT=1 PROJECT_VERSION=v1.2.0 make helm"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
-     - /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-v1.0.0.tgz
+     - /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-v1.2.0.tgz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management

@@ -30,12 +30,12 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2025-01-16T05:29:04Z"
+    createdAt: "2025-01-22T23:31:23Z"
     operatorframework.io/suggested-namespace: kube-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/pensando/gpu-operator
-  name: amd-gpu-operator.v1.0.0
+  name: amd-gpu-operator.v1.2.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -980,4 +980,4 @@ spec:
   maturity: alpha
   provider:
     name: amd-gpu-operator
-  version: 1.0.0
+  version: 1.2.0
