@@ -12,7 +12,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: kmm
-      app.kubernetes.io/name: kmm
       app.kubernetes.io/part-of: kmm
       control-plane: controller
     {{- include "kmm.selectorLabels" . | nindent 6 }}
@@ -20,7 +19,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: kmm
-        app.kubernetes.io/name: kmm
         app.kubernetes.io/part-of: kmm
         control-plane: controller
       {{- include "kmm.selectorLabels" . | nindent 8 }}
@@ -142,7 +140,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: kmm
-      app.kubernetes.io/name: kmm
       app.kubernetes.io/part-of: kmm
       control-plane: webhook-server
     {{- include "kmm.selectorLabels" . | nindent 6 }}
@@ -150,7 +147,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: kmm
-        app.kubernetes.io/name: kmm
         app.kubernetes.io/part-of: kmm
         control-plane: webhook-server
       {{- include "kmm.selectorLabels" . | nindent 8 }}

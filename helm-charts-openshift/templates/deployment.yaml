@@ -12,7 +12,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: amd-gpu
-      app.kubernetes.io/name: amd-gpu
       app.kubernetes.io/part-of: amd-gpu
       control-plane: controller-manager
     {{- include "helm-charts-openshift.selectorLabels" . | nindent 6 }}
@@ -20,7 +19,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: amd-gpu
-        app.kubernetes.io/name: amd-gpu
         app.kubernetes.io/part-of: amd-gpu
         control-plane: controller-manager
       {{- include "helm-charts-openshift.selectorLabels" . | nindent 8 }}
