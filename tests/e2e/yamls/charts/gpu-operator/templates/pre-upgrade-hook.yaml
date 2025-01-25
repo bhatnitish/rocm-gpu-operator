@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     # hook will be executed before helm upgrade
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
     # don't cleanup the job on hook failure
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
 spec:

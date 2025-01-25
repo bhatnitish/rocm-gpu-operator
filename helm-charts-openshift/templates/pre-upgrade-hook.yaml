@@ -5,7 +5,7 @@ metadata:
   name: upgrade-crd-hook-sa
   annotations:
     # hook will be executed before helm upgrade
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
     # don't cleanup the job on hook failure
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
     # hook with lower weight value will run firstly
@@ -17,7 +17,7 @@ metadata:
   name: upgrade-crd-hook-cluster-role
   annotations:
     # hook will be executed before helm upgrade
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
     # don't cleanup the job on hook failure
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
     # hook with lower weight value will run firstly
@@ -41,7 +41,7 @@ metadata:
   name: upgrade-crd-hook-cluster-role-binding
   annotations:
     # hook will be executed before helm upgrade
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
     # don't cleanup the job on hook failure
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
     # hook with lower weight value will run firstly
@@ -64,7 +64,7 @@ metadata:
     {{- include "helm-charts-openshift.labels" . | nindent 4 }}
   annotations:
     # hook will be executed before helm upgrade
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
     # don't cleanup the job on hook failure
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
     # hook with lower weight value will run firstly
