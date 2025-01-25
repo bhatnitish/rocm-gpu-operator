@@ -133,6 +133,34 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) findDeviceConfigsForN
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "findDeviceConfigsForNMC", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).findDeviceConfigsForNMC), ctx, nmc)
 }
 
+// findDeviceConfigsForSecret mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) findDeviceConfigsForSecret(ctx context.Context, secret client.Object) []reconcile.Request {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "findDeviceConfigsForSecret", ctx, secret)
+	ret0, _ := ret[0].([]reconcile.Request)
+	return ret0
+}
+
+// findDeviceConfigsForSecret indicates an expected call of findDeviceConfigsForSecret.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) findDeviceConfigsForSecret(ctx, secret any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "findDeviceConfigsForSecret", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).findDeviceConfigsForSecret), ctx, secret)
+}
+
+// findDeviceConfigsWithKMM mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) findDeviceConfigsWithKMM(ctx context.Context, node client.Object) []reconcile.Request {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "findDeviceConfigsWithKMM", ctx, node)
+	ret0, _ := ret[0].([]reconcile.Request)
+	return ret0
+}
+
+// findDeviceConfigsWithKMM indicates an expected call of findDeviceConfigsWithKMM.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) findDeviceConfigsWithKMM(ctx, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "findDeviceConfigsWithKMM", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).findDeviceConfigsWithKMM), ctx, node)
+}
+
 // getDeviceConfigOwnedKMMModule mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (*v1beta1.Module, error) {
 	m.ctrl.T.Helper()
@@ -263,17 +291,17 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNodeLabeller(ct
 }
 
 // handleTestRunner mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) handleTestRunner(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) handleTestRunner(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "handleTestRunner", ctx, devConfig)
+	ret := m.ctrl.Call(m, "handleTestRunner", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // handleTestRunner indicates an expected call of handleTestRunner.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleTestRunner(ctx, devConfig any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleTestRunner(ctx, devConfig, nodes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleTestRunner", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleTestRunner), ctx, devConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleTestRunner", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleTestRunner), ctx, devConfig, nodes)
 }
 
 // listDeviceConfigs mocks base method.
