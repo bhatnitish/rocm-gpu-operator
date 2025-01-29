@@ -1418,7 +1418,7 @@ func GetRebootPod(nodeName string) *v1.Pod {
 			Containers: []v1.Container{
 				{
 					Name:            "reboot-container",
-					Image:           "registry.test.pensando.io:5000/amd-gpu-operator-utils:latest",
+					Image:           "docker.io/amdpsdo/gpu-operator-utils:latest",
 					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sudo", "reboot"},
 					Stdin:           true,
 					TTY:             true,
