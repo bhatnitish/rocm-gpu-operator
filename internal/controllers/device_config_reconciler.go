@@ -73,7 +73,7 @@ const (
 	DeviceConfigReconcilerName = "DriverAndPluginReconciler"
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
 	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
-	testRunnerNodeLabelPrefix  = "amd.testrunner"
+	testRunnerNodeLabelPrefix  = "testrunner.amd.com"
 )
 
 // ModuleReconciler reconciles a Module object

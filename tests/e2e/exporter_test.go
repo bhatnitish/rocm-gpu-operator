@@ -343,7 +343,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	s.verifyNodeGPULabel(devCfg, c)
 
 	labelMap := make(map[string]string)
-	labelMap["amdgpu.exporter.gpu.0.state"] = "healthy"
+	labelMap["metricsexporter.amd.com.gpu.0.state"] = "healthy"
 	log.Print("Verify healthy label on node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -359,7 +359,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	log.Infof("Marking GPU unhealthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
-	labelMap["amdgpu.exporter.gpu.0.state"] = "unhealthy"
+	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
 	log.Print("Verifying unhealthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -401,7 +401,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	log.Infof("Marking GPU healthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
-	labelMap["amdgpu.exporter.gpu.0.state"] = "healthy"
+	labelMap["metricsexporter.amd.com.gpu.0.state"] = "healthy"
 	log.Print("Verifying healthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -436,7 +436,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	log.Infof("Marking GPU unhealthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
-	labelMap["amdgpu.exporter.gpu.0.state"] = "unhealthy"
+	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
 	log.Print("Verifying unhealthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
