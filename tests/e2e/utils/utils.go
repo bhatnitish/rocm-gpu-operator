@@ -1427,7 +1427,7 @@ func GetRebootPod(nodeName string) *v1.Pod {
 			},
 			Tolerations: []v1.Toleration{
 				{
-					Key:      "amd-gpu-operator-upgrade-in-progress",
+					Key:      "amd-gpu-driver-upgrade",
 					Value:    "true",
 					Operator: v1.TolerationOpEqual,
 					Effect:   v1.TaintEffectNoSchedule,

@@ -690,7 +690,7 @@ func (h *upgradeMgrHelper) addOrRemoveTaintToNode(ctx context.Context, deviceCon
 
 	logger := log.FromContext(ctx)
 	upgradeTaint := v1.Taint{
-		Key:    "amd-gpu-operator-upgrade-in-progress",
+		Key:    "amd-gpu-driver-upgrade",
 		Value:  "true",
 		Effect: v1.TaintEffectNoSchedule,
 	}
@@ -902,7 +902,7 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 			},
 			Tolerations: []v1.Toleration{
 				{
-					Key:      "amd-gpu-operator-upgrade-in-progress",
+					Key:      "amd-gpu-driver-upgrade",
 					Value:    "true",
 					Operator: v1.TolerationOpEqual,
 					Effect:   v1.TaintEffectNoSchedule,
