@@ -677,6 +677,12 @@ func (h *upgradeMgrHelper) cordonOrUncordonNode(ctx context.Context, deviceConfi
 		return err
 	}
 
+	if cordon {
+		logger.Info(fmt.Sprintf("cordoned node %+v", node.Name))
+	} else {
+		logger.Info(fmt.Sprintf("uncordoned node %+v", node.Name))
+	}
+
 	return nil
 }
 
