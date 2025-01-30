@@ -5,16 +5,26 @@ controller:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     env:
+      # -- KMM kaniko builder image for building driver image within cluster
       relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
-      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:dev
-      relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:dev
+      # -- KMM signer image for signing driver image's kernel module with given key pairs within cluster
+      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:latest
+      # -- KMM worker image for loading / unloading driver kernel module on worker nodes
+      relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:latest
+      # -- Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image
       relatedImageBuildPullSecret: ""
+      # -- Image pull secret name for pulling KMM signer image if registry needs credential to pull image
       relatedImageSignPullSecret: ""
+      # -- Image pull secret name for pulling KMM worker image if registry needs credential to pull image
       relatedImageWorkerPullSecret: ""
     image:
+      # -- KMM controller manager image repository
       repository: registry.test.pensando.io:5000/kernel-module-management-operator
-      tag: dev
+      # -- KMM controller manager image tag
+      tag: latest
+    # -- Image pull policy for KMM controller manager pod
     imagePullPolicy: Always
+    # -- Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image
     imagePullSecrets: ""
     resources:
       limits:
@@ -23,11 +33,13 @@ controller:
       requests:
         cpu: 10m
         memory: 64Mi
+  # -- Node selector for the KMM controller manager deployment
   nodeSelector: {}
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
         preference:
+          # -- expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution
           matchExpressions:
             - key: node-role.kubernetes.io/control-plane
               operator: Exists
@@ -59,11 +71,13 @@ managerConfig:
       firmwareHostPath: /var/lib/firmware
 webhookServer:
   replicas: 1
+  # -- KMM webhook's deployment node selector
   nodeSelector: {}
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
         preference:
+          # -- expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution
           matchExpressions:
             - key: node-role.kubernetes.io/control-plane
               operator: Exists
@@ -76,9 +90,13 @@ webhookServer:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
+      # -- KMM webhook image repository
       repository: registry.test.pensando.io:5000/kernel-module-management-webhook-server
-      tag: dev
+      # -- KMM webhook image tag
+      tag: latest
+    # -- Image pull policy for KMM webhook pod
     imagePullPolicy: Always
+    # -- Image pull secret name for pulling KMM webhook image if registry needs credential to pull image
     imagePullSecrets: ""
     resources:
       limits:

@@ -1,9 +1,20 @@
+# NFD related configs
 node-feature-discovery:
-  enabled: true  # Set to false to disable node-feature-discovery
+  # -- Set to true/false to enable/disable the installation of node feature discovery (NFD) operator
+  enabled: true
+
+# KMM related configs
 kmm:
-  enabled: true  # Set to false to disable kmm
-installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
-upgradeCRD: true # CRD will be patched as pre-upgrade hook when doing helm upgrade to current helm chart
+  # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator
+  enabled: true
+
+# -- Default NFD rule will detect amd gpu based on pci vendor ID
+installdefaultNFDRule: true
+
+# -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart
+upgradeCRD: true
+
+# AMD GPU operator controller related configs
 controllerManager:
   manager:
     args:
@@ -11,9 +22,13 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
+      # -- AMD GPU operator controller manager image repository
       repository: registry.test.pensando.io:5000/amd-gpu-operator
-      tag: latest
+      # -- AMD GPU operator controller manager image tag
+      tag: dev
+    # -- Image pull policy for AMD GPU operator controller manager pod
     imagePullPolicy: Always
+    # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image
     imagePullSecrets: ""
     resources:
       limits:
@@ -22,11 +37,13 @@ controllerManager:
       requests:
         cpu: 10m
         memory: 64Mi
+  # -- Node selector for AMD GPU operator controller manager deployment
   nodeSelector: {}
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
         preference:
+          # -- expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution
           matchExpressions:
             - key: node-role.kubernetes.io/control-plane
               operator: Exists

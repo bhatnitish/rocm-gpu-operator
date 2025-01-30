@@ -66,7 +66,7 @@ BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle
 HOURLY_TAG_LABEL ?= latest
 
 # KMM related images
-KMM_IMAGE_TAG ?= dev
+KMM_IMAGE_TAG ?= latest
 KMM_SIGNER_IMG ?= registry.test.pensando.io:5000/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
 KMM_WORKER_IMG ?= registry.test.pensando.io:5000/kernel-module-management-worker:$(KMM_IMAGE_TAG)
 KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
@@ -268,6 +268,14 @@ GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
 golangci-lint: ## Download golangci-lint locally if necessary.
 	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.1)
 
+HELMDOCS = $(shell pwd)/bin/helm-docs
+.PHONY: helm-docs
+helm-docs: ## Download helm-docs locally if necessary
+	$(call go-get-tool,$(HELMDOCS),github.com/norwoodj/helm-docs/cmd/helm-docs@v1.12.0)
+	$(HELMDOCS) -c $(shell pwd)/helm-charts-k8s/ -g $(shell pwd)/helm-charts-k8s -u --ignore-non-descriptions
+	cat $(shell pwd)/README.md $(shell pwd)/helm-charts-k8s/README.md > /tmp/README.md
+	mv /tmp/README.md $(shell pwd)/helm-charts-k8s/README.md
+
 .PHONY: mockgen
 mockgen: ## Install mockgen locally.
 	go install go.uber.org/mock/mockgen@v0.3.0
@@ -371,7 +379,6 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-k8s
 	# Patching k8s helm chart metadata
 	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/
-	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.md $(shell pwd)/helm-charts-k8s/
 	# Patching k8s helm chart template
 	cp $(shell pwd)/hack/k8s-patch/template-patch/* $(shell pwd)/helm-charts-k8s/templates/
 	# Removing OpenShift related rbac from vanilla k8s helm charts
@@ -390,6 +397,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
 	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
+	$(MAKE) helm-docs
 
 .PHONY: helm-openshift
 helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
