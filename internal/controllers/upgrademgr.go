@@ -175,6 +175,9 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		candidateNodes = append(candidateNodes, nodeList.Items[i])
 	}
 
+	if len(candidateNodes) == 0 && (upgradeInProgress > 0) {
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
+	}
 	// All nodes have correct drivers installed
 	if upgradeDone == len(nodeList.Items) || len(candidateNodes) == 0 {
 		return ctrl.Result{}, nil
@@ -795,7 +798,7 @@ func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, 
 	}
 
 	waitForDriverUpgrade := func() {
-		for i := uint(0); i < 60; _, i = <-time.NewTicker(10*time.Second).C, i+1 {
+		for i := uint(0); i < 360; _, i = <-time.NewTicker(10*time.Second).C, i+1 {
 			nmcObj := &kmmv1beta1.NodeModulesConfig{}
 			if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: node.Name}, nmcObj); err == nil {
 				for _, status := range nmcObj.Status.Modules {
@@ -845,7 +848,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 
 	if !force {
 		// Wait (max 1 hour) until reboot is done
-		for i := uint(0); i < 60; _, i = <-time.NewTicker(10*time.Second).C, i+1 {
+		for i := uint(0); i < 360; _, i = <-time.NewTicker(10*time.Second).C, i+1 {
 			pod := &v1.Pod{}
 			if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: rebootPod.Name}, pod); err == nil {
 				if len(pod.Status.ContainerStatuses) > 0 {
