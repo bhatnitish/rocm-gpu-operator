@@ -7,6 +7,8 @@ metadata:
   labels:
     {{- include "helm-charts-openshift.labels" . | nindent 4 }}
   annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "0"
     "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
@@ -17,6 +19,8 @@ metadata:
   labels:
     {{- include "helm-charts-openshift.labels" . | nindent 4 }}
   annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "0"
     "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
@@ -36,6 +40,8 @@ metadata:
   labels:
     {{- include "helm-charts-openshift.labels" . | nindent 4 }}
   annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "1"
     "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
@@ -54,7 +60,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     # hook with lower weight value will run firstly
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "2"
     # hook will be executed before helm uninstall
     "helm.sh/hook": post-delete
     # remove the resource created by the hook whether it succeeded or failed
