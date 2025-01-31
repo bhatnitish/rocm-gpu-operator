@@ -270,6 +270,10 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
+	imagePullSecrets := []v1.LocalObjectReference{}
+	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
+		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
+	}
 
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
 	ds.Spec = appsv1.DaemonSetSpec{
@@ -327,6 +331,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						},
 					},
 				},
+				ImagePullSecrets:   imagePullSecrets,
 				PriorityClassName:  "system-node-critical",
 				NodeSelector:       nodeSelector,
 				ServiceAccountName: "amd-gpu-operator-kmm-device-plugin",
