@@ -474,8 +474,8 @@ func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeNam
 				return false
 			}
 
-			// Check if Upgrade has been in progress for more than an hour
-			if time.Since(upgradeTime) > time.Hour {
+			// Check if Upgrade has been in progress for more than 2 hours
+			if time.Since(upgradeTime) > (2 * time.Hour) {
 				return true
 			}
 		}
