@@ -313,7 +313,6 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name:            "device-plugin",
 						WorkingDir:      "/root",
 						Image:           devicePluginImage,
-						ImagePullPolicy: v1.PullAlways,
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{

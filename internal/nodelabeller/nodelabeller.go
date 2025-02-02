@@ -194,7 +194,6 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 						Name:            "node-labeller-container",
 						WorkingDir:      "/root",
 						Image:           nl.getNodeLabellerImage(devConfig),
-						ImagePullPolicy: v1.PullAlways,
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts:    containerVolumeMounts,
 					},
