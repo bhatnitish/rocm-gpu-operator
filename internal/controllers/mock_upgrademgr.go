@@ -206,15 +206,15 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteOrDrainPods(ctx, deviceConf
 }
 
 // deleteRebootPod mocks base method.
-func (m *MockupgradeMgrHelperAPI) deleteRebootPod(ctx context.Context, nodeName string, dc *v1alpha1.DeviceConfig, force bool) {
+func (m *MockupgradeMgrHelperAPI) deleteRebootPod(ctx context.Context, nodeName string, dc *v1alpha1.DeviceConfig, force bool, genId int64) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "deleteRebootPod", ctx, nodeName, dc, force)
+	m.ctrl.Call(m, "deleteRebootPod", ctx, nodeName, dc, force, genId)
 }
 
 // deleteRebootPod indicates an expected call of deleteRebootPod.
-func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteRebootPod(ctx, nodeName, dc, force any) *gomock.Call {
+func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteRebootPod(ctx, nodeName, dc, force, genId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteRebootPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).deleteRebootPod), ctx, nodeName, dc, force)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteRebootPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).deleteRebootPod), ctx, nodeName, dc, force, genId)
 }
 
 // getNodeStatus mocks base method.
