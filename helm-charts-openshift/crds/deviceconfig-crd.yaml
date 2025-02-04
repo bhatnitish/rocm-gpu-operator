@@ -46,6 +46,39 @@ spec:
             description: DeviceConfigSpec describes how the AMD GPU operator should
               enable AMD GPU device for customer's use.
             properties:
+              commonConfig:
+                description: common config
+                properties:
+                  initContainerImage:
+                    description: InitContainerImage is being used for the operands pods,
+                      i.e. metrics exporter, test runner, device plugin and node labeller
+                    type: string
+                  utilsContainer:
+                    description: UtilsContainer contains parameters to configure operator's
+                      utils container
+                    properties:
+                      image:
+                        description: Image is the image of utils container
+                        pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                        type: string
+                      imagePullPolicy:
+                        description: image pull policy for utils container
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
+                      imageRegistrySecret:
+                        description: secret used for pull utils container image
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                type: object
               devicePlugin:
                 description: device plugin
                 properties:
@@ -241,7 +274,7 @@ spec:
                     properties:
                       certSecret:
                         description: ImageSignCertSecret the public key used to sign
-                          kernel modules within image necessary for secire boot enabled
+                          kernel modules within image necessary for secure boot enabled
                           system
                         properties:
                           name:
@@ -252,7 +285,7 @@ spec:
                         x-kubernetes-map-type: atomic
                       keySecret:
                         description: ImageSignKeySecret the private key used to sign
-                          kernel modules within image necessary for secire boot enabled
+                          kernel modules within image necessary for secure boot enabled
                           system
                         properties:
                           name:
@@ -322,7 +355,9 @@ spec:
                             type: integer
                         type: object
                       rebootRequired:
-                        description: reboot between driver upgrades, disabled by default
+                        description: reboot between driver upgrades, disabled by default,
+                          if enabled spec.commonConfig.utilsContainer will be used to
+                          perform reboot on worker nodes
                         type: boolean
                     type: object
                   version:

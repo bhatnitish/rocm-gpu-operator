@@ -50,6 +50,7 @@ import (
 const (
 	defaultMetricsExporterImage       = "docker.io/rocm/device-metrics-exporter:v1.1.0"
 	defaultKubeRbacProxyImage         = "quay.io/brancz/kube-rbac-proxy:v0.18.1"
+	defaultInitContainerImage         = "busybox:1.36"
 	servicePort                 int32 = 5000
 	nobodyUser                        = 65532
 	ExporterName                      = "metrics-exporter"
@@ -287,6 +288,10 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	}
 
 	gracePeriod := int64(1)
+	initContainerImage := defaultInitContainerImage
+	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
+		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -298,7 +303,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 				InitContainers: []v1.Container{
 					{
 						Name:            "driver-init",
-						Image:           "busybox:1.36",
+						Image:           initContainerImage,
 						Command:         []string{"sh", "-c", "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts: []v1.VolumeMount{

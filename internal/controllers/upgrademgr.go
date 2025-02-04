@@ -59,6 +59,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	defaultUtilsImage = "docker.io/amdpsdo/gpu-operator-utils:latest"
+)
+
 type upgradeMgr struct {
 	helper upgradeMgrHelperAPI
 }
@@ -924,20 +928,29 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceConfig) *v1.Pod {
 	nodeSelector := map[string]string{}
 	nodeSelector["kubernetes.io/hostname"] = nodeName
-	return &v1.Pod{
+	utilsImage := defaultUtilsImage
+	if dc.Spec.CommonConfig.UtilsContainer.Image != "" {
+		utilsImage = dc.Spec.CommonConfig.UtilsContainer.Image
+	}
+	imagePullSecrets := []v1.LocalObjectReference{}
+	if dc.Spec.CommonConfig.UtilsContainer.ImageRegistrySecret != nil {
+		imagePullSecrets = append(imagePullSecrets, *dc.Spec.CommonConfig.UtilsContainer.ImageRegistrySecret)
+	}
+	rebootPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("amd-gpu-operator-%v-reboot-worker", nodeName),
 			Namespace: dc.Namespace,
 		},
 		Spec: v1.PodSpec{
-			HostPID:       true,
-			HostNetwork:   true,
-			RestartPolicy: v1.RestartPolicyNever,
-			NodeSelector:  nodeSelector,
+			HostPID:          true,
+			HostNetwork:      true,
+			RestartPolicy:    v1.RestartPolicyNever,
+			NodeSelector:     nodeSelector,
+			ImagePullSecrets: imagePullSecrets,
 			Containers: []v1.Container{
 				{
 					Name:            "reboot-container",
-					Image:           "docker.io/amdpsdo/gpu-operator-utils:latest",
+					Image:           utilsImage,
 					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sudo", "reboot"},
 					Stdin:           true,
 					TTY:             true,
@@ -954,4 +967,10 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 			},
 		},
 	}
+
+	if dc.Spec.CommonConfig.UtilsContainer.ImagePullPolicy != "" {
+		rebootPod.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(dc.Spec.CommonConfig.UtilsContainer.ImagePullPolicy)
+	}
+
+	return rebootPod
 }

@@ -50,6 +50,7 @@ import (
 const (
 	// TODO: determine where to host the test runner image and put the registry URL here
 	defaultTestRunnerImage       = "registry.test.pensando.io:5000/test-runner/test-runner:dev"
+	defaultInitContainerImage    = "busybox:1.36"
 	TestRunnerName               = "test-runner"
 	defaultSAName                = "amd-gpu-operator-test-runner"
 	defaultTestRunnerDirHostPath = "/var/log/amd-test-runner"
@@ -243,6 +244,10 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 
 	serviceaccount := defaultSAName
 	gracePeriod := int64(1)
+	initContainerImage := defaultInitContainerImage
+	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
+		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -254,7 +259,7 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 				InitContainers: []v1.Container{
 					{
 						Name:            "driver-init",
-						Image:           "busybox:1.36",
+						Image:           initContainerImage,
 						Command:         []string{"sh", "-c", "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts: []v1.VolumeMount{

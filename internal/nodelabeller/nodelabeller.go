@@ -53,6 +53,7 @@ const (
 	rocmUbiNodeLabellerRepo     = "rocm/k8s-node-labeller"
 	defaultNodeLabellerImage    = "rocm/k8s-device-plugin:labeller-latest"
 	defaultUbiNodeLabellerImage = "rocm/k8s-node-labeller:rhubi-latest"
+	defaultInitContainerImage   = "busybox:1.36"
 )
 
 //go:generate mockgen -source=nodelabeller.go -package=nodelabeller -destination=mock_nodelabeller.go NodeLabeller
@@ -154,10 +155,14 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		initContainerCommand = []string{"sh", "-c", "rm -f /host-etc/modprobe.d/blacklist-amdgpu.conf; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"}
 	}
 
+	initContainerImage := defaultInitContainerImage
+	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
+		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
 	initContainers := []v1.Container{
 		{
 			Name:            "driver-init",
-			Image:           "busybox:1.36",
+			Image:           initContainerImage,
 			Command:         initContainerCommand,
 			SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 			VolumeMounts:    initVolumeMounts,

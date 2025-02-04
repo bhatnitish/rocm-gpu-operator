@@ -60,6 +60,11 @@ type DeviceConfigSpec struct {
 	// +optional
 	TestRunner TestRunnerSpec `json:"testRunner,omitempty"`
 
+	// common config
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="CommonConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:commonConfig"}
+	// +optional
+	CommonConfig CommonConfigSpec `json:"commonConfig,omitempty"`
+
 	// Selector describes on which nodes the GPU Operator should enable the GPU device.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
 	// +optional
@@ -192,7 +197,7 @@ type DriverUpgradePolicySpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodDeletionPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy"}
 	// +optional
 	PodDeletionPolicy *PodDeletionSpec `json:"podDeletionPolicy,omitempty"`
-	// reboot between driver upgrades, disabled by default
+	// reboot between driver upgrades, disabled by default, if enabled spec.commonConfig.utilsContainer will be used to perform reboot on worker nodes
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RebootRequired",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:rebootRequired"}
 	// +optional
 	RebootRequired *bool `json:"rebootRequired,omitempty"`
@@ -288,13 +293,13 @@ type DaemonSetUpgradeSpec struct {
 
 type ImageSignSpec struct {
 	// ImageSignKeySecret the private key used to sign kernel modules within image
-	// necessary for secire boot enabled system
+	// necessary for secure boot enabled system
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageSignKeySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret"}
 	// +optional
 	KeySecret *v1.LocalObjectReference `json:"keySecret,omitempty"`
 
 	// ImageSignCertSecret the public key used to sign kernel modules within image
-	// necessary for secire boot enabled system
+	// necessary for secure boot enabled system
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageSignCertSecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageSignCertSecret"}
 	// +optional
 	CertSecret *v1.LocalObjectReference `json:"certSecret,omitempty"`
@@ -473,6 +478,39 @@ type LogsLocationConfig struct {
 	// +kubebuilder:default="/var/log/amd-test-runner"
 	// +optional
 	HostPath string `json:"hostPath,omitempty"`
+}
+
+// UtilsContainerSpec contains parameters to configure operator's utils
+type UtilsContainerSpec struct {
+	// Image is the image of utils container
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	Image string `json:"image,omitempty"`
+
+	// image pull policy for utils container
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+
+	// secret used for pull utils container image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+}
+
+// CommonConfigSpec contains the common config across operator and operands
+type CommonConfigSpec struct {
+	// InitContainerImage is being used for the operands pods, i.e. metrics exporter, test runner, device plugin and node labeller
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="InitContainerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:initContainerImage"}
+	// +optional
+	InitContainerImage string `json:"initContainerImage,omitempty"`
+
+	// UtilsContainer contains parameters to configure operator's utils container
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UtilsContainer",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:utilsContainer"}
+	// +optional
+	UtilsContainer UtilsContainerSpec `json:"utilsContainer,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during

@@ -27,6 +27,38 @@ spec:
         name: modules.kmm.sigs.x-k8s.io
         version: v1beta1
       specDescriptors:
+      - description: common config
+        displayName: CommonConfig
+        path: commonConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:commonConfig
+      - description: InitContainerImage is being used for the operands pods, i.e.
+          metrics exporter, test runner, device plugin and node labeller
+        displayName: InitContainerImage
+        path: commonConfig.initContainerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:initContainerImage
+      - description: UtilsContainer contains parameters to configure operator's utils
+          container
+        displayName: UtilsContainer
+        path: commonConfig.utilsContainer
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:utilsContainer
+      - description: Image is the image of utils container
+        displayName: Image
+        path: commonConfig.utilsContainer.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for utils container
+        displayName: ImagePullPolicy
+        path: commonConfig.utilsContainer.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: secret used for pull utils container image
+        displayName: ImageRegistrySecret
+        path: commonConfig.utilsContainer.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
       - description: device plugin
         displayName: DevicePlugin
         path: devicePlugin
@@ -155,13 +187,13 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSign
       - description: ImageSignCertSecret the public key used to sign kernel modules
-          within image necessary for secire boot enabled system
+          within image necessary for secure boot enabled system
         displayName: ImageSignCertSecret
         path: driver.imageSign.certSecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignCertSecret
       - description: ImageSignKeySecret the private key used to sign kernel modules
-          within image necessary for secire boot enabled system
+          within image necessary for secure boot enabled system
         displayName: ImageSignKeySecret
         path: driver.imageSign.keySecret
         x-descriptors:
@@ -204,7 +236,9 @@ spec:
         path: driver.upgradePolicy.podDeletionPolicy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy
-      - description: reboot between driver upgrades, disabled by default
+      - description: reboot between driver upgrades, disabled by default, if enabled
+          spec.commonConfig.utilsContainer will be used to perform reboot on worker
+          nodes
         displayName: RebootRequired
         path: driver.upgradePolicy.rebootRequired
         x-descriptors:

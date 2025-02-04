@@ -83,6 +83,7 @@ const (
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
 	defaultInternalCDNURL       = "artifactory-cdn.amd.com"
 	internalUbuntuImageForCI    = "registry.test.pensando.io:5000/ubuntu"
+	defaultInitContainerImage   = "busybox:1.36"
 )
 
 var (
@@ -284,6 +285,10 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	}
 
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
+	initContainerImage := defaultInitContainerImage
+	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
+		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -294,7 +299,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 				InitContainers: []v1.Container{
 					{
 						Name:            "driver-init",
-						Image:           "busybox:1.36",
+						Image:           initContainerImage,
 						Command:         []string{"sh", "-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
 						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
 						VolumeMounts: []v1.VolumeMount{
