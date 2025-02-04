@@ -10,7 +10,7 @@ spec:
     spec:
       containers:
       - name: amd-curl
-        image: curlimages/curl:7.78.0  # Use curl-specific image
+        image: registry.test.pensando.io:5000/curl:7.78.0  # Use curl-specific image
         command: ["/bin/sh", "-c"]
         args:
           - |
