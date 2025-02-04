@@ -1284,6 +1284,34 @@ func RebootNodesWithWait(ctx context.Context, cl *kubernetes.Clientset, nodes []
 	return nil
 }
 
+func PatchOperatorControllerDeploymentWithCIENVFlag(cl *kubernetes.Clientset) error {
+	patch := []map[string]interface{}{
+		{
+			"op":    "add",
+			"path":  "/spec/template/spec/containers/0/env/-",
+			"value": map[string]string{"name": "CI_ENV", "value": "true"},
+		},
+	}
+
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch: %v", err)
+	}
+
+	_, err = cl.AppsV1().Deployments("kube-amd-gpu").Patch(
+		context.TODO(),
+		"amd-gpu-operator-gpu-operator-charts-controller-manager",
+		types.JSONPatchType,
+		patchBytes,
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to patch gpu operator controller deployment: %v", err)
+	}
+	time.Sleep(60 * time.Second)
+	return nil
+}
+
 func PatchKMMDeploymentWithCIENVFlag(cl *kubernetes.Clientset) error {
 	patch := []map[string]interface{}{
 		{

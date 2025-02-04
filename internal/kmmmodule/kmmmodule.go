@@ -37,6 +37,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -81,6 +82,7 @@ const (
 	defaultOcDriversVersion     = "6.2.2"
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
 	defaultInternalCDNURL       = "artifactory-cdn.amd.com"
+	internalUbuntuImageForCI    = "registry.test.pensando.io:5000/ubuntu"
 )
 
 var (
@@ -191,10 +193,10 @@ var driverLabels = map[string]string{
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
 	splits := strings.SplitN(cmName, "-", 4)
-	os := splits[0]
+	osDistro := splits[0]
 	version := splits[1]
 	var dockerfileTemplate string
-	switch os {
+	switch osDistro {
 	case "ubuntu":
 		dockerfileTemplate = dockerfileTemplateUbuntu
 		driverLabel, present := driverLabels[version]
@@ -215,6 +217,12 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$AMDGPU_BUILD", devBuildinfo[2], -1)
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$ROCM_BUILD", devBuildinfo[3], -1)
 		}
+		// use an environment variable to ask CI infra to pull image from internal repository
+		// in order to avoid docekrhub pull rate limit issue
+		_, isCIEnvSet := os.LookupEnv("CI_ENV")
+		if isCIEnvSet {
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuImageForCI), -1)
+		}
 	case "coreos":
 		dockerfileTemplate = buildOcDockerfile
 	// FIX ME
@@ -230,7 +238,7 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_PASSWORD", devConfig.Spec.RedhatSubscriptionPassword, -1)
 	*/
 	default:
-		return "", fmt.Errorf("not supported OS: %s", os)
+		return "", fmt.Errorf("not supported OS: %s", osDistro)
 	}
 	resolvedDockerfile := strings.Replace(dockerfileTemplate, "$$VERSION", version, -1)
 	return resolvedDockerfile, nil
@@ -543,27 +551,35 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		}
 	}
 
+	kmmBuild := &kmmv1beta1.Build{
+		DockerfileConfigMap: &v1.LocalObjectReference{
+			Name: GetCMName(osName, devConfig),
+		},
+		BuildArgs: []kmmv1beta1.BuildArg{
+			{
+				Name:  "DRIVERS_VERSION",
+				Value: driversVersion,
+			},
+			{
+				Name:  "REPO_URL",
+				Value: repoURL,
+			},
+		},
+	}
+
+	_, isCIEnvSet := os.LookupEnv("CI_ENV")
+	if isCIEnvSet {
+		kmmBuild.BaseImageRegistryTLS.Insecure = true
+		kmmBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify = true
+	}
+
 	return kmmv1beta1.KernelMapping{
 		Literal:              node.Status.NodeInfo.KernelVersion,
 		ContainerImage:       driversImage,
 		InTreeModuleToRemove: inTreeModuleToRemove,
-		Build: &kmmv1beta1.Build{
-			DockerfileConfigMap: &v1.LocalObjectReference{
-				Name: GetCMName(osName, devConfig),
-			},
-			BuildArgs: []kmmv1beta1.BuildArg{
-				{
-					Name:  "DRIVERS_VERSION",
-					Value: driversVersion,
-				},
-				{
-					Name:  "REPO_URL",
-					Value: repoURL,
-				},
-			},
-		},
-		Sign:        kmmSign,
-		RegistryTLS: registryTLS,
+		Build:                kmmBuild,
+		Sign:                 kmmSign,
+		RegistryTLS:          registryTLS,
 	}, driversVersion, nil
 }
 

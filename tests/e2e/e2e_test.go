@@ -122,6 +122,9 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 		if err := utils.PatchKMMDeploymentWithCIENVFlag(s.clientSet); err != nil {
 			c.Fatalf("%v", err)
 		}
+		if err := utils.PatchOperatorControllerDeploymentWithCIENVFlag(s.clientSet); err != nil {
+			c.Fatalf("%v", err)
+		}
 	}
 }
 
