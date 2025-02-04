@@ -593,13 +593,11 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 		// if there is no module configured for given node
 		// the info under that node name will have only status and upgrade start time
 		// then it will be clear to see which node didn't get module configured
-		upgradeStartTime := previousUpgradeTimes[node.Name]
 
-		currentStatus := dcrh.upgradeMgrHandler.GetNodeStatus(node.Name)
-		if currentStatus == amdv1alpha1.UpgradeStateFailed || currentStatus == amdv1alpha1.UpgradeStateCordonFailed || currentStatus == amdv1alpha1.UpgradeStateUncordonFailed || currentStatus == amdv1alpha1.UpgradeStateDrainFailed || currentStatus == amdv1alpha1.UpgradeStateRebootFailed || currentStatus == amdv1alpha1.UpgradeStateComplete || currentStatus == amdv1alpha1.UpgradeStateInstallComplete {
-			upgradeStartTime = ""
-		} else if upgradeStartTime == "" {
-			upgradeStartTime = dcrh.upgradeMgrHandler.GetNodeUpgradeStartTime(node.Name)
+		upgradeStartTime := dcrh.upgradeMgrHandler.GetNodeUpgradeStartTime(node.Name)
+		//If operator restarted during Upgrade, then fetch previous known upgrade start time since the internal maps would have been cleared
+		if upgradeStartTime == "" {
+			upgradeStartTime = previousUpgradeTimes[node.Name]
 		}
 		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name), UpgradeStartTime: upgradeStartTime}
 

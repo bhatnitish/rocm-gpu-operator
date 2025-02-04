@@ -463,10 +463,14 @@ func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeNam
 	// Fetch upgrade time started from node module status to ensure handling timeouts across operator restarts
 	for name, moduleStatus := range deviceConfig.Status.NodeModuleStatus {
 		if name == nodeName {
-			upgradeStartTime := moduleStatus.UpgradeStartTime
-
+			upgradeStartTime := h.getUpgradeStartTime(nodeName)
+			// If empty, it means UpgradeStartTime was cleared internally since Upgrade is in Complete/Failed state. But if Upgrade is in Progress and map value of start time was cleared, it means Operator restarted during upgrade. In this case, we should check for Timeout using original StartTime from the device config status
 			if upgradeStartTime == "" {
-				return false
+				if moduleStatus.Status == amdv1alpha1.UpgradeStateFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateCordonFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateUncordonFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateDrainFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateRebootFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateInstallComplete {
+					return false
+				} else {
+					upgradeStartTime = moduleStatus.UpgradeStartTime
+				}
 			}
 
 			upgradeTime, err := time.Parse("2006-01-02 15:04:05 UTC", upgradeStartTime)
