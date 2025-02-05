@@ -64,7 +64,7 @@ metadata:
     # hook will be executed before helm uninstall
     "helm.sh/hook": post-delete
     # remove the resource created by the hook whether it succeeded or failed
-    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
 spec:
   backoffLimit: 0 # once the job finished first run, don't retry to create another pod
   ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
