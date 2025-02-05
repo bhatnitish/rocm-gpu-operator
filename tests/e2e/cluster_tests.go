@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
+	"github.com/pensando/gpu-operator/internal/testrunner"
 
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
@@ -281,6 +282,40 @@ func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns 
 
 		return ready
 	}, 45*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) checkTestRunnerStatus(devCfg *v1alpha1.DeviceConfig, expectDSExist bool, c *C) {
+	if expectDSExist {
+		assert.Eventually(c, func() bool {
+			_, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), devCfg.Name+"-"+testrunner.TestRunnerName, metav1.GetOptions{})
+			if err != nil {
+				log.Errorf("cannot find expected test runner daemonset, err %+v", err)
+				return false
+			}
+			return true
+		}, 5*time.Minute, 10*time.Second)
+	} else {
+		assert.Eventually(c, func() bool {
+			trDS, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), devCfg.Name+"-"+testrunner.TestRunnerName, metav1.GetOptions{})
+			if err == nil {
+				log.Errorf("found expected test runner daemonset but expect it doesn't exist %+v", trDS)
+				return false
+			}
+			return true
+		}, 5*time.Minute, 10*time.Second)
+	}
+}
+
+func (s *E2ESuite) patchMetricsExporterEnablement(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchMetricsExporterEnablement(devCfg)
+	assert.NoError(c, err, "failed to update %v", s.cfgName)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
+func (s *E2ESuite) patchTestRunnerEnablement(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchTestRunnerEnablement(devCfg)
+	assert.NoError(c, err, "failed to update %v", s.cfgName)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
 }
 
 func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
@@ -1667,6 +1702,35 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
+}
+
+func (s *E2ESuite) TestTestRunnerEnablement(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	// test runner shouldn't be brought up when it is disabled
+	enableTestRunner := false
+	enableExporter := false
+	devCfg.Spec.TestRunner.Enable = &enableTestRunner
+	devCfg.Spec.MetricsExporter.Enable = &enableExporter
+	s.createDeviceConfig(devCfg, c)
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.checkTestRunnerStatus(devCfg, false, c)
+	// if we only enable test runner but didn't enable exporter, test runner daemonset shouldn't be brought up
+	enableTestRunner = true
+	devCfg.Spec.TestRunner.Enable = &enableTestRunner
+	s.patchTestRunnerEnablement(devCfg, c)
+	s.checkTestRunnerStatus(devCfg, false, c)
+	// enable both metrics exporter and test runner will bring up test runner daemonset
+	enableTestRunner = true
+	enableExporter = true
+	devCfg.Spec.TestRunner.Enable = &enableTestRunner
+	devCfg.Spec.MetricsExporter.Enable = &enableExporter
+	s.patchTestRunnerEnablement(devCfg, c)
+	s.patchMetricsExporterEnablement(devCfg, c)
+	s.checkTestRunnerStatus(devCfg, true, c)
 }
 
 func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
