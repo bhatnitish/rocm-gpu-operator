@@ -556,13 +556,29 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   logsLocation:
-                    description: mount config for test runner logs
+                    description: captures logs location and export config for test runner
+                      logs
                     properties:
                       hostPath:
                         default: /var/log/amd-test-runner
                         description: host path to store test runner internal status
                           db in order to persist test running status
                         type: string
+                      logsExportSecrets:
+                        description: LogsExportSecrets is a list of secrets that contain
+                          connectivity info to multiple cloud providers
+                        items:
+                          description: LocalObjectReference contains enough information
+                            to let you locate the referenced object inside the same
+                            namespace.
+                          properties:
+                            name:
+                              description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Add other useful fields. apiVersion, kind, uid?'
+                              type: string
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        type: array
                       mountPath:
                         default: /var/log/amd-test-runner
                         description: volume mount destination within test runner container
