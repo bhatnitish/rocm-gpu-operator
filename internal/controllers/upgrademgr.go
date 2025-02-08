@@ -103,9 +103,19 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	initInternalNodeStates := func(deviceConfig *amdv1alpha1.DeviceConfig) {
 		for nodeName, moduleStatus := range deviceConfig.Status.NodeModuleStatus {
 			if moduleStatus.Status == amdv1alpha1.UpgradeStateStarted {
-				n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateEmpty)
+				if deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired != nil && *deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired {
+					nodeObj, err := n.helper.getNode(ctx, nodeName)
+					if err == nil {
+						log.FromContext(ctx).Info("Reboot is required for driver upgrade, triggering node reboot")
+						n.helper.handleNodeReboot(ctx, nodeObj, deviceConfig)
+					}
+				} else {
+					log.FromContext(ctx).Info("Resetting Upgrade State to UpgradeStateEmpty")
+					n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateEmpty)
+				}
 			} else if moduleStatus.Status == amdv1alpha1.UpgradeStateRebootInProgress {
-				// Operator restarted during upgarde operation. Schedule the reboot pod deletion
+				// Operator restarted during upgrade operation. Schedule the reboot pod deletion
+				log.FromContext(ctx).Info("Reboot is in progress, scheduling reboot pod deletion")
 				n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
 				go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
 			} else {
@@ -115,6 +125,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	}
 
 	if n.helper.isInit() {
+		log.FromContext(ctx).Info("Operator coming up, initializing internal node states")
 		initInternalNodeStates(deviceConfig)
 	}
 
@@ -262,6 +273,7 @@ type upgradeMgrHelperAPI interface {
 	specChanged(deviceConfig *amdv1alpha1.DeviceConfig) bool
 	setcurrentSpec(deviceConfig *amdv1alpha1.DeviceConfig)
 	getNodeStatus(nodeName string) amdv1alpha1.UpgradeState
+	getNode(ctx context.Context, nodeName string) (node *v1.Node, err error)
 	setNodeStatus(ctx context.Context, nodeName string, status amdv1alpha1.UpgradeState)
 	getUpgradeStartTime(nodeName string) string
 	setUpgradeStartTime(nodeName string)
@@ -309,6 +321,7 @@ func (h *upgradeMgrHelper) isInit() (status bool) {
 func (h *upgradeMgrHelper) handleInitStatus(ctx context.Context, node *v1.Node) {
 
 	if h.getNodeStatus(node.Name) == amdv1alpha1.UpgradeStateEmpty {
+		log.FromContext(ctx).Info("Setting upgrade state to UpgradeNotStarted")
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateNotStarted)
 	}
 }
@@ -506,6 +519,15 @@ func (h *upgradeMgrHelper) setNodeStatus(ctx context.Context, nodeName string, s
 	}
 }
 
+func (h *upgradeMgrHelper) getNode(ctx context.Context, nodeName string) (*v1.Node, error) {
+	nodeObj := &v1.Node{}
+	var err error
+	if err = h.client.Get(ctx, client.ObjectKey{Name: nodeName}, nodeObj); err == nil {
+		return nodeObj, nil
+	}
+	return nodeObj, err
+}
+
 func (h *upgradeMgrHelper) clearNodeStatus() {
 
 	h.nodeStatus = new(sync.Map)
@@ -607,6 +629,7 @@ func (h *upgradeMgrHelper) handleNodeUpgrade(ctx context.Context, deviceConfig a
 	if err := h.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err == nil {
 		if version, ok := nodeObj.Labels[fmt.Sprintf("kmm.node.kubernetes.io/version-module.%s.%s", deviceConfig.Namespace, deviceConfig.Name)]; ok {
 			if version == deviceConfig.Spec.Driver.Version {
+				log.FromContext(ctx).Info("Setting Upgrade State to Upgrade-In-Progress since label is already set")
 				h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateInProgress)
 				return
 			}
@@ -654,7 +677,7 @@ func (h *upgradeMgrHelper) handleNodeUpgrade(ctx context.Context, deviceConfig a
 			h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateFailed)
 			return
 		}
-
+		log.FromContext(ctx).Info("Reboot required is false, setting Upgrade state to Upgrade-In-Progress")
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateInProgress)
 	}
 }
@@ -899,6 +922,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 						logger.Error(err, fmt.Sprintf("Node: %v State: %v RebootPod Delete failed with Error: %v", nodeName, h.getNodeStatus(nodeName), err))
 					}
 					if fetchedDeviceConfig.Generation == genId {
+						logger.Info("Setting to In-Progress after deleting reboot pod")
 						h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 					}
 					return
@@ -921,6 +945,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 		return
 	}
 	if fetchedDeviceConfig.Generation == genId {
+		logger.Info("Setting to In-Progress after deleting reboot pod eventually")
 		h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 	}
 }

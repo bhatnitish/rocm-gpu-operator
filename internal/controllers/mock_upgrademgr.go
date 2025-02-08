@@ -217,6 +217,21 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteRebootPod(ctx, nodeName, dc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteRebootPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).deleteRebootPod), ctx, nodeName, dc, force, genId)
 }
 
+// getNode mocks base method.
+func (m *MockupgradeMgrHelperAPI) getNode(ctx context.Context, nodeName string) (*v1.Node, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getNode", ctx, nodeName)
+	ret0, _ := ret[0].(*v1.Node)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// getNode indicates an expected call of getNode.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) getNode(ctx, nodeName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getNode", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).getNode), ctx, nodeName)
+}
+
 // getNodeStatus mocks base method.
 func (m *MockupgradeMgrHelperAPI) getNodeStatus(nodeName string) v1alpha1.UpgradeState {
 	m.ctrl.T.Helper()
