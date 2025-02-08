@@ -437,6 +437,7 @@ func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v
 	nodeStatus := h.getNodeStatus(node.Name)
 	nodeUpgradeTimeout = h.checkUpgradeTimeExceeded(ctx, node.Name, deviceConfig)
 	if nodeUpgradeTimeout {
+		log.FromContext(ctx).Info(fmt.Sprintf("Node: %v, Upgrade Timeout exceeded", node.Name))
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateFailed)
 		return true
 	}
@@ -483,10 +484,10 @@ func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeNam
 			upgradeStartTime := h.getUpgradeStartTime(nodeName)
 			// If empty, it means UpgradeStartTime was cleared internally since Upgrade is in Complete/Failed state. But if Upgrade is in Progress and map value of start time was cleared, it means Operator restarted during upgrade. In this case, we should check for Timeout using original StartTime from the device config status
 			if upgradeStartTime == "" {
-				if moduleStatus.Status == amdv1alpha1.UpgradeStateFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateCordonFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateUncordonFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateDrainFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateRebootFailed || moduleStatus.Status == amdv1alpha1.UpgradeStateInstallComplete {
-					return false
-				} else {
+				if moduleStatus.Status == amdv1alpha1.UpgradeStateStarted || moduleStatus.Status == amdv1alpha1.UpgradeStateInstallInProgress || moduleStatus.Status == amdv1alpha1.UpgradeStateInProgress || moduleStatus.Status == amdv1alpha1.UpgradeStateRebootInProgress {
 					upgradeStartTime = moduleStatus.UpgradeStartTime
+				} else {
+					return false
 				}
 			}
 
