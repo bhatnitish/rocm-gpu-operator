@@ -66,11 +66,11 @@ docker_push () {
       echo "DOCKERHUB_TOKEN is not set"
     else
       docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
-      docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$tag
-      docker push amdpsdo/gpu-operator:$tag
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$RELEASE
+      docker push amdpsdo/gpu-operator:$RELEASE
       # push OLM bundle images 
-      docker tag amdpsdo/gpu-operator-bundle:$tag amdpsdo/gpu-operator-olm-bundle:$tag
-      docker push amdpsdo/gpu-operator-olm-bundle:$tag
+      docker tag amdpsdo/gpu-operator-bundle:$tag amdpsdo/gpu-operator-olm-bundle:$RELEASE
+      docker push amdpsdo/gpu-operator-olm-bundle:$RELEASE
     fi
 }
 
