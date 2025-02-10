@@ -96,7 +96,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
@@ -179,7 +179,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
@@ -300,7 +300,7 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           restartPolicy: Never
-      backoffLimit: 1
+      backoffLimit: 0
       ttlSecondsAfterFinished: 120
 ```
 When the job gets scheduled, the CronJob resource will show active jobs and the job and pod resources will be created.
@@ -333,6 +333,8 @@ More detailed information about test result events can be found in [this section
 
 ## Advanced Configuration - ConfigMap
 You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---configmap).
+
+
 
 After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container. 
 
@@ -479,7 +481,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
@@ -619,6 +621,8 @@ spec:
           name: kfd
         - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
           name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
         env:
         - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR envrionment variable to ask test runner to save logs in mounted directory
           value: /var/log/amd-test-runner
@@ -637,7 +641,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
