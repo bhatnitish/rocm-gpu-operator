@@ -1539,3 +1539,8 @@ func SetGPUHealthOnNode(cl *kubernetes.Clientset, ns, gpuid, health string) erro
 	_, err = ExecPodCmd(cmd2, ns, pods.Items[0].Name, metricsexporter.ExporterName+"-container")
 	return err
 }
+
+func IsJSONParsable(s string) bool {
+	var js json.RawMessage
+	return json.Unmarshal([]byte(s), &js) == nil
+}
