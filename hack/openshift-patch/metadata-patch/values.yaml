@@ -15,6 +15,15 @@ controllerManager:
       tag: dev
     imagePullPolicy: Always
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m
@@ -22,15 +31,15 @@ controllerManager:
       requests:
         cpu: 10m
         memory: 64Mi
-  nodeSelector:
-    node-role.kubernetes.io/master: ""
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 1
-        preference:
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
+  nodeSelector: {}
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}

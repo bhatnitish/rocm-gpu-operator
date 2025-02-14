@@ -394,10 +394,10 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 		helm template amd-gpu helm-charts-k8s -s templates/$$file > $(shell pwd)/helm-charts-k8s/crds/$$file; \
 	done
 	rm $(shell pwd)/helm-charts-k8s/templates/*crd.yaml
+	$(MAKE) helm-docs
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
 	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
-	$(MAKE) helm-docs
 
 .PHONY: helm-openshift
 helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
@@ -489,7 +489,7 @@ ifdef JOB_ID
 	@echo "Running in CI"
 	$(KUSTOMIZE) build /ws/builder/kernel-module-management/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 else
-	rm -rf /tmp/kmm && git clone git@github.com:pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm
+	rm -rf /tmp/kmm && git clone git@github.com:pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout $(PROJECT_VERSION)
 	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 	rm -rf /tmp/kmm
 endif

@@ -26,6 +26,15 @@ controller:
     imagePullPolicy: Always
     # -- Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m
@@ -35,14 +44,15 @@ controller:
         memory: 64Mi
   # -- Node selector for the KMM controller manager deployment
   nodeSelector: {}
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 1
-        preference:
-          # -- expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
+  # -- Affinity for the KMM controller manager deployment
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
@@ -73,14 +83,15 @@ webhookServer:
   replicas: 1
   # -- KMM webhook's deployment node selector
   nodeSelector: {}
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 1
-        preference:
-          # -- expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
+  # -- KMM webhook's deployment affinity configs
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   webhookServer:
     args:
     - --config=controller_config.yaml
@@ -98,6 +109,15 @@ webhookServer:
     imagePullPolicy: Always
     # -- Image pull secret name for pulling KMM webhook image if registry needs credential to pull image
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m

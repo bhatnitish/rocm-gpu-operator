@@ -129,16 +129,17 @@ Kubernetes: `>= 1.29.0-0`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
 | controllerManager.manager.image.repository | string | `"registry.test.pensando.io:5000/amd-gpu-operator"` | AMD GPU operator controller manager image repository |
 | controllerManager.manager.image.tag | string | `"dev"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
-| controllerManager.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]` | expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
 | installdefaultNFDRule | bool | `true` | Default NFD rule will detect amd gpu based on pci vendor ID |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
 | node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
 | upgradeCRD | bool | `true` | CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart |
+| kmm.controller.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Affinity for the KMM controller manager deployment |
 | kmm.controller.manager.args[0] | string | `"--config=controller_config.yaml"` |  |
 | kmm.controller.manager.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | kmm.controller.manager.env.relatedImageBuild | string | `"gcr.io/kaniko-project/executor:v1.23.2"` | KMM kaniko builder image for building driver image within cluster |
@@ -155,8 +156,14 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.controller.manager.resources.limits.memory | string | `"384Mi"` |  |
 | kmm.controller.manager.resources.requests.cpu | string | `"10m"` |  |
 | kmm.controller.manager.resources.requests.memory | string | `"64Mi"` |  |
-| kmm.controller.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]` | expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution |
-| kmm.controller.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `1` |  |
+| kmm.controller.manager.tolerations[0].effect | string | `"NoSchedule"` |  |
+| kmm.controller.manager.tolerations[0].key | string | `"node-role.kubernetes.io/master"` |  |
+| kmm.controller.manager.tolerations[0].operator | string | `"Equal"` |  |
+| kmm.controller.manager.tolerations[0].value | string | `""` |  |
+| kmm.controller.manager.tolerations[1].effect | string | `"NoSchedule"` |  |
+| kmm.controller.manager.tolerations[1].key | string | `"node-role.kubernetes.io/control-plane"` |  |
+| kmm.controller.manager.tolerations[1].operator | string | `"Equal"` |  |
+| kmm.controller.manager.tolerations[1].value | string | `""` |  |
 | kmm.controller.nodeSelector | object | `{}` | Node selector for the KMM controller manager deployment |
 | kmm.controller.replicas | int | `1` |  |
 | kmm.controller.serviceAccount.annotations | object | `{}` |  |
@@ -167,8 +174,7 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.controllerMetricsService.type | string | `"ClusterIP"` |  |
 | kmm.kubernetesClusterDomain | string | `"cluster.local"` |  |
 | kmm.managerConfig.controllerConfigYaml | string | `"healthProbeBindAddress: :8081\nwebhookPort: 9443\nleaderElection:\n  enabled: true\n  resourceID: kmm.sigs.x-k8s.io\nmetrics:\n  enableAuthnAuthz: true\n  bindAddress: 0.0.0.0:8443\n  secureServing: true\nworker:\n  runAsUser: 0\n  seLinuxType: spc_t\n  firmwareHostPath: /var/lib/firmware"` |  |
-| kmm.webhookServer.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]` | expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution |
-| kmm.webhookServer.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `1` |  |
+| kmm.webhookServer.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | KMM webhook's deployment affinity configs |
 | kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook's deployment node selector |
 | kmm.webhookServer.replicas | int | `1` |  |
 | kmm.webhookServer.webhookServer.args[0] | string | `"--config=controller_config.yaml"` |  |
@@ -184,6 +190,14 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.webhookServer.webhookServer.resources.limits.memory | string | `"384Mi"` |  |
 | kmm.webhookServer.webhookServer.resources.requests.cpu | string | `"10m"` |  |
 | kmm.webhookServer.webhookServer.resources.requests.memory | string | `"64Mi"` |  |
+| kmm.webhookServer.webhookServer.tolerations[0].effect | string | `"NoSchedule"` |  |
+| kmm.webhookServer.webhookServer.tolerations[0].key | string | `"node-role.kubernetes.io/master"` |  |
+| kmm.webhookServer.webhookServer.tolerations[0].operator | string | `"Equal"` |  |
+| kmm.webhookServer.webhookServer.tolerations[0].value | string | `""` |  |
+| kmm.webhookServer.webhookServer.tolerations[1].effect | string | `"NoSchedule"` |  |
+| kmm.webhookServer.webhookServer.tolerations[1].key | string | `"node-role.kubernetes.io/control-plane"` |  |
+| kmm.webhookServer.webhookServer.tolerations[1].operator | string | `"Equal"` |  |
+| kmm.webhookServer.webhookServer.tolerations[1].value | string | `""` |  |
 | kmm.webhookService.ports[0].port | int | `443` |  |
 | kmm.webhookService.ports[0].protocol | string | `"TCP"` |  |
 | kmm.webhookService.ports[0].targetPort | int | `9443` |  |

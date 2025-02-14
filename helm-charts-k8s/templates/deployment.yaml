@@ -25,25 +25,9 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
-      {{- if .Values.controllerManager.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
+      {{- with .Values.controllerManager.affinity }}
       affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            {{- range .Values.controllerManager.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
-            - weight: {{ .weight }}
-              preference:
-                matchExpressions:
-                  {{- range .preference.matchExpressions }}
-                  - key: {{ .key }}
-                    operator: {{ .operator }}
-                    {{- if .values }}
-                    values:
-                    {{- range .values }}
-                    - {{ . }}
-                    {{- end }}
-                    {{- end }}
-                  {{- end }}
-            {{- end }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       nodeSelector: {{- toYaml .Values.controllerManager.nodeSelector | nindent 8 }}
       containers:
@@ -89,13 +73,10 @@ spec:
         runAsNonRoot: true
       serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
       terminationGracePeriodSeconds: 10
+      {{- with .Values.controllerManager.manager.tolerations }}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-        operator: Equal
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/control-plane
-        operator: Equal
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
       - configMap:
           name: {{ include "helm-charts-k8s.fullname" . }}-manager-config

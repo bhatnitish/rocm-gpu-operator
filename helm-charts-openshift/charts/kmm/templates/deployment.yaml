@@ -25,25 +25,9 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
-      {{- if .Values.controller.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
+      {{- with .Values.controller.affinity }}
       affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            {{- range .Values.controller.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
-            - weight: {{ .weight }}
-              preference:
-                matchExpressions:
-                  {{- range .preference.matchExpressions }}
-                  - key: {{ .key }}
-                    operator: {{ .operator }}
-                    {{- if .values }}
-                    values:
-                    {{- range .values }}
-                    - {{ . }}
-                    {{- end }}
-                    {{- end }}
-                  {{- end }}
-            {{- end }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       nodeSelector: {{- toYaml .Values.controller.nodeSelector | nindent 8 }}
       containers:
@@ -105,10 +89,10 @@ spec:
           type: RuntimeDefault
       serviceAccountName: {{ include "kmm.fullname" . }}-controller
       terminationGracePeriodSeconds: 10
+      {{- with .Values.controller.manager.tolerations }}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-        operator: Equal
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
       - name: trusted-ca
         projected:
@@ -154,25 +138,9 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: webhook-server
     spec:
-      {{- if .Values.webhookServer.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
+      {{- with .Values.webhookServer.affinity }}
       affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            {{- range .Values.webhookServer.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution }}
-            - weight: {{ .weight }}
-              preference:
-                matchExpressions:
-                  {{- range .preference.matchExpressions }}
-                  - key: {{ .key }}
-                    operator: {{ .operator }}
-                    {{- if .values }}
-                    values:
-                    {{- range .values }}
-                    - {{ . }}
-                    {{- end }}
-                    {{- end }}
-                  {{- end }}
-            {{- end }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       nodeSelector: {{- toYaml .Values.webhookServer.nodeSelector | nindent 8 }}
       containers:
@@ -219,13 +187,10 @@ spec:
         runAsNonRoot: true
       serviceAccountName: {{ include "kmm.fullname" . }}-controller
       terminationGracePeriodSeconds: 10
+      {{- with .Values.webhookServer.webhookServer.tolerations }}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-        operator: Equal
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/control-plane
-        operator: Equal
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
       - name: cert
         secret:

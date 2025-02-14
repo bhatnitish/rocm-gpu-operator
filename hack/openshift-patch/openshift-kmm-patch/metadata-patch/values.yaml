@@ -17,6 +17,15 @@ controller:
       tag: release-2.1
     imagePullPolicy: Always
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m
@@ -25,13 +34,14 @@ controller:
         cpu: 10m
         memory: 64Mi
   nodeSelector: {}
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 1
-        preference:
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
@@ -76,13 +86,14 @@ nodeLabeller:
 webhookServer:
   replicas: 1
   nodeSelector: {}
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 1
-        preference:
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   webhookServer:
     args:
     - --config=controller_config.yaml
@@ -99,6 +110,15 @@ webhookServer:
       tag: latest
     imagePullPolicy: Always
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m

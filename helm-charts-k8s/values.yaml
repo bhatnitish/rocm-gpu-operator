@@ -30,6 +30,15 @@ controllerManager:
     imagePullPolicy: Always
     # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m
@@ -39,14 +48,15 @@ controllerManager:
         memory: 64Mi
   # -- Node selector for AMD GPU operator controller manager deployment
   nodeSelector: {}
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 1
-        preference:
-          # -- expressions selectors for affinity preferredDuringSchedulingIgnoredDuringExecution
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
+  # -- Deployment affinity configs for controller manager
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
