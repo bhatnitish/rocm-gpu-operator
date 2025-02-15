@@ -355,7 +355,8 @@ spec:
                             type: integer
                         type: object
                       rebootRequired:
-                        description: reboot between driver upgrades, disabled by default,
+                        default: true
+                        description: reboot between driver upgrades, enabled by default,
                           if enabled spec.commonConfig.utilsContainer will be used to
                           perform reboot on worker nodes
                         type: boolean

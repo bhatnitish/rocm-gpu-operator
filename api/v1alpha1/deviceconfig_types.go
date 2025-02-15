@@ -197,9 +197,10 @@ type DriverUpgradePolicySpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodDeletionPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy"}
 	// +optional
 	PodDeletionPolicy *PodDeletionSpec `json:"podDeletionPolicy,omitempty"`
-	// reboot between driver upgrades, disabled by default, if enabled spec.commonConfig.utilsContainer will be used to perform reboot on worker nodes
+	// reboot between driver upgrades, enabled by default, if enabled spec.commonConfig.utilsContainer will be used to perform reboot on worker nodes
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RebootRequired",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:rebootRequired"}
 	// +optional
+	// +kubebuilder:default:=true
 	RebootRequired *bool `json:"rebootRequired,omitempty"`
 }
 
