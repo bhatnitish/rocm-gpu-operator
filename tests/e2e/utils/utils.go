@@ -1517,10 +1517,15 @@ func CreateDaemonset(cl *kubernetes.Clientset, ns string, name string, image str
 	return nil
 }
 
-func SetGPUHealthOnNode(cl *kubernetes.Clientset, ns, gpuid, health string) error {
+func SetGPUHealthOnNode(cl *kubernetes.Clientset, ns, gpuid, health, nodeName string) error {
+	podFieldSelector := ""
+	if nodeName != "" {
+		podFieldSelector = fmt.Sprintf("spec.nodeName=%s", nodeName)
+	}
 	pods, err := cl.CoreV1().Pods(ns).List(context.TODO(),
 		metav1.ListOptions{LabelSelector: kmmmodule.MapToLabelSelector(
-			map[string]string{"app.kubernetes.io/name": metricsexporter.ExporterName})})
+			map[string]string{"app.kubernetes.io/name": metricsexporter.ExporterName}),
+			FieldSelector: podFieldSelector})
 	if err != nil {
 		return err
 	}

@@ -357,7 +357,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	}, 2*time.Minute, 10*time.Second, "expected gpu 0 to be healthy but got unhealthy")
 
 	log.Infof("Marking GPU unhealthy")
-	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy")
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
 	log.Print("Verifying unhealthy label on the node(s)")
@@ -399,7 +399,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 
 	log.Print("Clear GPU error and verify ROCM Pod goes to Running state")
 	log.Infof("Marking GPU healthy")
-	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy")
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "healthy"
 	log.Print("Verifying healthy label on the node(s)")
@@ -434,7 +434,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	log.Print("Verified ROCM Pod is in Running state")
 
 	log.Infof("Marking GPU unhealthy")
-	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy")
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
 	log.Print("Verifying unhealthy label on the node(s)")

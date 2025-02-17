@@ -295,6 +295,12 @@ func (s *E2ESuite) patchTestRunnerEnablement(devCfg *v1alpha1.DeviceConfig, c *C
 	log.Info(fmt.Sprintf("updated device config %+v", result))
 }
 
+func (s *E2ESuite) patchTestRunnerConfigmap(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchTestRunnerConfigmap(devCfg)
+	assert.NoError(c, err, "failed to update %v", s.cfgName)
+	log.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
 func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
 	result, err := s.dClient.DeviceConfigs(s.ns).PatchDriversVersion(devCfg)
 	assert.NoError(c, err, "failed to update %v", s.cfgName)

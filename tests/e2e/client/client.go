@@ -67,6 +67,7 @@ type DeviceConfigsInterface interface {
 	Update(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	List(opts metav1.ListOptions) (*v1alpha1.DeviceConfigList, error)
 	PatchTestRunnerEnablement(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	PatchTestRunnerConfigmap(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	PatchMetricsExporterEnablement(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	PatchDriversVersion(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	PatchDevicePluginImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
@@ -149,6 +150,36 @@ func (c *deviceConfigsClient) PatchTestRunnerEnablement(devCfg *v1alpha1.DeviceC
 		"spec": map[string]interface{}{
 			"testRunner": map[string]bool{
 				"enable": *devCfg.Spec.TestRunner.Enable,
+			},
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) PatchTestRunnerConfigmap(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"testRunner": map[string]interface{}{
+				"config": map[string]string{
+					"name": devCfg.Spec.TestRunner.Config.Name,
+				},
 			},
 		},
 	}
