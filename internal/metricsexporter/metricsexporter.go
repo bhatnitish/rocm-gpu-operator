@@ -43,7 +43,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -219,7 +219,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			Name:            ExporterName + "-container",
 			WorkingDir:      "/root",
 			Image:           mxImage,
-			SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+			SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 			VolumeMounts:    containerVolumeMounts,
 		},
 	}
@@ -287,8 +287,8 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			Name:  KubeRbacName + "-container",
 			Image: kubeImage,
 			SecurityContext: &v1.SecurityContext{
-				RunAsUser:                pointer.Int64(nobodyUser),
-				AllowPrivilegeEscalation: pointer.Bool(false),
+				RunAsUser:                ptr.To(int64(nobodyUser)),
+				AllowPrivilegeEscalation: ptr.To(false),
 			},
 			Args:         args,
 			VolumeMounts: volumeMounts,
@@ -318,7 +318,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 						Name:            "driver-init",
 						Image:           initContainerImage,
 						Command:         []string{"sh", "-c", "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
-						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
 								Name:      "sys-volume",

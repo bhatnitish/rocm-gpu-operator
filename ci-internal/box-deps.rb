@@ -1,7 +1,10 @@
-from "ubuntu:22.04"
+from "registry.test.pensando.io:5000/gpu-operator-build:v1.0"
 
-run "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y wget protobuf-compiler \
-  curl locales ca-certificates build-essential git podman sudo kmod vim"
+run "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y podman kmod vim"
+
+# remove existing docker
+run "apt-get remove -y docker.io"
+
 run "install -m 0755 -d /etc/apt/keyrings"
 
 # download docker
@@ -15,18 +18,6 @@ run "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
   && apt-get clean && rm -rf /var/lib/apt/lists/*"
 
 copy "./daemon.json", "/etc/docker/daemon.json"
-
-# remove old version of go
-run "rm -rf /usr/local/go"
-
-# download go1.20
-run "wget https://go.dev/dl/go1.20.14.linux-amd64.tar.gz && tar -C /usr/local/ -xzf go1.20.14.linux-amd64.tar.gz && rm go1.20.14.linux-amd64.tar.gz"
-
-# download and install helm
-run "curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod 700 get_helm.sh && ./get_helm.sh"
-
-# download and install helmify
-run "curl -sSL https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz | tar xz -C /usr/local/bin/"
 
 run "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key |
         gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg"

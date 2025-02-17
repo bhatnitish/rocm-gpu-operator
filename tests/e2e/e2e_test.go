@@ -84,19 +84,19 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", s.kubeconfig)
 	if err != nil {
-		c.Fatalf(err.Error())
+		c.Fatalf("Error: %v", err.Error())
 	}
 
 	dcCli, err := client.Client(config)
 	if err != nil {
-		c.Fatalf(err.Error())
+		c.Fatalf("Error: %v", err.Error())
 	}
 	s.dClient = dcCli
 
 	// creates the clientset
 	cs, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		c.Fatalf(err.Error())
+		c.Fatalf("Error: %v", err.Error())
 	}
 	s.clientSet = cs
 	s.clusterType = utils.GetClusterType(config)
@@ -139,13 +139,13 @@ func (s *E2ESuite) TearDownTest(c *C) {
 		for _, cfg := range l.Items {
 			log.Infof("delete %v", cfg.Name)
 			if _, err := s.dClient.DeviceConfigs(s.ns).Delete(cfg.Name); err != nil {
-				c.Fatalf(err.Error())
+				c.Fatalf("Error: %v", err.Error())
 			}
 		}
 		if len(l.Items) > 0 && !s.simEnable {
 			nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 			if err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes); err != nil {
-				c.Fatalf(err.Error())
+				c.Fatalf("Error: %v", err.Error())
 			}
 		}
 	}
@@ -160,7 +160,7 @@ func (s *E2ESuite) TearDownSuite(c *C) {
 		for _, cfg := range l.Items {
 			log.Infof("delete %v", cfg.Name)
 			if _, err := s.dClient.DeviceConfigs(s.ns).Delete(cfg.Name); err != nil {
-				c.Fatalf(err.Error())
+				c.Fatalf("Error: %v", err.Error())
 			}
 		}
 		time.Sleep(30 * time.Second)

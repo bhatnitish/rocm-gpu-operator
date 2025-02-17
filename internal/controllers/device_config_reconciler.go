@@ -402,7 +402,7 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 		logger.Error(fmt.Errorf("failed to convert object %+v to NodeModulesConfig", nmc), "")
 		return reqs
 	}
-	if nmcObj.Status.Modules != nil && len(nmcObj.Status.Modules) > 0 {
+	if len(nmcObj.Status.Modules) > 0 {
 		for _, module := range nmcObj.Status.Modules {
 			reqs = append(reqs, reconcile.Request{
 				NamespacedName: types.NamespacedName{

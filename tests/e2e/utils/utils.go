@@ -50,7 +50,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 )
 
@@ -1450,7 +1450,7 @@ func GetRebootPod(nodeName string) *v1.Pod {
 					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sudo", "reboot"},
 					Stdin:           true,
 					TTY:             true,
-					SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+					SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 				},
 			},
 			Tolerations: []v1.Toleration{

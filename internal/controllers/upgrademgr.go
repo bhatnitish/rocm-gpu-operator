@@ -53,7 +53,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/kubectl/pkg/drain"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -980,7 +980,7 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sudo", "reboot"},
 					Stdin:           true,
 					TTY:             true,
-					SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+					SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 				},
 			},
 			Tolerations: []v1.Toleration{

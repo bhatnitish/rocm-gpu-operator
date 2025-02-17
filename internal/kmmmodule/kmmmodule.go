@@ -44,7 +44,7 @@ import (
 
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
 	utils "github.com/pensando/gpu-operator/internal"
@@ -301,7 +301,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name:            "driver-init",
 						Image:           initContainerImage,
 						Command:         []string{"sh", "-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
-						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
 								Name:      "sys",
@@ -326,7 +326,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name:            "device-plugin",
 						WorkingDir:      "/root",
 						Image:           devicePluginImage,
-						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
 								Name:      "kubelet-device-plugins",

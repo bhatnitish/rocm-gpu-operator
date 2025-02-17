@@ -1096,7 +1096,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	assert.Eventually(c, func() bool {
 		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, "")
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("Error: %v", err.Error())
 			return false
 		}
 
@@ -1125,7 +1125,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	assert.Eventually(c, func() bool {
 		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), false, "")
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("Error: %v", err.Error())
 			return false
 		}
 
@@ -1231,7 +1231,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 	assert.Eventually(c, func() bool {
 		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, file.Name())
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("Error: %v", err.Error())
 			return false
 		}
 

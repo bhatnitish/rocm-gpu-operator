@@ -43,7 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/discovery"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -164,7 +164,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 			Name:            "driver-init",
 			Image:           initContainerImage,
 			Command:         initContainerCommand,
-			SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+			SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 			VolumeMounts:    initVolumeMounts,
 		},
 	}
@@ -199,7 +199,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 						Name:            "node-labeller-container",
 						WorkingDir:      "/root",
 						Image:           nl.getNodeLabellerImage(devConfig),
-						SecurityContext: &v1.SecurityContext{Privileged: pointer.Bool(true)},
+						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts:    containerVolumeMounts,
 					},
 				},
