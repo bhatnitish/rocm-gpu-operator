@@ -104,7 +104,7 @@ The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
-**Homepage:** <https://github.com/pensando/gpu-operator>
+**Homepage:** <https://github.com/ROCm/gpu-operator>
 
 ## Maintainers
 
@@ -114,7 +114,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 
 ## Source Code
 
-* <https://github.com/pensando/gpu-operator>
+* <https://github.com/ROCm/gpu-operator>
 
 ## Requirements
 

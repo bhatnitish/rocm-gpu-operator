@@ -50,7 +50,7 @@ import (
 
 const (
 	// TODO: determine where to host the test runner image and put the registry URL here
-	defaultTestRunnerImage       = "registry.test.pensando.io:5000/test-runner/test-runner:dev"
+	defaultTestRunnerImage       = "docker.io/rocm/test-runner:v1.2.0-beta.0"
 	defaultInitContainerImage    = "busybox:1.36"
 	TestRunnerName               = "test-runner"
 	defaultSAName                = "amd-gpu-operator-test-runner"

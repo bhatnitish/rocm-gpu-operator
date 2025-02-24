@@ -71,7 +71,7 @@ spec:
           type: Directory
       containers:
       - name: amd-test-runner
-        image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true
@@ -161,7 +161,7 @@ spec:
           limits:
             amd.com/gpu: 8 # requesting all GPUs on the node
         name: amd-test-runner
-        image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         env:
         - name: TEST_TRIGGER
@@ -275,7 +275,7 @@ spec:
               type: Directory
           containers:
           - name: init-test-runner
-            image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+            image: docker.io/rocm/test-runner:v1.2.0-beta.0
             imagePullPolicy: IfNotPresent
             securityContext: # setup security context for container to get access to device related interfaces
               privileged: true
@@ -454,7 +454,7 @@ spec:
           name: manual-config-map
       containers:
       - name: amd-test-runner
-        image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true
@@ -610,7 +610,7 @@ spec:
         name: test-runner-volume
       containers:
       - name: amd-test-runner
-        image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true

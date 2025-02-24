@@ -60,7 +60,7 @@ import (
 )
 
 const (
-	defaultUtilsImage = "docker.io/amdpsdo/gpu-operator-utils:latest"
+	defaultUtilsImage = "docker.io/rocm/gpu-operator-utils:latest"
 )
 
 type upgradeMgr struct {

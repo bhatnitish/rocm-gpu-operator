@@ -74,7 +74,7 @@ const (
 	imageFirmwarePath              = "firmwareDir/updates"
 	kmmNodeVersionLabelTemplate    = "kmm.node.kubernetes.io/version-module.%s.%s"
 	// check the device plugin image tags here: https://hub.docker.com/r/rocm/k8s-device-plugin/tags
-	defaultDevicePluginImage      = "rocm/k8s-device-plugin:1.31.0.0"
+	defaultDevicePluginImage      = "rocm/k8s-device-plugin:latest"
 	defaultUbiDevicePluginImage   = "rocm/k8s-device-plugin:rhubi-latest"
 	defaultOcDriversImageTemplate = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
@@ -325,6 +325,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						},
 						Name:            "device-plugin",
 						WorkingDir:      "/root",
+						Command:         []string{"sh", "-c", "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"},
 						Image:           devicePluginImage,
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{

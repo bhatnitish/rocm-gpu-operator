@@ -20,7 +20,7 @@ metricsExporter:
     nodePort: 32500
 
     # image for the metrics-exporter container
-    image: "rocm/device-metrics-exporter:v1.1.0"
+    image: "rocm/device-metrics-exporter:v1.2.0"
 
 # Specify the test runner config
 testRunner:
@@ -28,7 +28,7 @@ testRunner:
     enable: true
 
     # image for the test runner container
-    image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+    image: docker.io/rocm/test-runner:v1.2.0-beta.0
 
     # specify the mount for test logs
     logsLocation:
