@@ -1,13 +1,15 @@
 module github.com/pensando/gpu-operator
 
-go 1.21
+go 1.23.0
+
+toolchain go1.23.4
 
 require (
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/prometheus/common v0.51.1
-	github.com/rh-ecosystem-edge/kernel-module-management v0.0.0-20250205210643-d027509b6861
+	github.com/rh-ecosystem-edge/kernel-module-management v0.0.0-20250217131402-3522d8ca4d5f
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0

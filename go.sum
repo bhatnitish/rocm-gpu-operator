@@ -154,8 +154,8 @@ github.com/prometheus/common v0.51.1 h1:eIjN50Bwglz6a/c3hAgSMcofL3nD+nFQkV6Dd4Ds
 github.com/prometheus/common v0.51.1/go.mod h1:lrWtQx+iDfn2mbH5GUzlH9TSHyfZpHkSiG1W7y3sF2Q=
 github.com/prometheus/procfs v0.12.0 h1:jluTpSng7V9hY0O2R9DzzJHYb2xULk9VTR1V1R/k6Bo=
 github.com/prometheus/procfs v0.12.0/go.mod h1:pcuDEFsWDnvcgNzo4EEweacyhjeA9Zk3cnaOZAZEfOo=
-github.com/rh-ecosystem-edge/kernel-module-management v0.0.0-20250205210643-d027509b6861 h1:Qetqc8C49hSxmhnVGOGFy1NBxknjkEK0BTVyKMyP8RU=
-github.com/rh-ecosystem-edge/kernel-module-management v0.0.0-20250205210643-d027509b6861/go.mod h1:0mxXbAaG90Eh2A3w73YGN97QiWxj4gnaQFGu1pHDkO4=
+github.com/rh-ecosystem-edge/kernel-module-management v0.0.0-20250217131402-3522d8ca4d5f h1:npF3DvPQZCzPho3pvBy1pmZx7vGCIooMhVyo3viwgHw=
+github.com/rh-ecosystem-edge/kernel-module-management v0.0.0-20250217131402-3522d8ca4d5f/go.mod h1:xLQRe8xJfmxDwYJx0ObPSH7K+14EV2d793RoKEfhsY4=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.11.0 h1:cWPaGQEPrBb5/AsnsZesgZZ9yb1OQ+GOISoDNXVBh4M=
 github.com/rogpeppe/go-internal v1.11.0/go.mod h1:ddIwULY96R17DhadqLgMfk9H9tvdUzkipdSkR5nkCZA=

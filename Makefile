@@ -113,7 +113,7 @@ SHELL = /usr/bin/env bash -o pipefail
 DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
-DOCKER_BUILDER_TAG := v1.0
+DOCKER_BUILDER_TAG := v1.1
 DOCKER_BUILDER_IMAGE := registry.test.pensando.io:5000/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 
