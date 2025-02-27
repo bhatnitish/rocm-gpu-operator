@@ -1,0 +1,16 @@
+{
+    "partition-profiles":
+    {
+        "default":
+        {
+            "compute": "SPX", 
+            "memory": "NPS1" 
+        },
+        "profile-1":
+        { 
+            "compute": "CPX", 
+            "memory": "NPS1" 
+        }
+    }
+}
+

@@ -50,6 +50,11 @@ type DeviceConfigSpec struct {
 	// +optional
 	MetricsExporter MetricsExporterSpec `json:"metricsExporter,omitempty"`
 
+	// config manager
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConfigManager",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configManager"}
+	// +optional
+	ConfigManager ConfigManagerSpec `json:"configManager,omitempty"`
+
 	// device plugin
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePlugin",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePlugin"}
 	// +optional
@@ -317,6 +322,50 @@ const (
 	ServiceTypeNodePort ServiceType = "NodePort"
 )
 
+type ConfigManagerSpec struct {
+	// enable config manager, disabled by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	// +optional
+	Enable *bool `json:"enable,omitempty"`
+
+	// config manager image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	Image string `json:"image,omitempty"`
+
+	// image pull policy for config manager
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+
+	// config manager image registry secret used to pull/push images
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+
+	// config map to customize the config for config manager, if not specified default config will be applied
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Config",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configmap"}
+	// +optional
+	Config *v1.LocalObjectReference `json:"config,omitempty"`
+
+	// Selector describes on which nodes to enable config manager
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
+	// +optional
+	Selector map[string]string `json:"selector,omitempty"`
+
+	// upgrade policy for config manager daemonset
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+
+	// tolerations for the device config manager DaemonSet
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConfigManagerTolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configManagerTolerations"}
+	// +optional
+	ConfigManagerTolerations []v1.Toleration `json:"configManagerTolerations,omitempty"`
+}
+
 type MetricsExporterSpec struct {
 	// enable metrics exporter, disabled by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
@@ -550,6 +599,8 @@ type DeviceConfigStatus struct {
 	Drivers DeploymentStatus `json:"driver,omitempty"`
 	// MetricsExporter contains the status of the MetricsExporter deployment
 	MetricsExporter DeploymentStatus `json:"metricsExporter,omitempty"`
+	// ConfigManager contains the status of the ConfigManager deployment
+	ConfigManager DeploymentStatus `json:"configManager,omitempty"`
 	// NodeModuleStatus contains per node status of driver module installation
 	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="NodeModuleStatus",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus"
 	NodeModuleStatus map[string]ModuleStatus `json:"nodeModuleStatus,omitempty"`

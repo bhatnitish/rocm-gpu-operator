@@ -205,6 +205,20 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleBuildConfigMap(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleBuildConfigMap", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleBuildConfigMap), ctx, devConfig, nodes)
 }
 
+// handleConfigManager mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleConfigManager(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleConfigManager", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// handleConfigManager indicates an expected call of handleConfigManager.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleConfigManager(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleConfigManager", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleConfigManager), ctx, devConfig)
+}
+
 // handleDevicePlugin mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) handleDevicePlugin(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()

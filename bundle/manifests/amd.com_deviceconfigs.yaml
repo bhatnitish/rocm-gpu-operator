@@ -80,6 +80,107 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+              configManager:
+                description: config manager
+                properties:
+                  config:
+                    description: config map to customize the config for config manager,
+                      if not specified default config will be applied
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  configManagerTolerations:
+                    description: tolerations for the device config manager DaemonSet
+                    items:
+                      description: The pod this Toleration is attached to tolerates
+                        any taint that matches the triple <key,value,effect> using
+                        the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: Effect indicates the taint effect to match.
+                            Empty means match all taint effects. When specified, allowed
+                            values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: Key is the taint key that the toleration applies
+                            to. Empty means match all taint keys. If the key is empty,
+                            operator must be Exists; this combination means to match
+                            all values and all keys.
+                          type: string
+                        operator:
+                          description: Operator represents a key's relationship to
+                            the value. Valid operators are Exists and Equal. Defaults
+                            to Equal. Exists is equivalent to wildcard for value,
+                            so that a pod can tolerate all taints of a particular
+                            category.
+                          type: string
+                        tolerationSeconds:
+                          description: TolerationSeconds represents the period of
+                            time the toleration (which must be of effect NoExecute,
+                            otherwise this field is ignored) tolerates the taint.
+                            By default, it is not set, which means tolerate the taint
+                            forever (do not evict). Zero and negative values will
+                            be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: Value is the taint value the toleration matches
+                            to. If the operator is Exists, the value should be empty,
+                            otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                  enable:
+                    description: enable config manager, disabled by default
+                    type: boolean
+                  image:
+                    description: config manager image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  imagePullPolicy:
+                    description: image pull policy for config manager
+                    enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                    type: string
+                  imageRegistrySecret:
+                    description: config manager image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  selector:
+                    additionalProperties:
+                      type: string
+                    description: Selector describes on which nodes to enable config
+                      manager
+                    type: object
+                  upgradePolicy:
+                    description: upgrade policy for config manager daemonset
+                    properties:
+                      maxUnavailable:
+                        default: 1
+                        description: MaxUnavailable specifies the maximum number of
+                          Pods that can be unavailable during the update process.
+                          Applicable for RollingUpdate only. Default value is 1.
+                        format: int32
+                        type: integer
+                      upgradeStrategy:
+                        description: UpgradeStrategy specifies the type of the DaemonSet
+                          update. Valid values are "RollingUpdate" (default) or "OnDelete".
+                        enum:
+                        - RollingUpdate
+                        - OnDelete
+                        type: string
                     type: object
                 type: object
               devicePlugin:
@@ -740,6 +841,24 @@ spec:
                   - type
                   type: object
                 type: array
+              configManager:
+                description: ConfigManager contains the status of the ConfigManager
+                  deployment
+                properties:
+                  availableNumber:
+                    description: number of the actually deployed and running pods
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    description: number of the pods that should be deployed for daemonset
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
+                    description: number of nodes that are targeted by the DeviceConfig
+                      selector
+                    format: int32
+                    type: integer
+                type: object
               devicePlugin:
                 description: DevicePlugin contains the status of the Device Plugin
                   deployment

@@ -40,6 +40,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pensando/gpu-operator/internal/configmanager"
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	"github.com/pensando/gpu-operator/internal/testrunner"
 	"k8s.io/client-go/rest"
@@ -90,9 +91,10 @@ func NewDeviceConfigReconciler(
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter,
-	testrunnerHandler testrunner.TestRunner) *DeviceConfigReconciler {
+	testrunnerHandler testrunner.TestRunner,
+	configmanagerHandler configmanager.ConfigManager) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler)
 	podEventHandler := newPodEventHandler(client)
 	return &DeviceConfigReconciler{
 		helper:          helper,
@@ -295,6 +297,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle test runner for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	logger.Info("start config manager reconciliation", "enable", devConfig.Spec.ConfigManager.Enable)
+	if err := r.helper.handleConfigManager(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle config manager for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	err = r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes)
 	if err != nil {
 		return res, fmt.Errorf("failed to build status for DeviceConfig %s: %v", req.NamespacedName, err)
@@ -333,6 +340,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	handleConfigManager(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error
 	deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
@@ -340,16 +348,17 @@ type deviceConfigReconcilerHelperAPI interface {
 }
 
 type deviceConfigReconcilerHelper struct {
-	client            client.Client
-	kmmHandler        kmmmodule.KMMModuleAPI
-	nlHandler         nodelabeller.NodeLabeller
-	metricsHandler    metricsexporter.MetricsExporter
-	testrunnerHandler testrunner.TestRunner
-	nodeAssignments   map[string]string
-	conditionUpdater  conditions.ConditionUpdater
-	validator         validator.ValidatorAPI
-	upgradeMgrHandler upgradeMgrAPI
-	namespace         string
+	client               client.Client
+	kmmHandler           kmmmodule.KMMModuleAPI
+	nlHandler            nodelabeller.NodeLabeller
+	metricsHandler       metricsexporter.MetricsExporter
+	testrunnerHandler    testrunner.TestRunner
+	configmanagerHandler configmanager.ConfigManager
+	nodeAssignments      map[string]string
+	conditionUpdater     conditions.ConditionUpdater
+	validator            validator.ValidatorAPI
+	upgradeMgrHandler    upgradeMgrAPI
+	namespace            string
 }
 
 func newDeviceConfigReconcilerHelper(client client.Client,
@@ -357,20 +366,22 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	nlHandler nodelabeller.NodeLabeller,
 	upgradeMgrHandler upgradeMgrAPI,
 	metricsHandler metricsexporter.MetricsExporter,
-	testrunnerHandler testrunner.TestRunner) deviceConfigReconcilerHelperAPI {
+	testrunnerHandler testrunner.TestRunner,
+	configmanagerHandler configmanager.ConfigManager) deviceConfigReconcilerHelperAPI {
 	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
 	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
-		client:            client,
-		kmmHandler:        kmmHandler,
-		nlHandler:         nlHandler,
-		metricsHandler:    metricsHandler,
-		testrunnerHandler: testrunnerHandler,
-		nodeAssignments:   make(map[string]string),
-		conditionUpdater:  conditionUpdater,
-		validator:         validator,
-		upgradeMgrHandler: upgradeMgrHandler,
-		namespace:         os.Getenv("OPERATOR_NAMESPACE"),
+		client:               client,
+		kmmHandler:           kmmHandler,
+		nlHandler:            nlHandler,
+		metricsHandler:       metricsHandler,
+		testrunnerHandler:    testrunnerHandler,
+		configmanagerHandler: configmanagerHandler,
+		nodeAssignments:      make(map[string]string),
+		conditionUpdater:     conditionUpdater,
+		validator:            validator,
+		upgradeMgrHandler:    upgradeMgrHandler,
+		namespace:            os.Getenv("OPERATOR_NAMESPACE"),
 	}
 }
 
@@ -735,8 +746,36 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeTestRunner(ctx context.Context
 	return nil
 }
 
+func (dcrh *deviceConfigReconcilerHelper) finalizeConfigManager(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+
+	trDS := appsv1.DaemonSet{}
+	dsName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-" + configmanager.ConfigManagerName,
+	}
+
+	if err := dcrh.client.Get(ctx, dsName, &trDS); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get config manager daemonset %s: %v", dsName, err)
+		}
+	} else {
+		logger.Info("deleting config manager daemonset", "daemonset", dsName)
+		if err := dcrh.client.Delete(ctx, &trDS); err != nil {
+			return fmt.Errorf("failed to delete config manager daemonset %s: %v", dsName, err)
+		}
+	}
+
+	return nil
+}
+
 func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
+
+	// finalize config manager before metrics exporter
+	if err := dcrh.finalizeConfigManager(ctx, devConfig); err != nil {
+		return err
+	}
 
 	// finalize test runner before metrics exporter
 	if err := dcrh.finalizeTestRunner(ctx, devConfig, nodes); err != nil {
@@ -1064,6 +1103,28 @@ func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, 
 		return err
 	}
 	logger.Info("Reconciled test runner", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleConfigManager(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + configmanager.ConfigManagerName},
+	}
+
+	// delete if disabled
+	if devConfig.Spec.ConfigManager.Enable == nil || !*devConfig.Spec.ConfigManager.Enable {
+		return dcrh.finalizeConfigManager(ctx, devConfig)
+	}
+
+	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
+		return dcrh.configmanagerHandler.SetConfigManagerAsDesired(ds, devConfig)
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("Reconciled config manager", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
 	return nil
 }

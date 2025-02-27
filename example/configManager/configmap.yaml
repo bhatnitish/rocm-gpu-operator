@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-manager-config
+  namespace: kube-amd-gpu
+data:
+  config.json: |
+    {
+      "gpu-config-profiles":
+      {
+          "default":
+          {
+              "compute-partition": "SPX", 
+              "memory-partition": "NPS1" 
+          },
+          "profile-1":
+          { 
+              "compute-partition": "CPX", 
+              "memory-partition": "NPS1" 
+          }
+      }
+    }
+

@@ -88,6 +88,65 @@ spec:
         path: commonConfig.utilsContainer.imageRegistrySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: config manager
+        displayName: ConfigManager
+        path: configManager
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configManager
+      - description: config map to customize the config for config manager, if not
+          specified default config will be applied
+        displayName: Config
+        path: configManager.config
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configmap
+      - description: tolerations for the device config manager DaemonSet
+        displayName: ConfigManagerTolerations
+        path: configManager.configManagerTolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configManagerTolerations
+      - description: enable config manager, disabled by default
+        displayName: Enable
+        path: configManager.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: config manager image
+        displayName: Image
+        path: configManager.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for config manager
+        displayName: ImagePullPolicy
+        path: configManager.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: config manager image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: configManager.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: Selector describes on which nodes to enable config manager
+        displayName: Selector
+        path: configManager.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: upgrade policy for config manager daemonset
+        displayName: UpgradePolicy
+        path: configManager.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: configManager.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: configManager.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
       - description: device plugin
         displayName: DevicePlugin
         path: devicePlugin
@@ -475,6 +534,21 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
       statusDescriptors:
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: configManager.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: configManager.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: configManager.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
       - description: number of the actually deployed and running pods
         displayName: AvailableNumber
         path: devicePlugin.availableNumber

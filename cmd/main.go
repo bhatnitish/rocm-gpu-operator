@@ -35,6 +35,7 @@ package main
 import (
 	"flag"
 
+	"github.com/pensando/gpu-operator/internal/configmanager"
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
 	"github.com/pensando/gpu-operator/internal/testrunner"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
@@ -110,13 +111,15 @@ func main() {
 	nlHandler := nodelabeller.NewNodeLabeller(scheme)
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	testrunnerHandler := testrunner.NewTestRunner(scheme)
+	configmanagerHandler := configmanager.NewConfigManager(scheme)
 	dcr := controllers.NewDeviceConfigReconciler(
 		mgr.GetConfig(),
 		client,
 		kmmHandler,
 		nlHandler,
 		metricsHandler,
-		testrunnerHandler)
+		testrunnerHandler,
+		configmanagerHandler)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}
