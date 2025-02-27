@@ -12,7 +12,19 @@
                   "StopOnFailure": true,
                   "TimeoutSeconds": 600
                 }
-              ]
+              ],
+	      "LogsExportConfig": [
+	        {
+		  "Provider": "Aws",
+		  "BucketName": "aws-bucket-name",
+		  "SecretName": "aws-secret"
+		},
+		{
+		  "Provider": "Azure",
+		  "BucketName": "azure-bucket-name",
+		  "SecretName": "azure-secret"
+		}
+	      ]
             }
           }
         }
