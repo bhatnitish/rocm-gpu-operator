@@ -10,13 +10,41 @@ data:
       {
           "default":
           {
-              "compute-partition": "SPX", 
-              "memory-partition": "NPS1" 
+              "skippedGPUs": {
+                  "ids": []
+              },
+              "profiles": [
+                  {
+                      "computePartition": "SPX", 
+                      "memoryPartition": "NPS1",
+                      "numGPUsAssigned": 1
+                  }
+              ]
           },
           "profile-1":
           { 
-              "compute-partition": "CPX", 
-              "memory-partition": "NPS1" 
+              "skippedGPUs": {
+                  "ids": [0, 1, 2]  
+              },
+              "profiles": [
+                  {
+                      "computePartition": "CPX",
+                      "memoryPartition": "NPS1",
+                      "numGPUsAssigned": 8
+                  }          
+              ]
+          },
+          "profile-2":
+          { 
+              "skippedGPUs": {
+                  "ids": []  
+              },
+              "profiles": [
+                  {
+                      "computePartition": "CPX",
+                      "memoryPartition": "NPS4",
+                  }          
+              ]
           }
       }
     }

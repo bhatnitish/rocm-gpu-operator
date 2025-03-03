@@ -85,6 +85,10 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 			Name:      "sys-volume",
 			MountPath: "/sys",
 		},
+		{
+			Name:      "libmodules",
+			MountPath: "/lib/modules",
+		},
 	}
 
 	hostPathDirectory := v1.HostPathDirectory
@@ -113,6 +117,15 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
 					Path: "/var/lib/",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "libmodules",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/lib/modules/",
 					Type: &hostPathDirectory,
 				},
 			},
