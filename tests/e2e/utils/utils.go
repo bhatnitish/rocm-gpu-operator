@@ -1549,3 +1549,74 @@ func IsJSONParsable(s string) bool {
 	var js json.RawMessage
 	return json.Unmarshal([]byte(s), &js) == nil
 }
+
+func AddNodeLabel(cl *kubernetes.Clientset, nodeName string, key string, value string) error {
+
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Add a label to the node
+	node.Labels[key] = value
+
+	// Update the node object with the new label
+	_, err = cl.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	log.Infof("Label added successfully")
+	if err != nil {
+		return fmt.Errorf("failed to add node label to node: %v", err)
+	}
+	return nil
+}
+
+func DeleteNodeLabel(cl *kubernetes.Clientset, nodeName string, key string) error {
+
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Remove a label to the node
+	delete(node.Labels, key)
+
+	// Update the node object with the new label
+	_, err = cl.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	log.Infof("Label removed successfully")
+	if err != nil {
+		return fmt.Errorf("failed to remove node label to node: %v", err)
+	}
+	return nil
+}
+
+func NodeTaint(cl *kubernetes.Clientset, nodeName string) error {
+	log.Print("Handle Node Taint")
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Add a taint to the node
+	taint := v1.Taint{
+		Key:    "dcm",
+		Value:  "up",
+		Effect: v1.TaintEffectNoExecute,
+	}
+	node.Spec.Taints = append(node.Spec.Taints, taint)
+
+	// Update the node object with the new taint
+	_, err = cl.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Updated node %q with taint.\n", nodeName)
+	return nil
+}

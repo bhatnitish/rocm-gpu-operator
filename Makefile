@@ -244,6 +244,15 @@ e2e:
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
 
+.PHONY: dcm_e2e
+dcm_e2e:
+	$(info deploying ${GPU_OPERATOR_CHART})
+	${MAKE} helm-install
+	export OPENSHIFT
+	export SIM_ENABLE
+	${MAKE} -C tests/e2e dcm_e2e
+	${MAKE} helm-uninstall
+
 GOFILES_NO_VENDOR = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.

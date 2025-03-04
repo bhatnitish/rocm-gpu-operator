@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pensando/gpu-operator/internal/configmanager"
 	"github.com/pensando/gpu-operator/internal/metricsexporter"
 
 	"github.com/stretchr/testify/assert"
@@ -52,6 +53,45 @@ import (
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	"github.com/pensando/gpu-operator/tests/e2e/utils"
 )
+
+func (s *E2ESuite) getDeviceConfigForDCM(c *C) *v1alpha1.DeviceConfig {
+	dcmenable := true
+	nodelabelenable := false
+	driverEnable := false
+	devCfg := &v1alpha1.DeviceConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      s.cfgName,
+			Namespace: s.ns,
+		},
+		Spec: v1alpha1.DeviceConfigSpec{
+			Driver: v1alpha1.DriverSpec{
+				Enable:  &driverEnable,
+				Image:   "registry.test.pensando.io:5000/e2e",
+				Version: s.defaultDriverVersion,
+			},
+			// SkipDrivers:    true,
+			ConfigManager: v1alpha1.ConfigManagerSpec{
+				Enable:          &dcmenable,
+				Image:           "registry.test.pensando.io:5000/device-config-manager:v1",
+				ImagePullPolicy: "Always",
+				ConfigManagerTolerations: []v1.Toleration{
+					{
+						Key:      "dcm",
+						Operator: v1.TolerationOpEqual,
+						Value:    "up",
+						Effect:   v1.TaintEffectNoExecute,
+					},
+				},
+			},
+			DevicePlugin: v1alpha1.DevicePluginSpec{
+				DevicePluginImage:  "rocm/k8s-device-plugin:latest",
+				EnableNodeLabeller: &nodelabelenable,
+			},
+			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
+		},
+	}
+	return devCfg
+}
 
 func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 
@@ -281,6 +321,20 @@ func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns 
 
 		return ready
 	}, 45*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) checkDeviceConfigManagerStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
+	assert.Eventually(c, func() bool {
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), devCfg.Name+"-"+configmanager.ConfigManagerName, metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("failed to get config manager devCfg: %+v %v NAME %v", devCfg, err, devCfg.Name+"-"+configmanager.ConfigManagerName)
+			return false
+		}
+		log.Infof("config manager %+v", ds.Status)
+
+		ready := ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
+		return ready
+	}, 5*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) patchMetricsExporterEnablement(devCfg *v1alpha1.DeviceConfig, c *C) {
