@@ -4,7 +4,7 @@ node-feature-discovery:
   enabled: true
   worker:
     tolerations:
-      - key: "dcm"
+      - key: "amd-dcm"
         operator: "Equal"
         value: "up"
         effect: "NoExecute"
