@@ -76,6 +76,7 @@ const (
 	// check the device plugin image tags here: https://hub.docker.com/r/rocm/k8s-device-plugin/tags
 	defaultDevicePluginImage      = "rocm/k8s-device-plugin:latest"
 	defaultUbiDevicePluginImage   = "rocm/k8s-device-plugin:rhubi-latest"
+	defaultResourceNamingStrategy = "single"
 	defaultOcDriversImageTemplate = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
@@ -272,6 +273,18 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
 	}
 
+	var resourceNamingStrategy string
+	var command []string
+	if devConfig.Spec.DevicePlugin.ResourceNamingStrategy == "" {
+		resourceNamingStrategy = defaultResourceNamingStrategy
+	} else {
+		resourceNamingStrategy = devConfig.Spec.DevicePlugin.ResourceNamingStrategy
+	}
+	if resourceNamingStrategy == "single" {
+		command = []string{"sh", "-c", "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30 -resource_naming_strategy=single"}
+	} else if resourceNamingStrategy == "mixed" {
+		command = []string{"sh", "-c", "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30 -resource_naming_strategy=mixed"}
+	}
 	nodeSelector := map[string]string{}
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val
@@ -325,7 +338,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						},
 						Name:            "device-plugin",
 						WorkingDir:      "/root",
-						Command:         []string{"sh", "-c", "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"},
+						Command:         command,
 						Image:           devicePluginImage,
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{

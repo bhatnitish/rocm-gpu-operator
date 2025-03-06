@@ -251,6 +251,12 @@ type DevicePluginSpec struct {
 	// +optional
 	DevicePluginTolerations []v1.Toleration `json:"devicePluginTolerations,omitempty"`
 
+	// resource naming strategy for device plugin
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ResourceNamingStrategy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ResourceNamingStrategy"}
+	// +kubebuilder:validation:Enum=single;mixed
+	// +optional
+	ResourceNamingStrategy string `json:"resourceNamingStrategy,omitempty"`
+
 	// node labeller image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage"}
 	// +optional

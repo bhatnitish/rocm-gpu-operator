@@ -8,8 +8,8 @@ spec:
     enable: False
 
   devicePlugin:
-    devicePluginImage: rocm/k8s-device-plugin:latest
-    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+    devicePluginImage: registry.test.pensando.io:5000/device-plugin-partition:v7
+    nodeLabellerImage: registry.test.pensando.io:5000/node-labeller-partition:v7
 
   metricsExporter:
     enable: True

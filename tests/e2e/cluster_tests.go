@@ -84,7 +84,7 @@ func (s *E2ESuite) getDeviceConfigForDCM(c *C) *v1alpha1.DeviceConfig {
 				},
 			},
 			DevicePlugin: v1alpha1.DevicePluginSpec{
-				DevicePluginImage:  "rocm/k8s-device-plugin:latest",
+				DevicePluginImage:  "registry.test.pensando.io:5000/device-plugin-partition:v7",
 				EnableNodeLabeller: &nodelabelenable,
 			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
@@ -117,6 +117,8 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	}
 	insecure := true
 	devCfg.Spec.Driver.ImageRegistryTLS.Insecure = &insecure
+	devCfg.Spec.DevicePlugin.DevicePluginImage = "registry.test.pensando.io:5000/device-plugin-partition:v7"
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = "registry.test.pensando.io:5000/node-labeller-partition:v7"
 	if s.simEnable {
 		devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter-mock:v1"
 	}
@@ -1747,8 +1749,8 @@ func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
 
 	log.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
-	devCfg.Spec.DevicePlugin.DevicePluginImage = "rocm/k8s-device-plugin:1.31.0.0"
-	devCfg.Spec.DevicePlugin.NodeLabellerImage = "rocm/k8s-device-plugin:labeller-1.31.0.0"
+	devCfg.Spec.DevicePlugin.DevicePluginImage = "registry.test.pensando.io:5000/device-plugin-partition:v7"
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = "registry.test.pensando.io:5000/node-labeller-partition:v7"
 	upgradePolicy := v1alpha1.DaemonSetUpgradeSpec{
 		UpgradeStrategy: "RollingUpdate",
 		MaxUnavailable:  1,
@@ -1762,8 +1764,8 @@ func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.DevicePlugin.DevicePluginImage = "rocm/k8s-device-plugin:latest"
-	devCfg.Spec.DevicePlugin.NodeLabellerImage = "rocm/k8s-device-plugin:labeller-latest"
+	devCfg.Spec.DevicePlugin.DevicePluginImage = "registry.test.pensando.io:5000/device-plugin-partition:v8"
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = "registry.test.pensando.io:5000/node-labeller-partition:v8"
 	s.patchDevicePluginImage(devCfg, c)
 	s.patchNodeLabellerImage(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)

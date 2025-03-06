@@ -310,6 +310,12 @@ spec:
                           type: string
                       type: object
                     type: array
+                  resourceNamingStrategy:
+                    description: resource naming strategy for device plugin
+                    enum:
+                    - single
+                    - mixed
+                    type: string
                   upgradePolicy:
                     description: upgrade policy for device plugin and node labeller
                       daemons

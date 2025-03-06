@@ -163,6 +163,11 @@ spec:
         path: devicePlugin.nodeLabellerTolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations
+      - description: resource naming strategy for device plugin
+        displayName: ResourceNamingStrategy
+        path: devicePlugin.resourceNamingStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:ResourceNamingStrategy
       - description: upgrade policy for device plugin and node labeller daemons
         displayName: UpgradePolicy
         path: devicePlugin.upgradePolicy
