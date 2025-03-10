@@ -49,6 +49,7 @@ import (
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 
 	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	utils "github.com/pensando/gpu-operator/internal"
 	"github.com/pensando/gpu-operator/internal/conditions"
 	"github.com/pensando/gpu-operator/internal/kmmmodule"
 	"github.com/pensando/gpu-operator/internal/nodelabeller"
@@ -73,7 +74,6 @@ import (
 const (
 	DeviceConfigReconcilerName = "DriverAndPluginReconciler"
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
-	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
 	testRunnerNodeLabelPrefix  = "testrunner.amd.com"
 )
 
@@ -1014,13 +1014,13 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	nodeLabels := func() string {
 		// nodes without gpu, kmm, dev-plugin
 		sel := []string{
-			"! " + NodeFeatureLabelAmdGpu,
+			"! " + utils.NodeFeatureLabelAmdGpu,
 			"! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name),
 			"! " + labels.GetDevicePluginNodeLabel(devConfig.Namespace, devConfig.Name),
 		}
 
 		for k, v := range devConfig.Spec.Selector {
-			if k == NodeFeatureLabelAmdGpu { // skip
+			if k == utils.NodeFeatureLabelAmdGpu { // skip
 				continue
 			}
 			sel = append(sel, fmt.Sprintf("%s=%s", k, v))

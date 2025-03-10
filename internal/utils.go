@@ -26,6 +26,8 @@ import (
 
 const (
 	defaultOcDriversVersion = "6.2.2"
+	NodeFeatureLabelAmdGpu  = "feature.node.kubernetes.io/amd-gpu"
+	NodeFeatureLabelAmdVGpu = "feature.node.kubernetes.io/amd-vgpu"
 )
 
 func GetDriverVersion(node v1.Node, deviceConfig amdv1alpha1.DeviceConfig) (string, error) {
@@ -76,4 +78,13 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
 	}
 	return "", fmt.Errorf("invalid ubuntu version, should be one of [20.04, 22.04]")
+}
+
+func HasNodeLabelKey(node v1.Node, labelKey string) bool {
+	for k := range node.Labels {
+		if k == labelKey {
+			return true
+		}
+	}
+	return false
 }
