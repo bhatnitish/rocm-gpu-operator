@@ -254,6 +254,7 @@ type DevicePluginSpec struct {
 	// resource naming strategy for device plugin
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ResourceNamingStrategy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ResourceNamingStrategy"}
 	// +kubebuilder:validation:Enum=single;mixed
+	// +kubebuilder:default:="single"
 	// +optional
 	ResourceNamingStrategy string `json:"resourceNamingStrategy,omitempty"`
 

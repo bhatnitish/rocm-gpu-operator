@@ -311,6 +311,7 @@ spec:
                       type: object
                     type: array
                   resourceNamingStrategy:
+                    default: single
                     description: resource naming strategy for device plugin
                     enum:
                     - single
