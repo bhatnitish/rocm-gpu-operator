@@ -89,6 +89,7 @@ func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config) upgradeM
 
 // HandleUpgrade handles the upgrade functionalities for device config
 func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodeList *v1.NodeList) (ctrl.Result, error) {
+	res := ctrl.Result{}
 
 	var candidateNodes []v1.Node
 	var upgradeDone, upgradeInProgress, upgradeFailedState int
@@ -149,6 +150,11 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		// 1. Set init status for unprocessed nodes
 		n.helper.handleInitStatus(ctx, &nodeList.Items[i])
 
+		if !n.helper.isNodeReadyForUpgrade(ctx, &nodeList.Items[i]) {
+			res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
+			continue
+		}
+
 		// 2. Handle failed nodes
 		if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
 			n.helper.clearUpgradeStartTime(nodeList.Items[i].Name)
@@ -195,7 +201,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	}
 	// All nodes have correct drivers installed
 	if upgradeDone == len(nodeList.Items) || len(candidateNodes) == 0 {
-		return ctrl.Result{}, nil
+		return res, nil
 	}
 
 	maxParallelUpgrades, policyViolated := n.helper.isUpgradePolicyViolated(upgradeInProgress, upgradeFailedState, len(nodeList.Items), deviceConfig)
@@ -255,6 +261,7 @@ type upgradeMgrHelperAPI interface {
 	isNodeStateUpgradeStarted(node *v1.Node) bool
 	isNodeStateInstallInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeStateUpgradeInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
+	isNodeReadyForUpgrade(ctx context.Context, node *v1.Node) bool
 	isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool)
 
@@ -446,6 +453,20 @@ func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v
 		nodeStatus == amdv1alpha1.UpgradeStateUncordonFailed ||
 		nodeStatus == amdv1alpha1.UpgradeStateDrainFailed)
 
+}
+
+// Check if node is ready to be upgraded
+func (h *upgradeMgrHelper) isNodeReadyForUpgrade(ctx context.Context, node *v1.Node) bool {
+
+	if node.Spec.Unschedulable {
+		return false
+	}
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady && condition.Status != v1.ConditionTrue {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *upgradeMgrHelper) isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool) {
