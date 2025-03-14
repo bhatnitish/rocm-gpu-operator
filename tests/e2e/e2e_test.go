@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/pensando/gpu-operator/tests/e2e/client"
+	"github.com/ROCm/gpu-operator/tests/e2e/client"
 	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-var log = logrus.Logger{
+var logger = logrus.Logger{
 	Out: os.Stdout,
 	Formatter: &logrus.TextFormatter{
 		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
@@ -70,7 +70,7 @@ func Test(t *testing.T) {
 var _ = Suite(&E2ESuite{})
 
 func (s *E2ESuite) SetUpSuite(c *C) {
-	log.Infof("setupSuite:")
+	logger.Infof("setupSuite:")
 	s.helmChart = *helmChart
 	s.kubeconfig = *kubeConfig
 	s.ns = *operatorNS
@@ -104,7 +104,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	if s.openshift == false {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckHelmDeployment(cs, s.ns, true); err != nil {
-				log.Infof("%v", err)
+				logger.Infof("%v", err)
 				return false
 			}
 			return true
@@ -112,7 +112,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	} else {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckHelmOCDeployment(cs, true); err != nil {
-				log.Infof("%v", err)
+				logger.Infof("%v", err)
 				return false
 			}
 			return true
@@ -129,15 +129,15 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 }
 
 func (s *E2ESuite) SetUpTest(c *C) {
-	log.Info("setupTest:")
+	logger.Info("setupTest:")
 	_ = s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{})
 
 }
 func (s *E2ESuite) TearDownTest(c *C) {
-	log.Info("TearDownTest:")
+	logger.Info("TearDownTest:")
 	if l, err := s.dClient.DeviceConfigs(s.ns).List(metav1.ListOptions{}); err == nil {
 		for _, cfg := range l.Items {
-			log.Infof("delete %v", cfg.Name)
+			logger.Infof("delete %v", cfg.Name)
 			if _, err := s.dClient.DeviceConfigs(s.ns).Delete(cfg.Name); err != nil {
 				c.Fatalf("Error: %v", err.Error())
 			}
@@ -155,10 +155,10 @@ func (s *E2ESuite) TearDownTest(c *C) {
 }
 
 func (s *E2ESuite) TearDownSuite(c *C) {
-	log.Info("TearDownSuite:")
+	logger.Info("TearDownSuite:")
 	if l, err := s.dClient.DeviceConfigs(s.ns).List(metav1.ListOptions{}); err == nil {
 		for _, cfg := range l.Items {
-			log.Infof("delete %v", cfg.Name)
+			logger.Infof("delete %v", cfg.Name)
 			if _, err := s.dClient.DeviceConfigs(s.ns).Delete(cfg.Name); err != nil {
 				c.Fatalf("Error: %v", err.Error())
 			}

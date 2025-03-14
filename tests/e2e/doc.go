@@ -17,7 +17,7 @@ limitations under the License.
 package e2e
 
 import (
-	"github.com/pensando/gpu-operator/tests/e2e/client"
+	"github.com/ROCm/gpu-operator/tests/e2e/client"
 	"k8s.io/client-go/kubernetes"
 )
 

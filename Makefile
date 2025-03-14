@@ -1,11 +1,36 @@
-include dev.env
+# Import development related environment variables from dev.env
+ifneq ("$(wildcard dev.env)","")
+    include dev.env
+endif
 
-# PROJECT_VERSION defines the project version for the bundle.
+# PROJECT_VERSION defines the project version.
 # Update this value when you upgrade the version of your project.
-# To re-generate a bundle for another specific version without changing the standard setup, you can:
-# - use the PROJECT_VERSION as arg of the bundle target (e.g make bundle PROJECT_VERSION=0.0.2)
-# - use environment variables to overwrite this value (e.g export PROJECT_VERSION=0.0.2)
 PROJECT_VERSION ?= v1.2.0
+
+####################################
+# GPU Operator Image Build variables
+# Note: when using images from DockerHub, please make sure to input the full DockerHub registry URL (docker.io) into DOCKER_REGISTRY
+# user's container runtime may not set DockerHub as default registry and auto-search on DockerHub
+GOFLAGS := "-mod=mod"
+GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+DOCKER_REGISTRY ?= docker.io/rocm
+IMAGE_NAME ?= amd-gpu-operator
+IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
+IMAGE_TAG ?= dev
+IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
+DOCKER_CONTAINER_IMG = $(IMAGE_NAME)-$(IMAGE_TAG) # name used for saving the container images as tar.gz
+HOURLY_TAG_LABEL ?= latest
+
+# KMM related images
+KMM_IMAGE_TAG ?= latest
+KMM_SIGNER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
+KMM_WORKER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-worker:$(KMM_IMAGE_TAG)
+KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
+KMM_WEBHOOK_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-webhook-server
+KMM_OPERATOR_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-operator
+
+#######################
+# Helm Charts variables
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/deviceconfig_example.yaml config/default/kustomization.yaml
 CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
@@ -22,63 +47,37 @@ GPU_OPERATOR_CHART ?= ./helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION)
 $(info selected k8s)
 KUBECTL_CMD=kubectl
 endif
-GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 
 ifdef SKIP_NFD
-ifdef OPENSHIFT
-SKIP_NFD_CMD=--set nfd.enabled=false
-else
-SKIP_NFD_CMD=--set node-feature-discovery.enabled=false
-endif
+	ifdef OPENSHIFT
+		SKIP_NFD_CMD=--set nfd.enabled=false
+	else
+		SKIP_NFD_CMD=--set node-feature-discovery.enabled=false
+	endif
 endif
 
 ifdef SKIP_KMM
-SKIP_KMM_CMD=--set kmm.enabled=false
+	SKIP_KMM_CMD=--set kmm.enabled=false
 endif
 
 ifdef SIM_ENABLE
-SIM_ENABLE_CMD=--set controllerManager.env.simEnable=true
+	SIM_ENABLE_CMD=--set controllerManager.env.simEnable=true
 endif
-# IMAGE_NAME defines the docker.io namespace and part of the image name for remote images.
-# This variable is used to construct full image tags for bundle and catalog images.
-#
-# For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# Specify DOCKER_REGISTRY as registryURL/username
-# Note: when using images from DockerHub, please make sure to input the full DockerHub registry URL (docker.io) into DOCKER_REGISTRY
-# user's container runtime may not set DockerHub as default registry and auto-search on DockerHub
-DOCKER_REGISTRY ?= registry.test.pensando.io:5000
-IMAGE_NAME ?= amd-gpu-operator
-IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
-# This is the default tag of all images made by this Makefile.
-IMAGE_TAG ?= dev
-# Image URL to use all building/pushing image targets
-IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 
-# name used for saving the container images as tar.gz
-DOCKER_CONTAINER_IMG = $(IMAGE_NAME)-$(IMAGE_TAG)
-
+#################################
+# OpenShift OLM Bundle varaiables
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(PROJECT_VERSION)
 INDEX_IMG := $(IMAGE_TAG_BASE)-index:$(PROJECT_VERSION)
-BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle
-
-HOURLY_TAG_LABEL ?= latest
-
-# KMM related images
-KMM_IMAGE_TAG ?= latest
-KMM_SIGNER_IMG ?= registry.test.pensando.io:5000/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
-KMM_WORKER_IMG ?= registry.test.pensando.io:5000/kernel-module-management-worker:$(KMM_IMAGE_TAG)
-KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
-KMM_WEBHOOK_IMG_NAME ?= registry.test.pensando.io:5000/kernel-module-management-webhook-server
-KMM_OPERATOR_IMG_NAME ?= registry.test.pensando.io:5000/kernel-module-management-operator
+BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle 
 
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
 # - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
 # - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
 ifneq ($(origin CHANNELS), undefined)
-BUNDLE_CHANNELS := --channels=$(CHANNELS)
+	BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
 
 # DEFAULT_CHANNEL defines the default channel used in the bundle.
@@ -87,40 +86,43 @@ endif
 # - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
 # - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
 ifneq ($(origin DEFAULT_CHANNEL), undefined)
-BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
+	BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
 endif
-BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
+BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
 BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(shell echo $(PROJECT_VERSION) | sed 's/^v//') $(BUNDLE_METADATA_OPTS)
-
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
+##################################
+# Docker shell container variables
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
+	GOBIN=$(shell go env GOPATH)/bin
 else
-GOBIN=$(shell go env GOBIN)
+	GOBIN=$(shell go env GOBIN)
 endif
-
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-
 DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
 DOCKER_BUILDER_TAG := v1.1
-DOCKER_BUILDER_IMAGE := registry.test.pensando.io:5000/gpu-operator-build:$(DOCKER_BUILDER_TAG)
+DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
-BUILD_BASE_IMG ?= registry.test.pensando.io:5000/ubuntu:22.04
-GOLANG_BASE_IMG ?= registry.test.pensando.io:5000/golang:1.23
+BUILD_BASE_IMG ?= ubuntu:22.04
+GOLANG_BASE_IMG ?= golang:1.23
 
+##################
+# Makefile targets
+
+##@ QuickStart
 .PHONY: default
-default: docker-build-env
+default: docker-build-env ## Quick start to build everything from docker shell container
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
 		--name gpu-operator-build \
@@ -128,30 +130,11 @@ default: docker-build-env
 		-e "USER_UID=$(shell id -u)" \
 		-e "USER_GID=$(shell id -g)" \
 		-v $(CURDIR):/gpu-operator \
+		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all
-
-.PHONY: docker-build-env
-docker-build-env:
-	@echo "Building the Docker environment..."
-	@docker build \
-		-t $(DOCKER_BUILDER_IMAGE) --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) -f Dockerfile.build .
-
-.PHONY: docker/shell
-docker/shell: docker-build-env
-	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
-		--name gpu-operator-build \
-		-e "USER_NAME=$(shell whoami)" \
-		-e "USER_UID=$(shell id -u)" \
-		-e "USER_GID=$(shell id -g)" \
-		-v $(CURDIR):/gpu-operator \
-		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
-		-w $(CONTAINER_WORKDIR) \
-		$(DOCKER_BUILDER_IMAGE) \
-		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
 
 .PHONY: all
 all: generate manager manifests helm-k8s helm-openshift bundle-build docker-build
@@ -176,14 +159,13 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: update-registry
-update-registry:
+update-registry: ## Update all image URLs based on the image variables
 	# updating registry information in yaml files
 	sed -i -e 's|image:.*$$|image: ${IMG}|' bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml
 	sed -i -e 's|repository:.*$$|repository: ${IMAGE_TAG_BASE}|' \
 	hack/k8s-patch/metadata-patch/values.yaml \
 	hack/openshift-patch/metadata-patch/values.yaml
 	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" \
-	-e 's|registry.test.pensando.io:5000|$(DOCKER_REGISTRY)|' \
 	-e 's|newName:.*$$|newName: ${IMAGE_TAG_BASE}|' \
 	config/manager-base/kustomization.yaml config/manager/kustomization.yaml \
 	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
@@ -198,7 +180,7 @@ update-registry:
 	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
 .PHONY: update-version
-update-version:
+update-version: ## Update the Project version in helm charts based on ${PROJECT_VERSION}
 	# updating project version in manifests
 	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/k8s-patch/metadata-patch/Chart.yaml
 	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
@@ -229,18 +211,17 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 UNIT_TEST ?= ./internal/controllers ./internal/kmmmodule
-
 .PHONY: unit-test
-unit-test: vet ## Run tests.
+unit-test: vet ## Run the unit tests.
 	go test $(UNIT_TEST) -v -coverprofile cover.out
 
-#GPU_OPERATOR_RELEASE=$(shell helm version > /dev/null && helm list --deployed -n kube-amd-gpu -q)
 .PHONY: e2e
-e2e:
+e2e: ## Run the e2e tests. 
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
 	export OPENSHIFT
 	export SIM_ENABLE
+	${MAKE} -C tests/e2e/nodeapp
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
 
@@ -250,6 +231,7 @@ dcm_e2e:
 	${MAKE} helm-install
 	export OPENSHIFT
 	export SIM_ENABLE
+	${MAKE} -C tests/e2e/nodeapp
 	${MAKE} -C tests/e2e dcm_e2e
 	${MAKE} helm-uninstall
 
@@ -280,6 +262,37 @@ docker-push: ## Push docker image with the manager.
 docker-save: ## save the container image with the manager.
 	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
 
+.PHONY: docker-build-env
+docker-build-env: ## Build the docker shell container
+	@echo "Building the Docker environment..."
+	@if [ -n $(INSECURE_REGISTRY) ]; then \
+    docker build \
+        -t $(DOCKER_BUILDER_IMAGE) \
+        --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
+        --build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
+        -f Dockerfile.build .; \
+	else \
+		docker build \
+			-t $(DOCKER_BUILDER_IMAGE) \
+			--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
+			-f Dockerfile.build .; \
+	fi
+
+.PHONY: docker/shell
+docker/shell: docker-build-env ## Bring up and attach to a shell container that has dev environment configured
+	@echo "Starting a shell in the Docker build container..."
+	@docker run --rm -it --privileged \
+		--name gpu-operator-build \
+		-e "USER_NAME=$(shell whoami)" \
+		-e "USER_UID=$(shell id -u)" \
+		-e "USER_GID=$(shell id -g)" \
+		-v $(CURDIR):/gpu-operator \
+		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
+		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
+		-w $(CONTAINER_WORKDIR) \
+		$(DOCKER_BUILDER_IMAGE) \
+		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -287,7 +300,6 @@ ifndef ignore-not-found
 endif
 
 KUSTOMIZE_CONFIG_CRD ?= config/crd
-
 .PHONY: install
 install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	${KUBECTL_CMD} apply -k $(KUSTOMIZE_CONFIG_CRD)
@@ -351,7 +363,7 @@ endef
 
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
 .PHONY: operator-sdk
-operator-sdk:
+operator-sdk: ## Download operator-sdk locally if necessary
 	@if [ ! -f ${OPERATOR_SDK} ]; then \
 		set -e ;\
 		echo "Downloading ${OPERATOR_SDK}"; \
@@ -415,8 +427,18 @@ opm:
 index: opm
 	${OPM} index add --bundles ${BUNDLE_IMG} --tag ${INDEX_IMG}
 
-## Download and install helmify locally.
-HELMIFY = helmify
+HELMIFY = $(shell pwd)/bin/helmify
+.PHONY: helmify
+helmify:
+	@if [ ! -f "$(shell pwd)/bin/helmify" ]; then \
+		echo "helmify not found. Downloading..."; \
+		curl -Lo $(shell pwd)/bin/helmify.tar.gz https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz; \
+		tar -xzf $(shell pwd)/bin/helmify.tar.gz -C $(shell pwd)/bin; \
+		chmod +x $(shell pwd)/bin/helmify; \
+		rm $(shell pwd)/bin/helmify.tar.gz; \
+	else \
+		echo "helmify already exists."; \
+	fi
 
 .PHONY: helm
 helm:
@@ -427,7 +449,7 @@ helm:
 	fi
 
 .PHONY: helm-k8s
-helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
+helm-k8s: helmify manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-k8s
 	# Patching k8s helm chart metadata
 	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/
@@ -452,7 +474,7 @@ helm-k8s: manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
 	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
 
 .PHONY: helm-openshift
-helm-openshift: manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
+helm-openshift: helmify manifests kustomize clean-helm-openshift gen-nfd-charts-openshift gen-kmm-charts-openshift
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-openshift
 	# Patching openshift helm chart metadata
 	cp $(shell pwd)/hack/openshift-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-openshift/
@@ -541,9 +563,7 @@ ifdef JOB_ID
 	@echo "Running in CI"
 	$(KUSTOMIZE) build /ws/builder/kernel-module-management/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 else
-	rm -rf /tmp/kmm && git clone git@github.com:pensando/kernel-module-management.git /tmp/kmm; cd /tmp/kmm; git checkout $(PROJECT_VERSION)
-	$(KUSTOMIZE) build /tmp/kmm/config/default | $(HELMIFY) helm-charts-k8s/charts/kmm
-	rm -rf /tmp/kmm
+	$(KUSTOMIZE) build $(shell pwd)/hack/kmmConfig/default | $(HELMIFY) helm-charts-k8s/charts/kmm
 endif
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/Chart.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
 	mkdir helm-charts-k8s/charts/kmm/crds
@@ -567,4 +587,4 @@ clean-helm-k8s:
 	rm -rf $(shell pwd)/helm-charts-k8s
 
 copyrights:
-	GOFLAGS=-mod=mod go run tools/build/copyright/main.go && ./tools/build/check-local-files.sh
+	GOFLAGS=-mod=mod go run tools/build/copyright/main.go && ${MAKE} fmt && ./tools/build/check-local-files.sh

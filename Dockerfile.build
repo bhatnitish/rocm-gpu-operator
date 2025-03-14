@@ -1,5 +1,4 @@
 ARG BUILD_BASE_IMG=ubuntu:22.04
-
 FROM ${BUILD_BASE_IMG}
 
 # Set environment variables
@@ -45,10 +44,16 @@ RUN curl -sSL https://github.com/arttor/helmify/releases/download/v0.4.13/helmif
 RUN curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl' && \
     chmod +x /usr/local/bin/kubectl
 
-RUN mkdir -p /etc/docker && \
-    echo '{ \
-      "insecure-registries": ["registry.test.pensando.io:5000"] \
-    }' > /etc/docker/daemon.json
+ARG INSECURE_REGISTRY
+RUN echo "INSECURE_REGISTRY is: $INSECURE_REGISTRY" && \
+    if [ -n "$INSECURE_REGISTRY" ]; then \
+    mkdir -p /etc/docker && \
+    echo "{ \
+    \"insecure-registries\": [\"$INSECURE_REGISTRY\"] \
+    }" > /etc/docker/daemon.json; \
+    else \
+    echo "INSECURE_REGISTRY is not set"; \
+    fi
 
 # Copy entrypoint script
 COPY entrypoint_build.sh /entrypoint.sh

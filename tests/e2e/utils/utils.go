@@ -31,8 +31,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pensando/gpu-operator/internal/kmmmodule"
-	"github.com/pensando/gpu-operator/internal/metricsexporter"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 	log "github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -51,7 +51,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/yaml"
 )
 
 const ClusterTypeOpenShift = "openshift"
@@ -290,7 +289,7 @@ func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset,
 	res *v1.ResourceRequirements) error {
 
 	err := CreateDaemonsetVerify(ctx, cl, v1.NamespaceDefault, rocmDs,
-		"busybox:1.36", rocmLabel, res)
+		initContainerImage, rocmLabel, res)
 	if err != nil {
 		return fmt.Errorf("failed to create e2e pods %v", err)
 	}
@@ -819,16 +818,72 @@ func VerifyROCMPODResourceCount(ctx context.Context, cl *kubernetes.Clientset,
 }
 
 func DeployNodeAppDaemonSet(cl *kubernetes.Clientset) error {
-
-	// Read the YAML file
-	naFile, err := os.ReadFile("nodeapp/nodeappds.yaml")
-	if err != nil {
-		return fmt.Errorf("nodeapp yaml read error: %v", err)
-	}
-
-	var ds appsv1.DaemonSet
-	if err = yaml.Unmarshal(naFile, &ds); err != nil {
-		return fmt.Errorf("nodeapp yaml unmarshal error: %v", err)
+	hostPathDirectoryType := v1.HostPathDirectory
+	ds := appsv1.DaemonSet{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "DaemonSet",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "e2e-nodeapp-ds",
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"name": "e2e-nodeapp-ds",
+				},
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"name": "e2e-nodeapp-ds",
+					},
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:            "e2e-nodeapp-container",
+							Image:           nodeAppImage,
+							ImagePullPolicy: v1.PullAlways,
+							Lifecycle: &v1.Lifecycle{
+								PreStop: &v1.LifecycleHandler{
+									Exec: &v1.ExecAction{
+										Command: []string{"./docker-exitpoint.sh"},
+									},
+								},
+							},
+							Env: []v1.EnvVar{
+								{
+									Name: "NODE_IP",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "status.hostIP",
+										},
+									},
+								},
+							},
+							VolumeMounts: []v1.VolumeMount{
+								{
+									Name:      "ssh-volume",
+									MountPath: "/root/.ssh",
+								},
+							},
+						},
+					},
+					Volumes: []v1.Volume{
+						{
+							Name: "ssh-volume",
+							VolumeSource: v1.VolumeSource{
+								HostPath: &v1.HostPathVolumeSource{
+									Path: "/root/.ssh",
+									Type: &hostPathDirectoryType,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	dsCli := cl.AppsV1().DaemonSets("default")
@@ -1291,6 +1346,11 @@ func PatchOperatorControllerDeploymentWithCIENVFlag(cl *kubernetes.Clientset) er
 			"path":  "/spec/template/spec/containers/0/env/-",
 			"value": map[string]string{"name": "CI_ENV", "value": "true"},
 		},
+		{
+			"op":    "add",
+			"path":  "/spec/template/spec/containers/0/env/-",
+			"value": map[string]string{"name": "INTERNAL_UBUNTU_BASE", "value": ubuntuBaseImage},
+		},
 	}
 
 	patchBytes, err := json.Marshal(patch)
@@ -1652,7 +1712,7 @@ func CreateMinioService(ctx context.Context, cl *kubernetes.Clientset, ns, hostN
 			Containers: []v1.Container{
 				{
 					Name:    "minio",
-					Image:   "registry.test.pensando.io:5000/minio/minio:latest",
+					Image:   minioImage,
 					Command: []string{"/bin/bash", "-c"},
 					Args:    []string{"minio server /data --console-address :9090"},
 					VolumeMounts: []v1.VolumeMount{

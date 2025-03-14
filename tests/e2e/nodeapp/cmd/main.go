@@ -38,13 +38,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 
 	log "github.com/sirupsen/logrus"
 )

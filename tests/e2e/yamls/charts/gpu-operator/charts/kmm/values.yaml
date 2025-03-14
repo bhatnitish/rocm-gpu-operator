@@ -6,7 +6,7 @@ controller:
       allowPrivilegeEscalation: false
     env:
       relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
-      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:dev
+      relatedImageSign: test_host_ip:5000/kernel-module-management-signimage:dev
       relatedImageWorker: test_host_ip:5000/kmm-e2e-worker:dev
       relatedImageBuildPullSecret: ""
       relatedImageSignPullSecret: ""

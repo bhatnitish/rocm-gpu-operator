@@ -1,14 +1,8 @@
-DOCKER_REGISTRY ?= registry.test.pensando.io:5000
-IMAGE_NAME ?= nodeapp
-IMAGE_TAG ?= dev
-IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
-IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
+ifneq ("$(wildcard ../../../dev.env)","")
+    include ../../../dev.env
+endif
 
-checks:
-	gofmt -l -s -w .
-	golint ./...
-	go vet ./...
-	goimports -local "github.com/pensando/sw" -l -w -d `find . -name "*.go"`
+default: clean docker-build docker-push
 
 build:
 	go build -o nodeapp cmd/main.go
@@ -17,10 +11,10 @@ docker-build: build
 	rm -f id_rsa*
 	ssh-keygen -t rsa -b 4096 -C "" -N "" -f id_rsa
 	chmod +x docker-entrypoint.sh
-	docker build -t $(IMG) .
+	docker build -t $(E2E_NODEAPP_IMG) .
 
 docker-push:
-	docker push $(IMG)
+	docker push $(E2E_NODEAPP_IMG)
 
 clean:
 	rm -f id_rsa* nodeapp

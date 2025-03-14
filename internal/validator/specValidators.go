@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

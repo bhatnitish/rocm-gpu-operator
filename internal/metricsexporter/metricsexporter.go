@@ -36,7 +36,7 @@ import (
 	"fmt"
 	"os"
 
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"

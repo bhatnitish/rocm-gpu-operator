@@ -46,8 +46,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/utils/ptr"
 
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
-	utils "github.com/pensando/gpu-operator/internal"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -81,8 +81,6 @@ const (
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	defaultOcDriversVersion     = "6.2.2"
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
-	defaultInternalCDNURL       = "artifactory-cdn.amd.com"
-	internalUbuntuImageForCI    = "registry.test.pensando.io:5000/ubuntu"
 	defaultInitContainerImage   = "busybox:1.36"
 )
 
@@ -207,7 +205,8 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
 
 		// trigger to pull the internal ROCM dev build
-		if strings.Contains(strings.ToLower(devConfig.Spec.Driver.AMDGPUInstallerRepoURL), defaultInternalCDNURL) {
+		if internalArtifactoryURL, ok := os.LookupEnv("INTERNAL_ARTIFACTORY"); ok &&
+			strings.Contains(strings.ToLower(devConfig.Spec.Driver.AMDGPUInstallerRepoURL), internalArtifactoryURL) {
 			dockerfileTemplate = dockerfileDevTemplateUbuntu
 			devBuildinfo := strings.Split(devConfig.Spec.Driver.AMDGPUInstallerRepoURL, " ")
 			if len(devBuildinfo) < 4 {
@@ -221,8 +220,9 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		// use an environment variable to ask CI infra to pull image from internal repository
 		// in order to avoid docekrhub pull rate limit issue
 		_, isCIEnvSet := os.LookupEnv("CI_ENV")
-		if isCIEnvSet {
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuImageForCI), -1)
+		internalUbuntuBaseImage, internalUbuntuBaseSet := os.LookupEnv("INTERNAL_UBUNTU_BASE")
+		if isCIEnvSet && internalUbuntuBaseSet {
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
 		}
 	case "coreos":
 		dockerfileTemplate = buildOcDockerfile

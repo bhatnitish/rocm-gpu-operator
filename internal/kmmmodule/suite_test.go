@@ -35,9 +35,9 @@ package kmmmodule
 import (
 	"testing"
 
+	"github.com/ROCm/gpu-operator/internal/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/pensando/gpu-operator/internal/test"
 	"k8s.io/apimachinery/pkg/runtime"
 	//+kubebuilder:scaffold:imports
 )

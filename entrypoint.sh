@@ -3,6 +3,7 @@
 set -x 
 set -euo pipefail
 dir=/usr/src/github.com/pensando/gpu-operator
+externaldir=/usr/src/github.com/ROCm/gpu-operator
 netns=/var/run/netns
 
 term() {
@@ -17,8 +18,10 @@ dockerd -s vfs &
 trap term INT TERM
 
 mkdir -p ${dir}
+mkdir -p ${externaldir}
 mkdir -p ${netns}
 mount -o bind /gpu-operator ${dir}
+mount -o bind /gpu-operator ${externaldir}
 rm -f $dir/.container_ready
 export GOFLAGS=-mod=vendor
 sysctl -w vm.max_map_count=262144

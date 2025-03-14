@@ -1,4 +1,4 @@
-module github.com/pensando/gpu-operator
+module github.com/ROCm/gpu-operator
 
 go 1.23.0
 

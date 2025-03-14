@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 )
 

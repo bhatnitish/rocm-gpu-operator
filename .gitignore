@@ -6,6 +6,10 @@
 /helm-charts-openshift/charts/*.tgz
 *.out
 
+# node app for e2e test
+id_rsa*
+nodeapp
+
 # Sphinx documentation
 _build/
 .venv/

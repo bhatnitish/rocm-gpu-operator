@@ -11,9 +11,9 @@ cluster with health check feature if configured to include both device plugin an
 as part of the device configuration.
 
 ## Requirements
-1. metrics exporter : exporter-0.0.1-44 and up
-2. k8s-device-plugin : registry.test.pensando.io:5000/k8s-device-plugin/deviceplugin:v1
-3. gpu operator : operator-0.0.1-89 and up
+1. metrics exporter : v1.2.0 and up
+2. k8s-device-plugin : latest 
+3. gpu operator : v1.2.0 and up
 
 ## Health Check Workflow
 The health check workflow is automatic always on, and runs on every node as
@@ -22,7 +22,7 @@ demonset.
 The default threshold for ECC error is 0, if the user wants to change 
 ECC threshold then the user can set the HealthThresholds field in metrics exporter config map, 
 more details can be found on the
-[device-metrics-exporter/README.md](https://github.com/pensando/device-metrics-exporter/blob/main/README.md)
+[device-metrics-exporter/README.md](https://github.com/ROCm/device-metrics-exporter/blob/main/README.md)
 
 Metrics exporter polls the GPUs every 30 seconds to get the health status.
 Device plugin checks the health of the GPUs every 30 seconds to get the health
@@ -112,4 +112,4 @@ and servicing it.
    is not expected in field)
 
 
-[Testing Mock Tool](https://github.com/pensando/device-metrics-exporter/blob/main/internal/README.md)
+[Testing Mock Tool](https://github.com/ROCm/device-metrics-exporter/blob/main/internal/README.md)

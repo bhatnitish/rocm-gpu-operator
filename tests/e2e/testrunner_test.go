@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pensando/gpu-operator/api/v1alpha1"
-	"github.com/pensando/gpu-operator/internal/testrunner"
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/ROCm/gpu-operator/internal/testrunner"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	v1 "k8s.io/api/core/v1"
@@ -52,7 +52,7 @@ func (s *E2ESuite) checkTestRunnerStatus(devCfg *v1alpha1.DeviceConfig, expectDS
 		assert.Eventually(c, func() bool {
 			_, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), devCfg.Name+"-"+testrunner.TestRunnerName, metav1.GetOptions{})
 			if err != nil {
-				log.Errorf("cannot find expected test runner daemonset, err %+v", err)
+				logger.Errorf("cannot find expected test runner daemonset, err %+v", err)
 				return false
 			}
 			return true
@@ -61,7 +61,7 @@ func (s *E2ESuite) checkTestRunnerStatus(devCfg *v1alpha1.DeviceConfig, expectDS
 		assert.Eventually(c, func() bool {
 			trDS, err := s.clientSet.AppsV1().DaemonSets(s.ns).Get(context.TODO(), devCfg.Name+"-"+testrunner.TestRunnerName, metav1.GetOptions{})
 			if err == nil {
-				log.Errorf("found expected test runner daemonset but expect it doesn't exist %+v", trDS)
+				logger.Errorf("found expected test runner daemonset but expect it doesn't exist %+v", trDS)
 				return false
 			}
 			return true
@@ -72,11 +72,11 @@ func (s *E2ESuite) checkTestRunnerStatus(devCfg *v1alpha1.DeviceConfig, expectDS
 func (s *E2ESuite) simulateOneGPUUnhealthyStatus(ns, nodeName string, c *C) {
 	// inject the UE to one of the exporter pod
 	labelMap := make(map[string]string)
-	log.Infof("Marking GPU unhealthy")
+	logger.Infof("Marking GPU unhealthy")
 	err := utils.SetGPUHealthOnNode(s.clientSet, ns, "0", "unhealthy", nodeName)
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
-	log.Print("Verifying unhealthy label on the node(s)")
+	logger.Print("Verifying unhealthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(labelMap).String(),
@@ -84,7 +84,7 @@ func (s *E2ESuite) simulateOneGPUUnhealthyStatus(ns, nodeName string, c *C) {
 		if err != nil || len(nodes.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
+		logger.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
 		return true
 	}, 90*time.Second, 10*time.Second, "expected gpu 0 to become unhealthy but got healthy")
 }
@@ -103,13 +103,13 @@ func (s *E2ESuite) deleteTestRunnerPod(node string, devCfg *v1alpha1.DeviceConfi
 				strings.Contains(pod.Name, devCfg.Name+"-"+testrunner.TestRunnerName) {
 				err = s.clientSet.CoreV1().Pods(devCfg.Namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 				if err != nil {
-					log.Printf("failed to delete pod %+v err %+v", pod.Name, err)
+					logger.Printf("failed to delete pod %+v err %+v", pod.Name, err)
 					return false
 				}
 				return true
 			}
 		}
-		log.Printf("cannot find test runner pods")
+		logger.Printf("cannot find test runner pods")
 		return false
 	}, 30*time.Second, 2*time.Second, "expected to delete test runner pod on node %+v", node)
 }
@@ -174,7 +174,7 @@ func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.Device
 	} else {
 		exportInfo := getLogsExportInfo(provider, bucketName, secretName)
 		config := getTestRunnerConfigJson(nodeName, recipe, exportInfo, stopOnFailure, configureLogsExport, iterations, timeoutInSeconds)
-		log.Printf("testrunner config.json - %s", config)
+		logger.Printf("testrunner config.json - %s", config)
 		cm = &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      cmName,
@@ -191,7 +191,7 @@ func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.Device
 			if strings.Contains(err.Error(), "already exists") {
 				return true
 			}
-			log.Printf("failed to create configmap for test runner err %+v", err)
+			logger.Printf("failed to create configmap for test runner err %+v", err)
 			return false
 		}
 		return true
@@ -202,7 +202,7 @@ func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.Device
 func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(c *C) string {
 	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet)
 	if err != nil {
-		log.Errorf("error: %v", err)
+		logger.Errorf("error: %v", err)
 	}
 	var maxPerNodeGPU int = 0
 	var nodeWithMaxGPU string
@@ -261,12 +261,12 @@ func (s *E2ESuite) verifyRestartIncompleteTest(node string, devCfg *v1alpha1.Dev
 					return false
 				}
 				if strings.Contains(buf.String(), "incomplete test") {
-					log.Print("found test runner pod that has restarted the incomplete test")
+					logger.Print("found test runner pod that has restarted the incomplete test")
 					return true
 				}
 			}
 		}
-		log.Printf("cannot find test runner pods restarting the incomplete test")
+		logger.Printf("cannot find test runner pods restarting the incomplete test")
 		return false
 	}, 90*time.Second, 10*time.Second, "cannot find test runner pods restarting the incomplete test on node %+v", node)
 }
@@ -298,19 +298,19 @@ func (s *E2ESuite) verifyFoundUnhealthyGPUWithWorkload(node string, devCfg *v1al
 					return false
 				}
 				if strings.Contains(buf.String(), "unhealthy but still associated with workload") {
-					log.Print("found test runner pod that has detected unhealthy GPU with associated workload")
+					logger.Print("found test runner pod that has detected unhealthy GPU with associated workload")
 					return true
 				}
 			}
 		}
-		log.Printf("cannot find test runner pod that has detected unhealthy GPU with associated workload")
+		logger.Printf("cannot find test runner pod that has detected unhealthy GPU with associated workload")
 		return false
 	}, 90*time.Second, 10*time.Second, "cannot find test runner pod that has detected unhealthy GPU with associated workload on node %+v", node)
 }
 
 func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.DeviceConfig, perEvtVerifyFunc func(v1.Event), c *C) {
 	// verify that the test run event got generated
-	log.Print("Verifying test result event(s)")
+	logger.Print("Verifying test result event(s)")
 	testEventLabel := map[string]string{
 		"testrunner.amd.com/category": "gpu_health_check",
 		"testrunner.amd.com/trigger":  "auto_unhealthy_gpu_watch",
@@ -324,7 +324,7 @@ func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.De
 		if err != nil || len(evts.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d events with test events label: %+v", len(evts.Items), evts.Items)
+		logger.Printf("Got %d events with test events label: %+v", len(evts.Items), evts.Items)
 		for _, evt := range evts.Items {
 			// make sure that the event messages are json parsable
 			assert.True(c, utils.IsJSONParsable(evt.Message), "event message is not json parsable %+v", evt)
@@ -338,7 +338,7 @@ func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.De
 
 func (s *E2ESuite) verifyTestrunLogExportEvts(node, recipe, eventType, reason string, devCfg *v1alpha1.DeviceConfig, perEvtVerifyFunc func(v1.Event), c *C) {
 	// verify that the test run event got generated
-	log.Print("Verifying test run log export event(s)")
+	logger.Print("Verifying test run log export event(s)")
 	testEventLabel := map[string]string{
 		"testrunner.amd.com/category": "gpu_health_check",
 		"testrunner.amd.com/trigger":  "auto_unhealthy_gpu_watch",
@@ -353,7 +353,7 @@ func (s *E2ESuite) verifyTestrunLogExportEvts(node, recipe, eventType, reason st
 		if err != nil || len(evts.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d events with test events label: %+v", len(evts.Items), evts.Items)
+		logger.Printf("Got %d events with test events label: %+v", len(evts.Items), evts.Items)
 		for _, evt := range evts.Items {
 			if perEvtVerifyFunc != nil {
 				perEvtVerifyFunc(evt)
@@ -370,7 +370,7 @@ func (s *E2ESuite) verifyTestRunningLabel(expect bool, testRunningLabel map[stri
 			LabelSelector: labels.SelectorFromSet(testRunningLabel).String(),
 		})
 		if err != nil {
-			log.Printf("failed to list nodes err %+v", err)
+			logger.Printf("failed to list nodes err %+v", err)
 			return false
 		}
 		if expect {
@@ -378,13 +378,13 @@ func (s *E2ESuite) verifyTestRunningLabel(expect bool, testRunningLabel map[stri
 				return false
 			}
 			hostName = nodes.Items[0].Name
-			log.Printf("Got %d nodes with test running label", len(nodes.Items))
+			logger.Printf("Got %d nodes with test running label", len(nodes.Items))
 			return true
 		} else {
 			if len(nodes.Items) != 0 {
 				return false
 			}
-			log.Printf("Got %d nodes with test running label", len(nodes.Items))
+			logger.Printf("Got %d nodes with test running label", len(nodes.Items))
 			return true
 		}
 	}, 90*time.Second, 2*time.Second, "expected test running label %+v exist: %+v", testRunningLabel, expect)
@@ -395,18 +395,18 @@ func (s *E2ESuite) cleanupTestRunnerEvts(devCfg *v1alpha1.DeviceConfig, c *C) {
 	// cleanup
 	// need to remove the existing test runner event
 	// so that other test runner test cases won't be affected
-	log.Print("Clean up test runner events")
+	logger.Print("Clean up test runner events")
 	assert.Eventually(c, func() bool {
 		evts, err := s.clientSet.CoreV1().Events(devCfg.Namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			log.Printf("failed to list events err %+v", err)
+			logger.Printf("failed to list events err %+v", err)
 			return false
 		}
 		for _, evt := range evts.Items {
 			if strings.Contains(evt.Name, "amd-test-runner") {
 				err = s.clientSet.CoreV1().Events(devCfg.Namespace).Delete(context.TODO(), evt.Name, metav1.DeleteOptions{})
 				if err != nil {
-					log.Printf("failed to delete event %+v err %+v", evt.Name, err)
+					logger.Printf("failed to delete event %+v err %+v", evt.Name, err)
 					return false
 				}
 			}
@@ -419,7 +419,7 @@ func (s *E2ESuite) TestTestRunnerEnablement(c *C) {
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
-	log.Infof("create %v", s.cfgName)
+	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	// test runner shouldn't be brought up when it is disabled
 	enableTestRunner := false
@@ -451,7 +451,7 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
-	log.Infof("create %v", s.cfgName)
+	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	// test runner should be brought up
 	// when both exporter and test runner are enabled
@@ -459,7 +459,7 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -468,7 +468,7 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 
 	s.cleanupTestRunnerEvts(devCfg, c)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
-	log.Print("Verifying test running label on the node(s)")
+	logger.Print("Verifying test running label on the node(s)")
 	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 
 	// delete the test runner pod during the test
@@ -483,7 +483,7 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	s.verifyTestResultEvts(hostName, defaultRecipe, devCfg, nil, c)
 
 	// verify that the test running label gets removed after the test completed
-	log.Print("Verifying that the test running label gets removed after the test completed")
+	logger.Print("Verifying that the test running label gets removed after the test completed")
 	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
 
 	// cleanup
@@ -501,7 +501,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
-	log.Infof("create %v", s.cfgName)
+	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	// test runner should be brought up
 	// when both exporter and test runner are enabled
@@ -509,7 +509,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -518,7 +518,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 
 	s.cleanupTestRunnerEvts(devCfg, c)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
-	log.Print("Verifying test running label on the node(s)")
+	logger.Print("Verifying test running label on the node(s)")
 	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 
 	testRecipe := "babel"
@@ -547,7 +547,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	s.verifyTestResultEvts(hostName, testRecipe, devCfg, nil, c)
 
 	// verify that the test running label gets removed after the test completed
-	log.Print("Verifying that the test running label gets removed after the test completed")
+	logger.Print("Verifying that the test running label gets removed after the test completed")
 	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
 
 	// cleanup
@@ -562,7 +562,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
-	log.Infof("create %v", s.cfgName)
+	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	// test runner should be brought up
 	// when both exporter and test runner are enabled
@@ -570,7 +570,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	// configure test runner to run 3 iterations of gst_single
 	iterations := 3
@@ -585,7 +585,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 
 	s.cleanupTestRunnerEvts(devCfg, c)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
-	log.Print("Verifying test running label on the node(s)")
+	logger.Print("Verifying test running label on the node(s)")
 	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 
 	// delete the test runner pod during the test
@@ -608,7 +608,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	s.verifyTestResultEvts(hostName, defaultRecipe, devCfg, verifyIterationsSummary, c)
 
 	// verify that the test running label gets removed after the test completed
-	log.Print("Verifying that the test running label gets removed after the test completed")
+	logger.Print("Verifying that the test running label gets removed after the test completed")
 	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
 
 	// cleanup
@@ -624,7 +624,7 @@ func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
-	log.Infof("create %v", s.cfgName)
+	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	// test runner should be brought up
 	// when both exporter and test runner are enabled
@@ -632,7 +632,7 @@ func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -661,7 +661,7 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
-	log.Infof("create %v", s.cfgName)
+	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 
 	nodeName := s.getGPUNodeName()
@@ -680,14 +680,14 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 			break
 		}
 	}
-	log.Printf("node name is %v, node ip is %v", nodeName, nodeIP)
+	logger.Printf("node name is %v, node ip is %v", nodeName, nodeIP)
 	// create secret with minio credentials:
 	secret_keys := make(map[string]string)
 	secret_keys["aws_access_key_id"] = minio_access_key
 	secret_keys["aws_secret_access_key"] = minio_secret_key
 	secret_keys["aws_region"] = "us-east-1"
 	secret_keys["aws_endpoint_url"] = fmt.Sprintf("http://%s:31260", nodeIP)
-	log.Infof("aws endpoint: %v", secret_keys["aws_endpoint_url"])
+	logger.Infof("aws endpoint: %v", secret_keys["aws_endpoint_url"])
 	err = utils.CreateOpaqueSecret(context.Background(), s.clientSet, "minio-secret", s.ns, secret_keys)
 	assert.NoError(c, err, fmt.Sprintf("minio-secret creation is expected to succeed. Failed with error %v", err))
 	defer func() {
@@ -698,14 +698,14 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	enableTestRunner := true
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
-	devCfg.Spec.TestRunner.Image = "registry.test.pensando.io:5000/test-runner/test-runner:udayb"
+	devCfg.Spec.TestRunner.Image = testRunnerImage
 	devCfg.Spec.TestRunner.ImagePullPolicy = "Always"
 	minioSecret := &v1.LocalObjectReference{
 		Name: "minio-secret",
 	}
 	devCfg.Spec.TestRunner.LogsLocation.LogsExportSecrets = []*v1.LocalObjectReference{minioSecret}
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -722,7 +722,7 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	s.patchTestRunnerConfigmap(devCfg, c)
 	time.Sleep(20 * time.Second)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
-	log.Print("Verifying test running label on the node(s)")
+	logger.Print("Verifying test running label on the node(s)")
 	s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 	s.verifyTestrunLogExportEvts(nodeName, testRecipe, "Normal", "LogsExportPassed", devCfg, nil, c)
 	s.cleanupTestRunnerEvts(devCfg, c)
@@ -732,7 +732,7 @@ func (s *E2ESuite) getGPUNodeName() (nodeWithMaxGPU string) {
 	var maxPerNodeGPU int = 0
 	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet)
 	if err != nil {
-		log.Printf("Unable to fetch gpu nodes. Error %v", err)
+		logger.Printf("Unable to fetch gpu nodes. Error %v", err)
 		return
 	}
 	for nodeName, v := range ret {
@@ -742,7 +742,7 @@ func (s *E2ESuite) getGPUNodeName() (nodeWithMaxGPU string) {
 		}
 	}
 	if maxPerNodeGPU <= 0 {
-		log.Printf("did not find any server with amd gpu")
+		logger.Printf("did not find any server with amd gpu")
 	}
 	return
 }
@@ -750,7 +750,7 @@ func (s *E2ESuite) getGPUNodeName() (nodeWithMaxGPU string) {
 func (s *E2ESuite) setupMinioService(nodeSelector string) error {
 	err := utils.CreateMinioService(context.Background(), s.clientSet, s.ns, nodeSelector)
 	if err != nil {
-		log.Printf("Unable to setup minio server. Error %v", err)
+		logger.Printf("Unable to setup minio server. Error %v", err)
 		return err
 	}
 	time.Sleep(20 * time.Second)

@@ -23,10 +23,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pensando/gpu-operator/api/v1alpha1"
-	"github.com/pensando/gpu-operator/internal/kmmmodule"
-	"github.com/pensando/gpu-operator/internal/metricsexporter"
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/internal/metricsexporter"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
@@ -40,13 +40,13 @@ func (s *E2ESuite) verifyNoMetricsExporter(devCfg *v1alpha1.DeviceConfig, c *C) 
 	assert.Eventually(c, func() bool {
 		if _, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), devCfg.Name+"-"+metricsexporter.ExporterName,
 			metav1.GetOptions{}); err == nil {
-			log.Warnf("metrics exporter exists: %+v %v", devCfg, err)
+			logger.Warnf("metrics exporter exists: %+v %v", devCfg, err)
 			return false
 		}
 
 		if _, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(),
 			devCfg.Name+"-"+metricsexporter.ExporterName, metav1.GetOptions{}); err == nil {
-			log.Warnf("metrics service exists")
+			logger.Warnf("metrics service exists")
 			return false
 		}
 
@@ -73,7 +73,7 @@ func (s *E2ESuite) verifyNodePortMetrics(c *C, devCfg *v1alpha1.DeviceConfig, fi
 				assert.Eventually(c, func() bool {
 					resp, err := http.Get(fmt.Sprintf("http://%v:32500/metrics", addr.Address))
 					if err != nil {
-						log.Warnf("failed to get metrics from %v:32500/metrics, %v", addr.Address, err)
+						logger.Warnf("failed to get metrics from %v:32500/metrics, %v", addr.Address, err)
 						return false
 					}
 					defer resp.Body.Close()
@@ -91,7 +91,7 @@ func (s *E2ESuite) verifyNodePortMetrics(c *C, devCfg *v1alpha1.DeviceConfig, fi
 								metricsLabels[*lp.Name] = *lp.Value
 							}
 						}
-						log.Infof("found field %v labels %v", f, metricsLabels)
+						logger.Infof("found field %v labels %v", f, metricsLabels)
 						for _, l := range labels {
 							_, ok := metricsLabels[l]
 							assert.True(c, ok, fmt.Sprintf("missing label %v", l))
@@ -124,10 +124,10 @@ func (s *E2ESuite) verifyClusterIPMetrics(c *C, devCfg *v1alpha1.DeviceConfig, f
 				devCfg.Spec.MetricsExporter.Port)
 			out, err := utils.ExecPodCmd(cmd, devCfg.Namespace, pod.Name, metricsexporter.ExporterName+"-container")
 			if err != nil {
-				log.Warnf("%v err:%v", cmd, err)
+				logger.Warnf("%v err:%v", cmd, err)
 				return false
 			}
-			log.Infof("metrics %v", out)
+			logger.Infof("metrics %v", out)
 
 			p := expfmt.TextParser{}
 			m, err := p.TextToMetricFamilies(strings.NewReader(out))
@@ -143,7 +143,7 @@ func (s *E2ESuite) verifyClusterIPMetrics(c *C, devCfg *v1alpha1.DeviceConfig, f
 						metricsLabels[*lp.Name] = *lp.Value
 					}
 				}
-				log.Infof("found field %v labels %v", f, metricsLabels)
+				logger.Infof("found field %v labels %v", f, metricsLabels)
 				for _, l := range labels {
 					_, ok := metricsLabels[l]
 					assert.True(c, ok, fmt.Sprintf("missing label %v", l))
@@ -165,7 +165,7 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 
 	devCfg := s.getDeviceConfig(c)
 	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
-	log.Infof("create device-config %+v", devCfg.Spec.MetricsExporter)
+	logger.Infof("create device-config %+v", devCfg.Spec.MetricsExporter)
 	s.createDeviceConfig(devCfg, c)
 	s.verifyNoMetricsExporter(devCfg, c)
 
@@ -179,7 +179,7 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 	updConfig.Spec.MetricsExporter.Port = 5000
 	updConfig.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeNodePort
 	//updConfig.Spec.MetricsExporter.Image = "10.11.18.9:5000/amd/exporter:v1" //todo: use default image
-	log.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
+	logger.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeNodePort, c)
@@ -222,7 +222,7 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 	assert.NoError(c, err, "failed to read deviceconfig")
 	updConfig.Spec.MetricsExporter.Config = v1alpha1.MetricsConfig{Name: devCfg.Name}
 
-	log.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
+	logger.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeNodePort, c)
@@ -233,7 +233,7 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 	assert.NoError(c, err, "failed to read deviceconfig")
 	updConfig.Spec.MetricsExporter.Port = 5000
 	updConfig.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeClusterIP
-	log.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
+	logger.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeClusterIP, c)
@@ -244,7 +244,7 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 	assert.NoError(c, err, "failed to read deviceconfig")
 	updConfig.Spec.MetricsExporter.Port = 6000
 	updConfig.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeClusterIP
-	log.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
+	logger.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeClusterIP, c)
@@ -258,9 +258,9 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 		LabelSelector: kmmmodule.MapToLabelSelector(devCfg.Spec.Selector),
 	})
 	assert.True(c, len(nodes.Items) > 0, "no nodes with gpu", len(nodes.Items))
-	log.Infof("selecting node %v for exporter pod", nodes.Items[0].Name)
+	logger.Infof("selecting node %v for exporter pod", nodes.Items[0].Name)
 	updConfig.Spec.MetricsExporter.Selector = map[string]string{"kubernetes.io/hostname": nodes.Items[0].Name}
-	log.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
+	logger.Infof("update exporter-config %+v", updConfig.Spec.MetricsExporter)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeClusterIP, c)
@@ -282,16 +282,16 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
 
 	devCfg := s.getDeviceConfig(c)
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
 	devCfg.Spec.MetricsExporter.NodePort = 32500
 	devCfg.Spec.MetricsExporter.Port = 5000
 	devCfg.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeNodePort
 	devCfg.Spec.DevicePlugin = v1alpha1.DevicePluginSpec{
-		DevicePluginImage:           "registry.test.pensando.io:5000/k8s-device-plugin/deviceplugin:v1",
+		DevicePluginImage:           devicePluginImage,
 		DevicePluginImagePullPolicy: "Always",
 	}
-	log.Infof("create device-config %+v", devCfg)
+	logger.Infof("create device-config %+v", devCfg)
 	s.createDeviceConfig(devCfg, c)
 
 	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
@@ -334,17 +334,17 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	assert.NoError(c, err, "failed to read deviceconfig")
 	updConfig.Spec.MetricsExporter.Config = v1alpha1.MetricsConfig{Name: devCfg.Name}
 
-	log.Infof("update exporter-config %+v", updConfig)
+	logger.Infof("update exporter-config %+v", updConfig)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
-	log.Infof("Verifying exporter status and metrics")
+	logger.Infof("Verifying exporter status and metrics")
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeNodePort, c)
 	s.verifyNodePortMetrics(c, devCfg, cmFields, cmLabels)
 	s.verifyNodeGPULabel(devCfg, c)
 
 	labelMap := make(map[string]string)
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "healthy"
-	log.Print("Verify healthy label on node(s)")
+	logger.Print("Verify healthy label on node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(labelMap).String(),
@@ -352,15 +352,15 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		if err != nil || len(nodes.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d nodes with healthy label", len(nodes.Items))
+		logger.Printf("Got %d nodes with healthy label", len(nodes.Items))
 		return true
 	}, 2*time.Minute, 10*time.Second, "expected gpu 0 to be healthy but got unhealthy")
 
-	log.Infof("Marking GPU unhealthy")
+	logger.Infof("Marking GPU unhealthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
-	log.Print("Verifying unhealthy label on the node(s)")
+	logger.Print("Verifying unhealthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(labelMap).String(),
@@ -368,26 +368,26 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		if err != nil || len(nodes.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
+		logger.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
 		return true
 	}, 2*time.Minute, 10*time.Second, "expected gpu 0 to become unhealthy but got healthy")
 
-	log.Infof("Creating ROCM Pod on node with Unhealthy GPU. Expect it to be in Pending state")
+	logger.Infof("Creating ROCM Pod on node with Unhealthy GPU. Expect it to be in Pending state")
 	var rocmLabel = map[string]string{
 		"e2e": "true",
 	}
-	err = utils.CreateDaemonset(s.clientSet, "default", "e2e-rocm", "busybox:1.36", rocmLabel, nil)
+	err = utils.CreateDaemonset(s.clientSet, "default", "e2e-rocm", initContainerImage, rocmLabel, nil)
 	assert.NoError(c, err, "failed to create ROCM pod")
 	assert.Eventually(c, func() bool {
 		pods, err := s.clientSet.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
 		})
 		if err != nil {
-			log.Printf("Error occured when trying to get the pod. Error: %v", err)
+			logger.Printf("Error occured when trying to get the pod. Error: %v", err)
 			return false
 		}
 		if pods == nil || len(pods.Items) == 0 {
-			log.Print("No ROCM Pods found")
+			logger.Print("No ROCM Pods found")
 			return false
 		}
 		if pods.Items[0].Status.Phase == "Pending" {
@@ -395,14 +395,14 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		}
 		return false
 	}, 2*time.Minute, 10*time.Second, "Expected ROCM Pod to be in Pending State")
-	log.Print("Verified ROCM Pod is in pending state")
+	logger.Print("Verified ROCM Pod is in pending state")
 
-	log.Print("Clear GPU error and verify ROCM Pod goes to Running state")
-	log.Infof("Marking GPU healthy")
+	logger.Print("Clear GPU error and verify ROCM Pod goes to Running state")
+	logger.Infof("Marking GPU healthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "healthy"
-	log.Print("Verifying healthy label on the node(s)")
+	logger.Print("Verifying healthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(labelMap).String(),
@@ -410,20 +410,20 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		if err != nil || len(nodes.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d nodes with healthy label", len(nodes.Items))
+		logger.Printf("Got %d nodes with healthy label", len(nodes.Items))
 		return true
 	}, 90*time.Second, 10*time.Second, "expected gpu 0 to become healthy but got unhealthy")
-	log.Print("Verifying ROCM Pod moved to Running state")
+	logger.Print("Verifying ROCM Pod moved to Running state")
 	assert.Eventually(c, func() bool {
 		pods, err := s.clientSet.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
 		})
 		if err != nil {
-			log.Printf("Error occured when trying to get the pod. Error: %v", err)
+			logger.Printf("Error occured when trying to get the pod. Error: %v", err)
 			return false
 		}
 		if pods == nil || len(pods.Items) == 0 {
-			log.Print("No ROCM Pods found")
+			logger.Print("No ROCM Pods found")
 			return false
 		}
 		if pods.Items[0].Status.Phase == "Running" {
@@ -431,13 +431,13 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		}
 		return false
 	}, 2*time.Minute, 10*time.Second, "Expected ROCM Pod to be in Running State")
-	log.Print("Verified ROCM Pod is in Running state")
+	logger.Print("Verified ROCM Pod is in Running state")
 
-	log.Infof("Marking GPU unhealthy")
+	logger.Infof("Marking GPU unhealthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
-	log.Print("Verifying unhealthy label on the node(s)")
+	logger.Print("Verifying unhealthy label on the node(s)")
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(labelMap).String(),
@@ -445,7 +445,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		if err != nil || len(nodes.Items) == 0 {
 			return false
 		}
-		log.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
+		logger.Printf("Got %d nodes with unhealthy label", len(nodes.Items))
 		return true
 	}, 90*time.Second, 10*time.Second, "expected gpu 0 to become unhealthy but got healthy")
 	assert.Eventually(c, func() bool {
@@ -453,11 +453,11 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
 		})
 		if err != nil {
-			log.Printf("Error occured when trying to get the pod. Error: %v", err)
+			logger.Printf("Error occured when trying to get the pod. Error: %v", err)
 			return false
 		}
 		if pods == nil || len(pods.Items) == 0 {
-			log.Print("No ROCM Pods found")
+			logger.Print("No ROCM Pods found")
 			return false
 		}
 		if pods.Items[0].Status.Phase == "Running" {
@@ -465,5 +465,5 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		}
 		return false
 	}, 2*time.Minute, 10*time.Second, "Expected ROCM Pod to be in Running State")
-	log.Print("Verified ROCM Pod is in Running state")
+	logger.Print("Verified ROCM Pod is in Running state")
 }

@@ -40,10 +40,10 @@ import (
 	"sync"
 	"time"
 
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 
-	utils "github.com/pensando/gpu-operator/internal"
+	utils "github.com/ROCm/gpu-operator/internal"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"

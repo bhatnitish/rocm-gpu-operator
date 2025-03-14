@@ -17,7 +17,7 @@ limitations under the License.
 package conditions
 
 import (
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

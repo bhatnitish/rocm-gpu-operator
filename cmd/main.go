@@ -35,9 +35,9 @@ package main
 import (
 	"flag"
 
-	"github.com/pensando/gpu-operator/internal/configmanager"
-	"github.com/pensando/gpu-operator/internal/metricsexporter"
-	"github.com/pensando/gpu-operator/internal/testrunner"
+	"github.com/ROCm/gpu-operator/internal/configmanager"
+	"github.com/ROCm/gpu-operator/internal/metricsexporter"
+	"github.com/ROCm/gpu-operator/internal/testrunner"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -50,12 +50,12 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	gpuev1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
-	"github.com/pensando/gpu-operator/internal/cmd"
-	"github.com/pensando/gpu-operator/internal/config"
-	"github.com/pensando/gpu-operator/internal/controllers"
-	"github.com/pensando/gpu-operator/internal/kmmmodule"
-	"github.com/pensando/gpu-operator/internal/nodelabeller"
+	gpuev1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/ROCm/gpu-operator/internal/cmd"
+	"github.com/ROCm/gpu-operator/internal/config"
+	"github.com/ROCm/gpu-operator/internal/controllers"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/internal/nodelabeller"
 	//+kubebuilder:scaffold:imports
 )
 

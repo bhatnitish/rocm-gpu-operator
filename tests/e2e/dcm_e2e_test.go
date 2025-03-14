@@ -21,20 +21,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/pensando/gpu-operator/api/v1alpha1"
-	"github.com/pensando/gpu-operator/internal/configmanager"
-	"github.com/pensando/gpu-operator/internal/kmmmodule"
-	"github.com/pensando/gpu-operator/tests/e2e/utils"
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/ROCm/gpu-operator/internal/configmanager"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 )
+
+var (
+	dcmImage        string
+	dcmImageDefined bool
+)
+
+func init() {
+	dcmImage, dcmImageDefined = os.LookupEnv("E2E_DCM_IMAGE")
+}
 
 type GPUConfigProfiles struct {
 	ProfilesList map[string]*GPUConfigProfile `json:"gpu-config-profiles,omitempty"`
@@ -59,7 +69,7 @@ func (s *E2ESuite) addRemoveNodeLabels(nodeName string, selectedProfile string) 
 	err := utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/gpu-config-profile", selectedProfile)
 	_ = utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile", "apply")
 	if err != nil {
-		log.Infof("Error adding node lbels: %s\n", err.Error())
+		logger.Infof("Error adding node lbels: %s\n", err.Error())
 		return
 	}
 	time.Sleep(15 * time.Second)
@@ -67,7 +77,7 @@ func (s *E2ESuite) addRemoveNodeLabels(nodeName string, selectedProfile string) 
 	err = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/gpu-config-profile")
 	_ = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile")
 	if err != nil {
-		log.Infof("Error removing node lbels: %s\n", err.Error())
+		logger.Infof("Error removing node lbels: %s\n", err.Error())
 		return
 	}
 }
@@ -77,13 +87,13 @@ func (s *E2ESuite) verifyNoConfigManager(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
 		if _, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), devCfg.Name+"-"+configmanager.ConfigManagerName,
 			metav1.GetOptions{}); err == nil {
-			log.Warnf("config manager exists: %+v %v", devCfg, err)
+			logger.Warnf("config manager exists: %+v %v", devCfg, err)
 			return false
 		}
 
 		if _, err := s.clientSet.CoreV1().Services(ns).Get(context.TODO(),
 			devCfg.Name+"-"+configmanager.ConfigManagerName, metav1.GetOptions{}); err == nil {
-			log.Warnf("config manager service exists")
+			logger.Warnf("config manager service exists")
 			return false
 		}
 
@@ -166,7 +176,7 @@ func (s *E2ESuite) getLogs() string {
 		Follow:    true,
 	}).Stream(context.TODO())
 	if err != nil {
-		log.Infof("Error getting pod logs: %s\n", err.Error())
+		logger.Infof("Error getting pod logs: %s\n", err.Error())
 		return ""
 	}
 	defer rs.Close()
@@ -191,9 +201,9 @@ func (s *E2ESuite) getLogs() string {
 		// Break the loop when the end of the stream is reached
 	case <-time.After(10 * time.Second):
 		// Timeout after few seconds
-		log.Info("Collecting logs")
+		logger.Info("Collecting logs")
 	}
-	log.Infof("Pod logs\n %v", logs)
+	logger.Infof("Pod logs\n %v", logs)
 	return logs
 }
 
@@ -295,18 +305,18 @@ func (s *E2ESuite) createConfigMap() GPUConfigProfiles {
 }
 
 func (s *E2ESuite) configMapHelper(c *C) {
-	log.Infof("###BEGIN TESTCASE###\n")
+	logger.Infof("###BEGIN TESTCASE###\n")
 	// check to see existing deviceconfig DS pods
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
 	// fetch the CR
 	devCfg := s.getDeviceConfigForDCM(c)
-	log.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
+	logger.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
 	s.createDeviceConfig(devCfg, c)
 
 	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
-	log.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
+	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
 
 	profileslist := s.createConfigMap()
 
@@ -326,13 +336,13 @@ func (s *E2ESuite) configMapHelper(c *C) {
 	_, err = s.clientSet.CoreV1().ConfigMaps(devCfg.Namespace).Create(context.TODO(), mcfgMap, metav1.CreateOptions{})
 	assert.NoError(c, err, "failed to create configmap %v", mcfgMap.Data)
 
-	log.Infof("Configmap created successfully.\n")
+	logger.Infof("Configmap created successfully.\n")
 	time.Sleep(5 * time.Second)
 	updConfig, err := s.dClient.DeviceConfigs(devCfg.Namespace).Get(devCfg.Name, metav1.GetOptions{})
 	assert.NoError(c, err, "failed to read deviceconfig")
 	updConfig.Spec.ConfigManager.Config = &corev1.LocalObjectReference{Name: devCfg.Name}
 
-	log.Infof("update configmanager-config %+v", updConfig.Spec.ConfigManager)
+	logger.Infof("update configmanager-config %+v", updConfig.Spec.ConfigManager)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkDeviceConfigManagerStatus(updConfig, s.ns, c)
@@ -355,17 +365,17 @@ func (s *E2ESuite) eventHelper(reason string, event_type string) bool {
 	events, _ := s.GetLatestEvents(s.ns)
 	for _, event := range events {
 		if (event.Reason == reason) && (event.Type == event_type) {
-			log.Infof("====================================\n")
-			log.Infof("Namespace: %s\n", event.InvolvedObject.Namespace)
-			log.Infof("Object Name: %s\n", event.InvolvedObject.Name)
-			log.Infof("Object Kind: %s\n", event.InvolvedObject.Kind)
-			log.Infof("Event Type: %s\n", event.Type)
-			log.Infof("Event Reason: %s\n", event.Reason)
-			log.Infof("Event Message: %s\n", event.Message)
-			log.Infof("First Timestamp: %s\n", event.FirstTimestamp.Time)
-			log.Infof("Last Timestamp: %s\n", event.LastTimestamp.Time)
-			log.Infof("Count: %d\n", event.Count)
-			log.Infof("====================================\n")
+			logger.Infof("====================================\n")
+			logger.Infof("Namespace: %s\n", event.InvolvedObject.Namespace)
+			logger.Infof("Object Name: %s\n", event.InvolvedObject.Name)
+			logger.Infof("Object Kind: %s\n", event.InvolvedObject.Kind)
+			logger.Infof("Event Type: %s\n", event.Type)
+			logger.Infof("Event Reason: %s\n", event.Reason)
+			logger.Infof("Event Message: %s\n", event.Message)
+			logger.Infof("First Timestamp: %s\n", event.FirstTimestamp.Time)
+			logger.Infof("Last Timestamp: %s\n", event.LastTimestamp.Time)
+			logger.Infof("Count: %d\n", event.Count)
+			logger.Infof("====================================\n")
 			return true
 		}
 	}
@@ -373,11 +383,14 @@ func (s *E2ESuite) eventHelper(reason string, event_type string) bool {
 }
 
 func (s *E2ESuite) TestDCMConfigMapCreation(c *C) {
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	if s.eventHelper("SuccessfulCreate", "Normal") {
-		log.Infof("###DCM deployed successfully with a config map###\n")
+		logger.Infof("###DCM deployed successfully with a config map###\n")
 	} else {
-		log.Infof("###DCM deployment unsuccessful with a config map###\n")
+		logger.Infof("###DCM deployment unsuccessful with a config map###\n")
 	}
 }
 
@@ -385,21 +398,24 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	// Trigger partition using labels
-	log.Infof("Add node label after pod comes up")
+	logger.Infof("Add node label after pod comes up")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	log.Infof("NODE NAME %v", nodeName)
+	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "default")
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
-		log.Infof("Successfully tested homogenous default partitioning")
+		logger.Infof("Successfully tested homogenous default partitioning")
 	} else {
-		log.Errorf("Failure test homogenous partitioning")
+		logger.Errorf("Failure test homogenous partitioning")
 	}
 }
 
@@ -407,21 +423,24 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	// Trigger partition using labels
-	log.Infof("Add node label after pod comes up")
+	logger.Infof("Add node label after pod comes up")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	log.Infof("NODE NAME %v", nodeName)
+	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "e2e_profile1")
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
-		log.Infof("Successfully tested heterogenous partitioning")
+		logger.Infof("Successfully tested heterogenous partitioning")
 	} else {
-		log.Errorf("Failure test heterogenous partitioning")
+		logger.Errorf("Failure test heterogenous partitioning")
 	}
 }
 
@@ -429,79 +448,91 @@ func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	// Trigger partition using labels
-	log.Infof("Add node label after pod comes up")
+	logger.Infof("Add node label after pod comes up")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	log.Infof("NODE NAME %v", nodeName)
+	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "e2e_profile2")
 	time.Sleep(30 * time.Second)
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
-		log.Infof("Successfully tested NPS4 partitioning")
+		logger.Infof("Successfully tested NPS4 partitioning")
 	} else {
-		log.Errorf("Failure test NPS4 partitioning")
+		logger.Errorf("Failure test NPS4 partitioning")
 	}
 }
 
 func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	// Trigger partition using labels
-	log.Infof("Add node label after pod comes up")
+	logger.Infof("Add node label after pod comes up")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	log.Infof("NODE NAME %v", nodeName)
+	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "inval_prof1")
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "Invalid partition types") && (s.eventHelper("InvalidComputeType", "Warning")) {
-		log.Infof("Successfully tested invalid compute type profile")
+		logger.Infof("Successfully tested invalid compute type profile")
 	} else {
-		log.Errorf("Failure testing invalid compute type")
+		logger.Errorf("Failure testing invalid compute type")
 	}
 }
 
 func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	// Trigger partition using labels
-	log.Infof("Add node label after pod comes up")
+	logger.Infof("Add node label after pod comes up")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	log.Infof("NODE NAME %v", nodeName)
+	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "inval_prof2")
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "Invalid partition types") && (s.eventHelper("InvalidMemoryType", "Warning")) {
-		log.Infof("Successfully tested invalid memory type profile")
+		logger.Infof("Successfully tested invalid memory type profile")
 	} else {
-		log.Errorf("Failure testing invalid memory type")
+		logger.Errorf("Failure testing invalid memory type")
 	}
 }
 
 func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 	s.configMapHelper(c)
 	// Trigger partition using labels
-	log.Infof("Add node label after pod comes up")
+	logger.Infof("Add node label after pod comes up")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	log.Infof("NODE NAME %v", nodeName)
+	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "inval_prof3")
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "exceeding the total number") && strings.Contains(logs, "ERROR") && (s.eventHelper("InvalidProfileInfo", "Warning")) {
-		log.Infof("Successfully tested invalid GPU filter profile")
+		logger.Infof("Successfully tested invalid GPU filter profile")
 	} else {
-		log.Errorf("Failure testing invalid GPU filter profile")
+		logger.Errorf("Failure testing invalid GPU filter profile")
 	}
 }
 
@@ -509,46 +540,49 @@ func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
-	log.Infof("###BEGIN TESTCASE###\n")
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+	logger.Infof("###BEGIN TESTCASE###\n")
 	// check to see existing deviceconfig DS pods
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
 	// fetch the CR
 	devCfg := s.getDeviceConfigForDCM(c)
-	log.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
+	logger.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
 	s.createDeviceConfig(devCfg, c)
 
 	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
-	log.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
+	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
 	time.Sleep(30 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
 	err = utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile", "apply")
 	if err != nil {
-		log.Infof("Error adding node lbels: %s\n", err.Error())
+		logger.Infof("Error adding node lbels: %s\n", err.Error())
 		return
 	}
 	time.Sleep(15 * time.Second)
 	// Allow partition to happen
 	err = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile")
 	if err != nil {
-		log.Infof("Error removing node lbels: %s\n", err.Error())
+		logger.Infof("Error removing node lbels: %s\n", err.Error())
 		return
 	}
 
 	logs := s.getLogs()
 	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
-		log.Infof("Successfully tested default partitioning")
+		logger.Infof("Successfully tested default partitioning")
 	} else {
-		log.Errorf("Failure testing default partitioning")
+		logger.Errorf("Failure testing default partitioning")
 	}
 }
 
 func (s *E2ESuite) TestConfigManagerDeploymentOnly(c *C) {
 	// Run on SIM and Non SIM Setups
 	configManagerEnable := false
-	log.Infof("###BEGIN TESTCASE 1###\n")
+	logger.Infof("###BEGIN TESTCASE 1###\n")
 	// check to see existing deviceconfig DS pods
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -556,7 +590,7 @@ func (s *E2ESuite) TestConfigManagerDeploymentOnly(c *C) {
 	// fetch the CR
 	devCfg := s.getDeviceConfigForDCM(c)
 	devCfg.Spec.ConfigManager.Enable = &configManagerEnable
-	log.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
+	logger.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
 	s.createDeviceConfig(devCfg, c)
 	s.verifyNoConfigManager(devCfg, c)
 
@@ -566,13 +600,13 @@ func (s *E2ESuite) TestConfigManagerDeploymentOnly(c *C) {
 	configManagerEnable = true
 	updConfig.Spec.ConfigManager.Enable = &configManagerEnable
 
-	log.Infof("update dcm-config %+v", updConfig.Spec.ConfigManager)
+	logger.Infof("update dcm-config %+v", updConfig.Spec.ConfigManager)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 
 	s.checkDeviceConfigManagerStatus(updConfig, s.ns, c)
-	log.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
+	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
 
-	log.Infof("###END TESTCASE###\n")
+	logger.Infof("###END TESTCASE###\n")
 
 }

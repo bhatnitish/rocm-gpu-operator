@@ -36,7 +36,7 @@ import (
 	"fmt"
 	"os"
 
-	amdv1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -49,7 +49,7 @@ import (
 
 const (
 	// TODO: determine where to host the config manager image and put the registry URL here
-	defaultConfigManagerImage = "registry.test.pensando.io:5000/device-config-manager/conf-manager:v1"
+	defaultConfigManagerImage = "docker.io/rocm/device-config-manager:v1.3.0"
 	ConfigManagerName         = "device-config-manager"
 	defaultSAName             = "amd-gpu-operator-config-manager"
 )

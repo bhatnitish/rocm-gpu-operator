@@ -24,7 +24,6 @@ COPY Makefile Makefile
 
 # Copy the .git directory which is needed to store the build info
 COPY .git .git
-COPY dev.env dev.env
 
 # Copy the License
 COPY LICENSE LICENSE

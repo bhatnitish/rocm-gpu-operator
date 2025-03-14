@@ -27,7 +27,7 @@ package nodelabeller
 import (
 	reflect "reflect"
 
-	v1alpha1 "github.com/pensando/gpu-operator/api/v1alpha1"
+	v1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/apps/v1"
 )
