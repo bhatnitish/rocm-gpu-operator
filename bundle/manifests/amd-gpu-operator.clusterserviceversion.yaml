@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2025-03-17T17:35:50Z"
+    createdAt: "2025-03-19T03:07:04Z"
     operatorframework.io/suggested-namespace: openshift-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -955,6 +955,16 @@ spec:
           verbs:
           - use
         serviceAccountName: amd-gpu-operator-test-runner
+      - rules:
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: amd-gpu-operator-utils-container
       deployments:
       - label:
           app.kubernetes.io/component: amd-gpu
