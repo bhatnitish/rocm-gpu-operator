@@ -93,6 +93,15 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 
 	hostPathDirectory := v1.HostPathDirectory
 
+	tolerations := []v1.Toleration{
+		{
+			Key:      "amd-dcm",
+			Operator: v1.TolerationOpEqual,
+			Value:    "up",
+			Effect:   v1.TaintEffectNoExecute,
+		},
+	}
+
 	volumes := []v1.Volume{
 		{
 			Name: "dev-volume",
@@ -248,6 +257,7 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 				PriorityClassName:             "system-node-critical",
 				NodeSelector:                  nodeSelector,
 				ServiceAccountName:            serviceaccount,
+				Tolerations:                   tolerations,
 				Volumes:                       volumes,
 				ImagePullSecrets:              imagePullSecrets,
 				TerminationGracePeriodSeconds: &gracePeriod,
@@ -271,9 +281,8 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 	}
 
 	if len(devConfig.Spec.ConfigManager.ConfigManagerTolerations) > 0 {
-		ds.Spec.Template.Spec.Tolerations = devConfig.Spec.ConfigManager.ConfigManagerTolerations
-	} else {
-		ds.Spec.Template.Spec.Tolerations = nil
+		ds.Spec.Template.Spec.Tolerations = append(ds.Spec.Template.Spec.Tolerations, devConfig.Spec.ConfigManager.ConfigManagerTolerations...)
 	}
+
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 }
