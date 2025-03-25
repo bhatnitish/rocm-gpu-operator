@@ -1202,7 +1202,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	driverEnable := false
 	devCfg.Spec.Driver.Enable = &driverEnable
-	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{"resource_naming_strategy": "mixed"}
+	devCfg.Spec.DevicePlugin.ResourceNamingStrategy = "mixed"
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
@@ -1279,7 +1279,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	driverEnable := false
 	devCfg.Spec.Driver.Enable = &driverEnable
-	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{"resource_naming_strategy": "mixed"}
+	devCfg.Spec.DevicePlugin.ResourceNamingStrategy = "mixed"
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
@@ -2106,8 +2106,8 @@ func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage2
-	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage2
+	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage
 	s.patchDevicePluginImage(devCfg, c)
 	s.patchNodeLabellerImage(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -2140,7 +2140,7 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.MetricsExporter.Image = exporterImage2
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	s.patchMetricsExporterImage(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)

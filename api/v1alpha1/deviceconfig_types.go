@@ -251,11 +251,12 @@ type DevicePluginSpec struct {
 	// +optional
 	DevicePluginTolerations []v1.Toleration `json:"devicePluginTolerations,omitempty"`
 
-	// device plugin arguments is used to pass supported flags and their values while starting device plugin daemonset
-	// supported flag values: {"resource_naming_strategy": {"single", "mixed"}}
-	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginArguments",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePluginArguments"}
+	// resource naming strategy for device plugin
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ResourceNamingStrategy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ResourceNamingStrategy"}
+	// +kubebuilder:validation:Enum=single;mixed
+	// +kubebuilder:default:="single"
 	// +optional
-	DevicePluginArguments map[string]string `json:"devicePluginArguments,omitempty"`
+	ResourceNamingStrategy string `json:"resourceNamingStrategy,omitempty"`
 
 	// node labeller image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage"}
