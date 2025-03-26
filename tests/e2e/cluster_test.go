@@ -1096,6 +1096,9 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 
 	s.configMapHelper(c)
 
@@ -1173,6 +1176,9 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
 
 	s.configMapHelper(c)
 
@@ -1248,6 +1254,9 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
 
 	s.configMapHelper(c)
