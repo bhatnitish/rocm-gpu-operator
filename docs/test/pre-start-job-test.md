@@ -4,6 +4,10 @@
 
 Test runner can be embedded as an init container within your Kubernetes workload pod definition. The init container will be executed before the actual workload containers start, in that way the system could be tested right before the workload start to use the hardware resource.
 
+```{warning}
+The RVS test recipes in the Test Runner are not compatible with partitioned GPUs. If you are using a partitioned GPU, avoid running the Test Runner as an init container for the pre-start job test.
+```
+
 ## Configure pre-start init container
 The init container requires RBAC config to grant the pod access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
