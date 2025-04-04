@@ -121,7 +121,8 @@ func main() {
 		nlHandler,
 		metricsHandler,
 		testrunnerHandler,
-		configmanagerHandler)
+		configmanagerHandler,
+		isOpenShift)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}

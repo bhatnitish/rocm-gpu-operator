@@ -92,8 +92,9 @@ func NewDeviceConfigReconciler(
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter,
 	testrunnerHandler testrunner.TestRunner,
-	configmanagerHandler configmanager.ConfigManager) *DeviceConfigReconciler {
-	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
+	configmanagerHandler configmanager.ConfigManager,
+	isOpenShift bool) *DeviceConfigReconciler {
+	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler)
 	podEventHandler := newPodEventHandler(client)
 	return &DeviceConfigReconciler{
