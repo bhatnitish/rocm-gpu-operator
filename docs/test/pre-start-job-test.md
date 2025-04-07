@@ -8,6 +8,14 @@ Test runner can be embedded as an init container within your Kubernetes workload
 The RVS test recipes in the Test Runner are not compatible with partitioned GPUs. If you are using a partitioned GPU, avoid running the Test Runner as an init container for the pre-start job test.
 ```
 
+```{warning}
+* Known Issue: Within a pod, the initContainer and workload container might not be assigned the same GPUs.
+
+* Workaround: The example in this document remains applicable if both initContainer and workload containers request all GPUs on the same node.
+
+* Future Solution: With the introduction of [Dynamic Resource Allocation](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/), both initContainer and workload container will be able to share the same set of GPUs.
+```
+
 ## Configure pre-start init container
 The init container requires RBAC config to grant the pod access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
@@ -76,8 +84,8 @@ spec:
         image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
+          requests:
+            amd.com/gpu: 8 # requesting all GPUs on the worker node
         env:
         - name: TEST_TRIGGER
           value: "PRE_START_JOB_CHECK" # Set the TEST_TRIGGER environment variable to PRE_START_JOB_CHECK for test runner as init container
@@ -99,8 +107,8 @@ spec:
         command: ["/bin/sh", "-c", "--"]
         args: ["sleep 6000"]
         resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
+          requests:
+            amd.com/gpu: 8 # requesting all GPUs on the worker node
 ```
 
 ## Check test runner init container
