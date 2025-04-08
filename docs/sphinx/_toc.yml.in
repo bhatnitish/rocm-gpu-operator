@@ -31,7 +31,7 @@ subtrees:
       - file: drivers/precompiled-driver
       - file: drivers/secure-boot
       - file: drivers/upgrading
-      - file: upgrades/kernel
+      - file: drivers/kernel
   - caption: Metrics
     entries:
       - file: metrics/exporter
@@ -48,6 +48,7 @@ subtrees:
   - caption: Device Plugin
     entries:
       - file: device_plugin/device-plugin
+      - file: device_plugin/resource-allocation
   - caption: Device Config Manager
     entries:
       - file: device_config_manager/device-config-manager

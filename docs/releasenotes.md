@@ -206,7 +206,7 @@ Not Applicable as this is the initial release.
     2. Patch DeviceConfig to include new selectors for metrics exporter:
 
         ```bash
-        kubectl patch deviceconfig gpu-operator -n kube-amd-gpu --type='merge' -p {"spec":{"metricsExporter":{"selector":{"feature.node.kubernetes.io/amd-gpu":"true","amd.com/device-metrics-exporter":"true"}}}}'
+        kubectl patch deviceconfig gpu-operator -n kube-amd-gpu --type='merge' -p {"spec":{"metricsExporter":{"selector":{"feature.node.kubernetes.io/amd-gpu":"true","amd.com/device-metrics-exporter":"true"}}}}
         ```
   
     3. Remove the amd.com/device-metrics-exporter label for the specific node you would like to disable the exporter on:
