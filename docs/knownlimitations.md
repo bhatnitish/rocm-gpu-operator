@@ -77,3 +77,10 @@
         ```
 
     3. Remove from NMC status for all the data related to your module and save. That should allow the module to be finally deleted.
+
+</br>
+
+8. **Driver Upgrade Issue when maxParallel Upgrades is equal to total number of worker nodes in Red Hat OpenShift**
+   - ***Impact:*** Not able to perform driver upgrade
+   - ***Affected Configurations:*** This issue only affects Red Hat OpenShift when Image registry pod is running on one of the worker nodes or kmm build pod is required to be run on one of the worker nodes
+   - ***Workaround:*** Please set maxParallel Upgrades to a number less than total number of worker nodes
