@@ -48,6 +48,9 @@ subtrees:
   - caption: Device Plugin
     entries:
       - file: device_plugin/device-plugin
+  - caption: Device Config Manager
+    entries:
+      - file: device_config_manager/device-config-manager
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
