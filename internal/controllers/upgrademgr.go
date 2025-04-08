@@ -675,15 +675,31 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 		return nil, err
 	}
 
+	computePartitionTypes := []string{"spx", "cpx", "dpx", "qpx", "tpx"}
+	memoryPartitionTypes := []string{"nps1", "nps4"}
+
+	validResources := map[string]struct{}{
+		"amd.com/gpu": {},
+	}
+
+	for _, compute := range computePartitionTypes {
+		for _, memory := range memoryPartitionTypes {
+			resourceName := fmt.Sprintf("amd.com/%s_%s", compute, memory)
+			validResources[resourceName] = struct{}{}
+		}
+	}
+
 	for _, pod := range pods.Items {
 		if strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "metrics-exporter")) {
 			newPods = append(newPods, pod)
 			continue
 		}
 		for _, container := range pod.Spec.Containers {
-			if _, ok := container.Resources.Requests["amd.com/gpu"]; ok {
-				newPods = append(newPods, pod)
-				break
+			for resourceName := range container.Resources.Requests {
+				if _, ok := validResources[string(resourceName)]; ok {
+					newPods = append(newPods, pod)
+					break
+				}
 			}
 		}
 	}
