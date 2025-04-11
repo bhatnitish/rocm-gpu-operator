@@ -84,3 +84,10 @@
    - ***Impact:*** Not able to perform driver upgrade
    - ***Affected Configurations:*** This issue only affects Red Hat OpenShift when Image registry pod is running on one of the worker nodes or kmm build pod is required to be run on one of the worker nodes
    - ***Workaround:*** Please set maxParallel Upgrades to a number less than total number of worker nodes
+
+</br>
+
+9. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentaly when rebootRequired is set to false**
+   - ***Impact:*** Not able to perform driver install/upgrade
+   - ***Affected Configurations:*** All configurations
+   - ***Workaround:*** Please retrigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
