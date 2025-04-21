@@ -1,22 +1,29 @@
-# Export Test Runner logs to external storage
+# Exporting Test Runner Logs to External Storage
 
-Test runner logs can be exported to external storage. Currently we support exporting the logs to Azure blob storage, AWS S3 bucket service and Minio server.
+The Test Runner component of the AMD GPU Operator now supports exporting logs to external storage solutions, including AWS S3, Azure Blob Storage, and MinIO.
+
+> Note: Support for additional object storage providers is planned for future releases.
 
 ## Overview
 
-Test runner logs can be exported to external storage buckets for audit and debug purposes. Exported logs are segregated into folders/sub-folders based on the trigger type, job name, node name, timestamp so that it is easier to search and track them. This feature is disabled by default. Following section describes the steps to enable the functionality.
-User must specify the storage provider and bucket name in test runner config map. Credentials to connect to external storage must be provided as Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret). Secret is mounted as a mount volume on test runner container. For manual, pre-start and cron jobs, the secret information should be mounted explicitly in their respective job yamls. Refer to [examples](https://github.com/ROCm/gpu-operator/tree/main/example/testrunner) folder for sample job yamls and config map.
+The Test runner logs export to external storage buckets feature facilitates centralized logging for audit trails, troubleshooting, and long-term log retention. Exported logs are automatically organized hierarchically into subdirectories based on trigger type, job name, node name, and timestamp, enhancing searchability and traceability.
+By default, this feature is disabled and requires explicit configuration to activate.
 
-## Configuration
+Following section describes the steps to enable the functionality.
 
-Capture connectivity information as Kubernetes secret. Secret must be created within same Kubernetes Namespace as AMD GPU Operator/test runner. Information/keys captured as part of secret differ based on service provider.
+## Configuration Guide
 
-### AWS Secret
+### 1. Create Kubernetes Secrets for External Storage Access
 
-AWS secret captures user [access key](https://aws.amazon.com/blogs/security/wheres-my-secret-access-key) information and aws region of bucket. Below are the keys needed:
-- aws_access_key_id - AWS user access key
-- aws_secret_access_key - AWS user secret
-- aws_region - AWS region where the S3 bucket is hosted
+Credentials required to access the external storage must be provided as a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret). This captured connectivity information as Kubernetes Secret must be within the same namespace as the AMD GPU Operator/Test Runner. This Secret should be mounted as a volume in the Test Runner container. The required information/keys captured vary depending on the storage provider.
+
+### a. AWS S3 Secret
+
+For AWS S3, the secret captures user [access key](https://aws.amazon.com/blogs/security/wheres-my-secret-access-key) information and AWS region of bucket.
+The secret should include the following keys:​
+- `aws_access_key_id`: Your AWS access key ID​
+- `aws_secret_access_key`: Your AWS secret access key​
+- `aws_region`: The AWS region where your S3 bucket resides
 
 Example:
 ```yaml
@@ -27,16 +34,17 @@ metadata:
   namespace: default
 type: Opaque
 data:
-  aws_access_key_id: your-access-key-id
-  aws_region: sample-aws-region
-  aws_secret_access_key: your-secret-key
+  aws_access_key_id: <your-access-key-id>
+  aws_region: <sample-aws-region>
+  aws_secret_access_key: <your-secret-key>
 ```
 
-### Azure Secret
+### b. Azure Blob Storage
 
-Azure secret captures storage account name and key info. Below are the keys needed:
-- azure_storage_account - Azure blob storage account name
-- azure_storage_key - Azure storage account key
+For Azure Blob Storage, the secret captures storage account name and key info.
+The secret should include the following keys:​
+- `azure_storage_account` - Your Azure storage account name
+- `azure_storage_key` - Your Azure storage account key
 
 Example:
 ```yaml
@@ -47,17 +55,18 @@ metadata:
   namespace: default
 type: Opaque
 data:
-  azure_storage_account: sample_azure_storage_account
-  azure_storage_key: sample_azure_storage_key
+  azure_storage_account: <sample_azure_storage_account>
+  azure_storage_key: <sample_azure_storage_key>
 ```
 
-### Minio Secret
+### c. MinIO
 
-Minio supports S3 compatible APIs for object storage. So for Minio, we can create AWS secret with extra field to capture Minio S3 endpoint URL. Below are the keys needed:
-- aws_access_key_id - Minio user access key
-- aws_secret_access_key - Minio user secret
-- aws_region - For Minio, ```us-east-1``` can be used as default aws region
-- aws_endpoint_url - Minio S3 endpoint url
+Minio supports S3 compatible APIs for object storage. So for Minio, we can create AWS secret with extra field to capture Minio S3 endpoint URL.
+The secret should include the following keys:​
+- `aws_access_key_id` - Your MinIO access key
+- `aws_secret_access_key` - Your MinIO secret key
+- `aws_region` - In MinIO, `us-east-1` can be used as default aws region
+- `aws_endpoint_url` - Your MinIO server's S3-compatible endpoint URL
 
 Example:
 ```yaml
@@ -68,16 +77,17 @@ metadata:
   namespace: default
 type: Opaque
 data:
-  aws_access_key_id: your-minio-access-id
+  aws_access_key_id: <your-minio-access-id>
   aws_region: us-east-1
-  aws_secret_access_key: your-minio-secret-key
-  aws_endpoint_url: your-minio-s3-endpoint
+  aws_secret_access_key: <your-minio-secret-key>
+  aws_endpoint_url: <your-minio-s3-endpoint>
 ```
 
-### Storage provider and Bucket information in config map
+### 2. Update the Test Runner ConfigMap
 
-Storage provider and bucket name are captured in test runner config map. Below is an example:
+Define the storage provider and bucket information in the Test Runner's ConfigMap. This configuration specifies where and how logs should be exported.
 
+Example:
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -126,10 +136,15 @@ data:
       }
     }
 ```
-### Auto Unhealthy GPU watch scenario
 
-For Auto unhealthy gpu watch scenario, the secret information is passed in test runner section of device config Custom Resource(CR). We can export logs to multiple external services. We can specify multiple secrets in device config Custom Resource(CR) and associate each to a particular external storage service. Below is an example:
+> Note: Replace `aws-bucket-name`, `azure-bucket-name`, and `minio-bucket-name` with your actual bucket names.
 
+### 3. Configure the DeviceConfig Custom Resource (CR)
+
+In scenarios like the Auto Unhealthy GPU Watch, specify the secrets in the testRunner section of the DeviceConfig CR. These secrets are then mounted into the container for runtime use. This ensures that the Test Runner has access to the necessary credentials for log export.
+We can export logs to multiple external services. We can specify multiple secrets in device config Custom Resource(CR) and associate each to a particular external storage service.
+
+Example:
 ```yaml
   # Specify the testrunner config
   testRunner:
@@ -162,3 +177,10 @@ For Auto unhealthy gpu watch scenario, the secret information is passed in test 
       - name: azure-secret
       - name: aws-secret
 ```
+> Note: Ensure that the `logsExportSecrets` list includes all the secrets corresponding to the external storage services you intend to use.
+
+### Additional Notes
+
+- For manual, pre-start and cron jobs, the secret information should be mounted explicitly in their respective job yamls.
+- Refer to [examples](https://github.com/ROCm/gpu-operator/tree/main/example/testrunner) folder for sample job yamls and config map.
+- Ensure secrets and config maps are created in the appropriate namespace.
