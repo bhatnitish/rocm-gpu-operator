@@ -54,9 +54,9 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # Make sure you created the secret within the namespace that KMM operator is running
         imageRegistrySecret:
           name: mysecret
-      imageRegistryTLS: 
-        insecure: False # If True, check for the container image using plain HTTP
-        InsecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
+        imageRegistryTLS: 
+          insecure: False # If True, check for the container image using plain HTTP
+          insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
       version: "6.3" # Specify the driver version you would like to be installed that coincides with a ROCm version number
       upgradePolicy:
         enable: true
