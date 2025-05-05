@@ -42,6 +42,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/utils/ptr"
@@ -404,7 +405,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	kmlog := log.FromContext(ctx)
 	kmlog.Info(fmt.Sprintf("isOpenshift %+v", isOpenshift))
 
-	kernelMappings, driversVersion, err := getKernelMappings(devConfig, isOpenshift, nodes)
+	kernelMappings, driversVersion, err := getKernelMappings(kmlog, devConfig, isOpenshift, nodes)
 	if err != nil {
 		return err
 	}
@@ -450,12 +451,12 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	return nil
 }
 
-func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) ([]kmmv1beta1.KernelMapping, string, error) {
+func getKernelMappings(kmlog logr.Logger, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) ([]kmmv1beta1.KernelMapping, string, error) {
 
 	inTreeModuleToRemove := ""
 
 	if nodes == nil || len(nodes.Items) == 0 {
-		return nil, "", fmt.Errorf("No nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
+		return nil, "", fmt.Errorf("no nodes found for the label selector %s", MapToLabelSelector(devConfig.Spec.Selector))
 	}
 	kernelMappings := []kmmv1beta1.KernelMapping{}
 	kmSet := map[string]bool{}
@@ -463,7 +464,8 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, no
 	for _, node := range nodes.Items {
 		km, ver, err := getKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
 		if err != nil {
-			return nil, driversVersion, fmt.Errorf("error constructing a kernel mapping for node: %s, err: %v", node.Name, err)
+			kmlog.Error(err, fmt.Sprintf("error constructing a kernel mapping for node: %s", node.Name))
+			continue
 		}
 		if kmSet[km.Literal] {
 			continue
@@ -471,6 +473,9 @@ func getKernelMappings(devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, no
 		kernelMappings = append(kernelMappings, km)
 		kmSet[km.Literal] = true
 		driversVersion = ver
+	}
+	if len(kernelMappings) == 0 {
+		return nil, "", fmt.Errorf("failed to build kernel mapping for any selected node")
 	}
 	return kernelMappings, driversVersion, nil
 }
