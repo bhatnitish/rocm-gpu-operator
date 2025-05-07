@@ -165,21 +165,25 @@ else
 	NODES=$(echo "${NODES} ${CONTROL_PLANE}" | tr ' ' '\n' | sort -u)
 fi
 
+# generate a uuid to mark the techsupport daemonset
+# so that the concurrent techsupport run won't affect each other
+UUID=$(uuidgen)
+
 cat <<EOF >/tmp/techsupport.json
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: techsupport
+  name: techsupport-${UUID}
   labels:
-    app: techsupport
+    app: techsupport-${UUID}
 spec:
   selector:
     matchLabels:
-      app: techsupport
+      app: techsupport-${UUID}
   template:
     metadata:
       labels:
-        app: techsupport
+        app: techsupport-${UUID}
     spec:
       containers:
       - name: busybox
@@ -255,7 +259,7 @@ for node in "${nodeList[@]}"; do
 	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
 
 	# node logs
-	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport" || continue)
+	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport-${UUID}" || continue)
 
 	# wait for the debug pod
 	for dbgpod in ${dbgpods}; do
