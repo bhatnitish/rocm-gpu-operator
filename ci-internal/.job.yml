@@ -6,7 +6,7 @@
     #    "./deploy_k8s_by_kind.sh; ls -al ~/.kube; cat ~/.kube/config;
     #    kubectl cluster-info; kubectl get pods -A; kubectl get nodes -o wide;
     #    ./setup_e2e.sh;
-    #    cd /go/src/github.com/pensando/gpu-operator && docker run -d -p 5000:5000 --name registry --restart always registry.test.pensando.io:5000/pensando/registry:2 && SIM_ENABLE=1 make && SIM_ENABLE=1 make docker-push && helm repo add jetstack https://charts.jetstack.io --force-update && helm install cert-manager jetstack/cert-manager --namespace cert-manager  --create-namespace --version v1.15.1 --set crds.enabled=true && SIM_ENABLE=1 make helm-install && sleep 60 && kubectl get pods -A | grep amd && SIM_ENABLE=1 make -C tests/e2e/ && kubectl get pods -A | grep amd"]
+    #    cd /go/src/github.com/pensando/gpu-operator && docker run -d -p 5000:5000 --name registry --restart always registry.test.pensando.io:5000/pensando/registry:2 && SIM_ENABLE=1 make && SIM_ENABLE=1 make docker-push && helm repo add jetstack https://charts.jetstack.io --force-update && helm install cert-manager jetstack/cert-manager --namespace cert-manager  --create-namespace --version v1.15.1 --set crds.enabled=true && SIM_ENABLE=1 SKIP_INSTALL_DEFAULT_CR=1 make helm-install && sleep 60 && kubectl get pods -A | grep amd && SIM_ENABLE=1 make -C tests/e2e/ && kubectl get pods -A | grep amd"]
     #    owners: ["email:sajmera@amd.com"]
       #    area:
       #    sub-area:
