@@ -53,4 +53,4 @@ lint:
 	@goimports -w ./
 	@go vet ./...
 dcm_e2e:
-	go test -test.timeout=360m -check.f TestDCM.* -v -deviceConfigName test-deviceconfig
+	go test -test.timeout=360m -check.f TestDCM.* -v -deviceConfigName test-deviceconfig -simEnable
