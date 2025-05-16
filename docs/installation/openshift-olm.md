@@ -114,6 +114,8 @@ When you are using OpenShift 4.16 or 4.17 you need to specify the NFD operand im
     spec:
       operand:
         image: quay.io/openshift/origin-node-feature-discovery:latest
+        imagePullPolicy: IfNotPresent
+        servicePort: 12000
 ```
 
 
@@ -124,10 +126,6 @@ metadata:
   name: amd-gpu-operator-nfd-instance
   namespace: openshift-nfd
 spec:
-  operand:
-    image: quay.io/openshift/origin-node-feature-discovery:4.16
-    imagePullPolicy: IfNotPresent
-    servicePort: 12000
   workerConfig:
     configData: |
       core:
