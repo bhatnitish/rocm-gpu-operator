@@ -197,6 +197,9 @@ update-version: ## Update the Project version in helm charts based on ${PROJECT_
 	sed -i 's|gpu-operator-helm-k8s-.*\.tgz|gpu-operator-helm-k8s-${PROJECT_VERSION}.tgz|' .job.yml
 	sed -i 's|gpu-operator-helm-openshift-.*\.tgz|gpu-operator-helm-openshift-${PROJECT_VERSION}.tgz|' .job.yml
 	sed -i 's|PROJECT_VERSION:-.*$$|PROJECT_VERSION:-${PROJECT_VERSION}\}|' asset-build/gpuoperator-asset-push.sh
+	# updating project version in Dockerfile metadata
+	sed -i 's/release="[^"]*"/release="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/version="[^"]*"/version="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
 
 .PHONY: manifests
 manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
