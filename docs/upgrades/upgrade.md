@@ -68,11 +68,25 @@ helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
   --debug
 ```
 
+* When upgrading a Helm chart, customized operator controller image URLs set in the older version's values.yaml (via `--set` or `-f values.yaml`) will persist due to default Helm behavior.
+* To ensure a successful upgrade, you must use the target version's operator image in the helm upgrade command. This is because upgrade hooks rely on the target version's images for CRD updates. For example, to upgrade to v1.3.0 when you already customized operator image URL in old version helm chart, use `--set` to ask helm for using correct version image for executing helm upgrade hooks:
+
+```bash
+# Fetch latest info from helm repo
+helm repo update
+# Perform helm upgrade
+helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
+  -n kube-amd-gpu \
+  --version=v1.3.0 \
+  --debug \
+  --set controllerManager.manager.image.repository=docker.io/rocm/gpu-operator \
+  --set controllerManager.manager.image.tag=v1.3.0 
+```
+
 ```{note}
 Upgrade Options:
+* If you encounter the pre-upgrade hook failure and wish to bypass it, please use `--no-hooks` option, then you need to manually patch to upgrade the new version CRDs in the cluster.
 * **Error Scenario**: In case there is chart name or release name mismatch happened, you can use `--set fullnameOverride=amd-gpu-operator-gpu-operator-charts --set nameOverride=gpu-operator-charts` to resolve the conflict. The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
-* By default, the default ```values.yaml``` from the new helm charts will be applied. If you have customized values.yaml applied to your older version helm chart, you need to apply it along with ```helm upgrade``` command by using ```-f values.yaml``` option. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. 
-* If you encounter the pre-upgrade hook failure and wish to bypass it, please use `--no-hooks` option, then you need to manually patch to upgrade the CRDs in the cluster.
 ```
 
 ```{warning}
