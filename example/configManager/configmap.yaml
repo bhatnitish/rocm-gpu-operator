@@ -155,7 +155,8 @@ data:
             "profiles": [
                 {
                     "computePartition": "CPX",
-                    "memoryPartition": "NPS1"
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 2
                 },
                 {
                     "computePartition": "SPX",
