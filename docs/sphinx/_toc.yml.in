@@ -54,7 +54,9 @@ subtrees:
       - file: device_plugin/resource-allocation
   - caption: Device Config Manager
     entries:
-      - file: device_config_manager/device-config-manager
+      - file: dcm/device-config-manager
+      - file: dcm/device-config-manager-configmap
+      - file: dcm/applying-partition-profiles
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install

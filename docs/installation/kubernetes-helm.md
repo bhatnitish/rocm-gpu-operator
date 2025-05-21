@@ -132,7 +132,7 @@ Installation with custom options:
 helm install amd-gpu-operator amd/gpu-operator-helm \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.0.0 \
+  --version=v1.3.0 \
   -f values.yaml
 ```
 
