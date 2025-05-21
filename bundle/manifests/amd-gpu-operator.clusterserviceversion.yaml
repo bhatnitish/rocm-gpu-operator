@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
-    createdAt: "2025-05-20T04:25:43Z"
+    createdAt: "2025-05-30T02:12:53Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -414,6 +414,12 @@ spec:
         path: driver.version
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:version
+      - description: vfio config specify the specific configs for binding PCI devices
+          to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+        displayName: VFIOConfig
+        path: driver.vfioConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:vfioConfig
       - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter
