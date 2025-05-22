@@ -18,10 +18,14 @@ ls -al ~/.kube; cat ~/.kube/config; kubectl cluster-info; kubectl get pods -A; k
 kubectl label node dind-cluster-1c2w-worker feature.node.kubernetes.io/amd-gpu=true
 kubectl label node dind-cluster-1c2w-worker2 feature.node.kubernetes.io/amd-gpu=true
 
-# Edit Makefile to use custom local registry paths for e2e
+# Edit Makefile to use custom local registry paths and kmm version corresponding to the branch for e2e
 MAKEFILE_PATH="/gpu-operator/Makefile"
 sudo sed -i "s#^DOCKER_REGISTRY ?= registry.test.pensando.io:5000#DOCKER_REGISTRY ?= $HOST_IP:$REGISTRY_PORT#" "$MAKEFILE_PATH"
 sudo sed -i 's/^IMAGE_NAME ?= amd-gpu-operator/IMAGE_NAME ?= root-e2e/' "$MAKEFILE_PATH"
+echo "JOB_BASE_BRANCH is $JOB_BASE_BRANCH"
+if [[ "$JOB_BASE_BRANCH" != "main" ]]; then
+    sudo sed -i "s/^KMM_IMAGE_TAG ?= latest/KMM_IMAGE_TAG ?= $JOB_BASE_BRANCH/" "$MAKEFILE_PATH"
+fi
 
 # # Edit e2e testcase config to use local registry IP
 TESTSUITE_PATH="/gpu-operator/tests/e2e/cluster_tests.go"
