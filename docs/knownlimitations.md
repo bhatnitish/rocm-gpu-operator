@@ -87,7 +87,19 @@
 
 </br>
 
-9. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentaly when rebootRequired is set to false**
+9. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentally when rebootRequired is set to false**
    - ***Impact:*** Not able to perform driver install/upgrade
    - ***Affected Configurations:*** All configurations
    - ***Workaround:*** Please retrigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
+
+10. **The Device Config Manager requires running a docker container if you wish to run it in standalone mode (without Kubernetes).**
+
+    - *Impact:* Users wishing to use a standalone version of the Device Config Manager will need to run a standalone docker image and configure the partitions using config.json file.
+    - *Root Cause:* DCM does not currently support standalone installation via a Debian package like other standalone components of the GPU Operator. We will be adding a Debian package to support standalone bare metal installations in the next release of DCM.
+    - *Recommendation:* Those wishing to use GPU partitioning in a bare metal environment should instead use the standalone docker image for DCM. Alternatively users can use amd-smi to change partitioning modes. See [amdgpu-docs documentation](https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/gpu-partitioning/mi300x/quick-start-guide.html) for how to do this.
+
+11. **The GPU Operator will report an error when ROCm driver install version doesn't match the version string in the [Radeon Repo](https://repo.radeon.com/rocm/apt/).**
+
+    - *Impact:* The DeviceConfig will report an error if you specify `"6.4.0"` or `"6.3.0"` for the `spec.driver.version`.
+    - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
+    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
