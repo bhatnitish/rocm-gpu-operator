@@ -30,8 +30,8 @@ status from the metrics exporter. Worst case the GPU health will get
 reflected at 1 min for change of health status.
 
 ### GPU Health Status : Healthy
-The GPU health status if reported as "Healthy" on any node, makes the GPU available for
-k8s jobs on that node. Any "Healthy" GPU is available for k8s for scheduling jobs.
+If the GPU does not have any critical errors, its made available for
+scheduling jobs on that node.
 This information is reflected on the `Node` details of the respective GPU's
 compute node.
 
