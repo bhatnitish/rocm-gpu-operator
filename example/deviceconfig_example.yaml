@@ -49,9 +49,9 @@ spec:
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     imagePullPolicy: "IfNotPresent"
     # metrics config in configmap
-    config:
-      # configmap name, example config in example/metricsExporter/config.json
-      name: configmap-name
+    #config:
+    #  # configmap name, example config in example/metricsExporter/config.json
+    #  name: configmap-name
 
   # Specify the testrunner config
   testRunner:
@@ -63,17 +63,17 @@ spec:
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     imagePullPolicy: "IfNotPresent"
     # specify the mount for test logs
-    logsLocation:
-      # mount path inside test runner container
-      mountPath: "/var/log/amd-test-runner"
-      # host path to be mounted into test runner container
-      hostPath: "/var/log/amd-test-runner"
-      # list of secrets that contain connectivity info to cloud providers
-      logsExportSecrets:
-      - name: azure-secret
-      - name: aws-secret
+    #logsLocation:
+    #  # mount path inside test runner container
+    #  mountPath: "/var/log/amd-test-runner"
+    #  # host path to be mounted into test runner container
+    #  hostPath: "/var/log/amd-test-runner"
+    #  # list of secrets that contain connectivity info to cloud providers
+    #  logsExportSecrets:
+    #  - name: azure-secret
+    #  - name: aws-secret
 
-    configManager:
+  configManager:
     # To enable/disable the metrics exporter, enable to partition
     enable: True
     # image for the device-config-manager container
@@ -81,18 +81,18 @@ spec:
     # image pull policy for config manager set to always to pull image of latest version
     imagePullPolicy: IfNotPresent
     # specify configmap name which stores profile config info
-    config: 
-      name: "config-manager-config"
+    #config: 
+    #  name: "config-manager-config"
     # DCM pod deployed either as a standalone pod or through the GPU operator will have 
     # a toleration attached to it. User can specify additional tolerations if required
     # key: amd-dcm , value: up , Operator: Equal, effect: NoExecute 
     # OPTIONAL
     # toleration field for dcm pod to bypass nodes with specific taints
-    configManagerTolerations:
-      - key: "key1"
-        operator: "Equal" 
-        value: "value1"
-        effect: "NoExecute"
+    #configManagerTolerations:
+    #  - key: "key1"
+    #    operator: "Equal" 
+    #    value: "value1"
+    #    effect: "NoExecute"
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
