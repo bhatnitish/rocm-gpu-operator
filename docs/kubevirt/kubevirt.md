@@ -15,7 +15,47 @@ The AMD GPU Operator now supports integration with [**KubeVirt**](https://kubevi
 - Kubernetes v1.29.0+ with KubeVirt installed.
 - VF-Passthrough requires [AMD MxGPU GIM Driver](https://github.com/amd/MxGPU-Virtualization) supported GPUs.
 - VF-Passthrough requires that host should be configured properly to support SR-IOV (Single Root I/O Virtualization) related features by following [GIM driver documentation](https://instinct.docs.amd.com/projects/virt-drv/en/latest/index.html).
-- Both VF-Passthrough and PF-Passthrough requires the host operating system has `vfio` related kernel module ready to use.
+- Both VF-Passthrough and PF-Passthrough require the host operating system to have `vfio`-related kernel modules ready for use.
+
+## GPU Operator Components
+
+### Device Plugin
+
+The Device Plugin is responsible for discovering AMD GPU devices and advertising them to Kubernetes for scheduling GPU workloads. It supports:
+
+- **Container workloads**: Standard GPU usage for containerized applications.
+- **VF Passthrough**: Virtual Function passthrough using SR-IOV enabled by the AMD GIM driver. All VFs are advertised under the resource name `amd.com/gpu`. The number of GPUs advertised corresponds to the number of unique IOMMU groups these VFs belong to, ensuring VMs are allocated VFs from distinct IOMMU groups for proper isolation.
+  - *MI210 Specifics*: For MI210-based nodes, VF assignment to a VM is restricted by its XGMI fabric architecture. VFs are grouped into "hives" (typically 4 VFs per hive). A VM can be assigned 1, 2, or 4 VFs from a single hive, or all 8 VFs from both hives.
+- **PF Passthrough**: Physical Function passthrough using the VFIO kernel module for exclusive GPU access. All PFs are advertised under the resource name `amd.com/gpu`.
+
+The Device Plugin assumes homogeneous nodes, meaning a node is configured to operate in a single mode: container, vf-passthrough, or pf-passthrough. All discoverable GPU resources on that node will be of the same type.
+
+The Device Plugin uses automatic mode detection. If no explicit operational mode is specified using the `driver_type` command-line argument, it inspects the system setup (such as the presence of /dev/kfd, virtfn* symlinks, or driver bindings) and selects the appropriate mode (container, vf-passthrough, or pf-passthrough) accordingly. This simplifies deployment and reduces manual configuration requirements.
+
+### Node Labeler
+
+The Node Labeler automatically assigns meaningful labels to Kubernetes nodes to reflect GPU device capabilities, operational modes, and other essential details. These labels are crucial for scheduling and managing GPU resources effectively, especially in KubeVirt passthrough scenarios.
+
+A new label, `amd.com/gpu.mode` (and its beta counterpart `beta.amd.com/gpu.mode`), has been introduced to specify the GPU operational mode (container, vf-passthrough, or pf-passthrough) on the node. Existing labels such as `amd.com/gpu.device-id` (and `beta.amd.com/gpu.device-id`) and `amd.com/gpu.driver-version` (used for containerized workloads) have been extended to support VF and PF passthrough modes. Note that `amd.com/gpu.driver-version` is not applicable in `pf-passthrough` mode as the driver is not managed by the operator in this scenario.
+
+Similar to the Device Plugin, the Node Labeler can auto-detect the operational mode based on node configuration, or it can be explicitly set using the `driver-type` command-line argument.
+
+Key labels for PF and VF passthrough modes are listed below. Placeholders like `<PF_DEVICE_ID>`, `<VF_DEVICE_ID>`, `<COUNT>`, and `<GIM_DRIVER_VERSION>` represent actual device IDs (e.g., `74a1`, `74b5`), device counts, and GIM driver versions (e.g., `8.1.0.K`) respectively.
+
+**PF Passthrough Mode Labels:**
+- `amd.com/gpu.mode=pf-passthrough`
+- `beta.amd.com/gpu.mode=pf-passthrough`
+- `amd.com/gpu.device-id=<PF_DEVICE_ID>`
+- `beta.amd.com/gpu.device-id=<PF_DEVICE_ID>`
+- `beta.amd.com/gpu.device-id.<PF_DEVICE_ID>=<COUNT>`
+
+**VF Passthrough Mode Labels:**
+- `amd.com/gpu.mode=vf-passthrough`
+- `beta.amd.com/gpu.mode=vf-passthrough`
+- `amd.com/gpu.device-id=<VF_DEVICE_ID>`
+- `beta.amd.com/gpu.device-id=<VF_DEVICE_ID>`
+- `beta.amd.com/gpu.device-id.<VF_DEVICE_ID>=<COUNT>`
+- `amd.com/gpu.driver-version=<GIM_DRIVER_VERSION>`
 
 ## Configure KubeVirt
 
