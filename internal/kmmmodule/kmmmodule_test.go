@@ -131,7 +131,6 @@ var _ = Describe("setKMMModuleLoader", func() {
 				Key:      "amd-dcm",
 				Value:    "up",
 				Operator: v1.TolerationOpEqual,
-				Effect:   v1.TaintEffectNoExecute,
 			},
 		}
 
@@ -201,7 +200,6 @@ var _ = Describe("setKMMModuleLoader", func() {
 				Key:      "amd-dcm",
 				Value:    "up",
 				Operator: v1.TolerationOpEqual,
-				Effect:   v1.TaintEffectNoExecute,
 			},
 		}
 
