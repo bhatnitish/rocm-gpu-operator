@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
-    createdAt: "2025-06-10T05:37:26Z"
+    createdAt: "2025-06-11T22:43:54Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -1052,6 +1052,13 @@ spec:
           - get
           - list
           - update
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - get
+          - list
         - apiGroups:
           - security.openshift.io
           resourceNames:
