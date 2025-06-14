@@ -96,7 +96,7 @@ cert-manager-webhook-6d5cb854fc-h6vbk     1/1     Running   0          2m
 ### 1. Add the AMD Helm Repository
 
 ```bash
-helm repo add amd https://rocm.github.io/gpu-operator
+helm repo add rocm https://rocm.github.io/gpu-operator
 helm repo update
 ```
 
@@ -105,21 +105,24 @@ helm repo update
 Basic installation:
 
 ```bash
-helm install amd-gpu-operator amd/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.0.0
+  --version=v1.3.0
 ```
 
 ```{note}
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
-  - Skip KMM installation: `--set kmm.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`. <br> Although KMM is a [Kubernetes-SIGs](https://github.com/kubernetes-sigs) maintained project, it is strongly recommended to use AMD optimized and published KMM images included in each operator release.
+  
   - Disable default DeviceConfig installation: `--set crds.defaultCR.install=false`
 ```
 
-```{warning}
-  It is strongly recommended to use AMD-optimized KMM images included in the operator release.
+```{tip}
+1. Before v1.3.0 the gpu operator helm chart won't provide a default ```DeviceConfig```, you need to take extra step to create a ```DeviceConfig```.
+
+2. Starting from v1.3.0 the ```helm install``` command would support one-step installation + configuration, which would create a default ```DeviceConfig``` with default values, which may not work for all the users with different the deployment scenarios, please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands. 
 ```
 
 ### 3. Helm Chart Customization Parameters
@@ -129,7 +132,7 @@ Installation with custom options:
 - Prepare your custom configuration in a YAML file (e.g. ```values.yaml```), then use it with ```helm install``` command to deploy your helm charts.
 
 ```bash
-helm install amd-gpu-operator amd/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   --version=v1.3.0 \
@@ -409,7 +412,7 @@ kubectl get modules -n kube-amd-gpu
 - Check NFD status:
 
 ```bash
-kubectl get nodefeatures -n kube-amd-gpu
+kubectl get nodefeaturerules -n kube-amd-gpu
 ```
 
 For more detailed troubleshooting steps, see our [Troubleshooting Guide](../troubleshooting).
