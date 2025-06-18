@@ -55,6 +55,12 @@ targets:
     area:
     sub-area:
     feature:
+  docs-sanity:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make docs"]
+    owners: ["email:yan.sun3@amd.com"]
+    area:
+    sub-area:
+    feature:
 
   operator-e2e-sim:
     commands: ["sh", "-cx",
