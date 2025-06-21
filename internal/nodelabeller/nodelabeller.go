@@ -54,7 +54,7 @@ const (
 	defaultNodeLabellerImage    = "rocm/k8s-device-plugin:labeller-latest"
 	defaultUbiNodeLabellerImage = "rocm/k8s-node-labeller:rhubi-latest"
 	containerCommandArgs        = "./k8s-node-labeller -driver_type=container -mode -vram -cu-count -simd-count -device-id -family -product-name -driver-version"
-	vfPassthroughCommandArgs    = "./k8s-node-labeller -driver-type=vf-passthrough -mode -device-id -driver-version"
+	vfPassthroughCommandArgs    = "./k8s-node-labeller -driver_type=vf-passthrough -mode -device-id -driver-version"
 	pfPassthroughCommandArgs    = "./k8s-node-labeller -driver_type=pf-passthrough -mode -device-id"
 	defaultInitContainerImage   = "busybox:1.36"
 	defaultBlacklistFileName    = "blacklist-amdgpu.conf"
