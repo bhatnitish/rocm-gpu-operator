@@ -13,3 +13,7 @@ nodeapp
 # Sphinx documentation
 _build/
 .venv/
+__pycache__/
+tests/pytests/bin/
+tests/pytests/console.log
+tests/pytests/logs/

@@ -1,0 +1,102 @@
+---
+
+images:
+    k8:
+        driver:
+            tag         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            build       : latest
+            version     : latest
+            kind        : container
+
+        gpu-operator:
+            location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
+            build       : v1.2.0-20
+            version     : v1.2.0
+            kind        : helm-chart
+
+        device-metrics-exporter:
+            tag         : metricsExporter.image
+            location    : container://amdpsdo/device-metrics-exporter
+            location    : container://registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0
+            build       : v1.2.0-11
+            version     : v1.2.0
+            kind        : container
+
+        test-runner:
+            tag         : testRunner.image
+            location    : container://registry.test.pensando.io:5000/test-runner/test-runner:v1.2.0
+            build       : v1.2.0-11
+            version     : v1.2.0
+            kind        : container
+        
+        device-plugin:
+            tag         : devicePlugin.devicePluginImage
+            location    : container://rocm/k8s-device-plugin:latest
+            version     : v1.2.0
+            kind        : container
+
+        node-labeller:
+            tag         : devicePlugin.nodeLabellerImage
+            location    : container://rocm/k8s-device-plugin:labeller-latest
+            version     : v1.2.0
+            kind        : container
+
+    openshift:
+        driver:
+            1ag         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            build       : latest
+            version     : latest
+            kind        : container
+
+        gpu-operator:
+            location    : http://assets-hq.pensando.io/builds/hourly-gpu-operator/v1.2.0-20/gpu-operator-helm-openshift-v1.2.0-v1.2.0-20.tgz
+            build       : v1.2.0-20
+            version     : v1.2.0
+            kind        : helm-chart
+
+        device-metrics-exporter:
+            tag         : metricsExporter.image
+            location    : container://registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0
+            build       : v1.2.0-6
+            version     : v1.2.0
+            kind        : container
+
+        test-runner:
+            tag         : testRunner.image
+            location    : container://registry.test.pensando.io:5000/test-runner/test-runner:v1.2.0
+            build       : v1.2.0-6
+            version     : v1.2.0
+            kind        : container
+        
+        device-plugin:
+            tag         : devicePlugin.devicePluginImage
+            location    : container://registry.test.pensando.io:5000/k8s-device-plugin/deviceplugin:v2
+            version     : v1.2.0
+            kind        : container
+
+        node-labeller:
+            tag         : devicePlugin.nodeLabellerImage
+            location    : container://registry.test.pensando.io:5000/internal-k8s-nodelabeller:v1.2.0.beta
+            version     : v1.2.0
+            kind        : container
+
+    standalone:
+        device-metrics-exporter:
+            - location  : http://assets-hq.pensando.io/builds/hourly-device-metrics-exporter/v1.2.0-6/amdgpu-exporter-v1.2.0-6-1.2.0_ubuntu_22.04_amd64.deb
+              build     : v1.2.0-6
+              kind      : debian
+              version   : v1.2.0
+              os        :
+                distro  : Ubuntu
+                release : 22.04
+
+            - location  : http://assets-hq.pensando.io/builds/hourly-device-metrics-exporter/v1.2.0-6/amdgpu-exporter-v1.2.0-6-1.2.0_ubuntu_24.04_amd64.deb
+              build     : v1.2.0-6
+              kind      : debian
+              version   : v1.2.0
+              os        :
+                distro  : Ubuntu
+                release : 24.04
+

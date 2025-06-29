@@ -87,6 +87,10 @@ jobs:
     labels: ["CI-Precheckin-Gpuoperator"]
   asset-build:
     labels: ["CI-Sanity-Build"]
+  tests/jobs/sanity/mi200:
+    labels: ["CI-Pytest-Sanity-MI200"]
+  #tests/jobs/sanity/mi210:
+  #  labels: ["CI-Pytest-Sanity-MI210"]
       # ci-internal:
     #    labels: [""]
 host_mounts:

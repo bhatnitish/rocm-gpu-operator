@@ -1,0 +1,67 @@
+{
+    "gpu-driver-info" : [
+        {
+            "gpu" : "MI200",
+            "versions" : [
+                {
+                    "software-version" : "6.2.2",
+                    "display-version"  : "6.8.5"
+                },
+                {
+                    "software-version" : "6.2.3",
+                    "display-version" : "6.8.5"
+                },
+                {
+                    "software-version" : "6.2.4",
+                    "display-version" : "6.8.5"
+                },
+                {
+                    "software-version" : "6.3",
+                    "display-version"  : "6.10.5"
+                }
+            ]
+        },
+        {
+            "gpu" : "MI210",
+            "versions" : [
+                {
+                    "software-version" : "6.2.2",
+                    "display-version"  : "6.8.5"
+                },
+                {
+                    "software-version" : "6.2.3",
+                    "display-version" : "6.8.5"
+                },
+                {
+                    "software-version" : "6.2.4",
+                    "display-version" : "6.8.5"
+                },
+                {
+                    "software-version" : "6.3",
+                    "display-version"  : "6.10.5"
+                }
+            ]
+        },
+        {
+            "gpu" : "MI300",
+            "versions" : [
+                {
+                    "software-version" : "6.2.2",
+                    "display-version"  : "6.8.5"
+                },
+                {
+                    "software-version" : "6.2.3",
+                    "display-version" : "6.8.5"
+                },
+                {
+                    "software-version" : "6.2.4",
+                    "display-version" : "6.8.5"
+                },
+                {
+                    "software-version" : "6.3",
+                    "display-version"  : "6.10.5"
+                }
+            ]
+        }
+    ]
+}
