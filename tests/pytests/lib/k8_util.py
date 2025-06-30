@@ -369,7 +369,6 @@ def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = Tru
     ret_code, k8_nodes = k8_get_nodes(k8_cluster)
     if ret_code != 0:
         return ret_code, None
-    Logger.debug(f"Nodes : \n{LogPrettyPrinter.pformat(k8_nodes)}")
 
     k8_gpu_nodes = list()
     for node in k8_nodes:
@@ -455,12 +454,14 @@ def k8_get_endpoints(k8_cluster, namespace):
     API to get endpoints from a k8 cluster for a given namespace and filtered by service-name
     """
     global Logger
+    global LogPrettyPrinter
     ret_values = defaultdict(list)
     ret_code = -1
     if k8_cluster.k8_kube_config:
         api = client.CoreV1Api()
         try:
             k8_endpoint_info = api.list_endpoints_for_all_namespaces().to_dict()
+            Logger.debug(f"List Endpoints, resp:\n{LogPrettyPrinter.pformat(k8_endpoint_info)}")
             endpoints = list(filter(lambda x: x['metadata']['namespace'] == namespace, k8_endpoint_info.get("items", list())))
             ret_code = 0
         except ApiException as e:
@@ -589,18 +590,16 @@ def k8_apply_cr(k8_cluster : common.k8_cluster, cr_spec : dict, cr_file : str) -
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
-def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) -> (int, str, str):
+def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, namespace : str, name : str) -> (int, str, str):
     """
     API to delete deviceconfig CR with given name and namespace
     """
     global Logger
     if k8_cluster.k8_kube_config:
         custom_objects_api = client.CustomObjectsApi()
-        # Read cr_file and derive: group, version, plural and name
-        group, version = cr_spec['apiVersion'].split('/')
-        plural = cr_spec['kind'].lower() + 's'
-        namespace = cr_spec['metadata']['namespace']
-        name = cr_spec['metadata']['name']
+        group = 'amd.com'
+        version = 'v1alpha1'
+        plural = 'deviceconfigs'
         # check if it exists:
         found = False
         try:
@@ -643,8 +642,6 @@ def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) ->
             time.sleep(5)
         return 0, "", ""
     else:
-        name = cr_spec['metadata']['name']
-        namespace = cr_spec['metadata']['namespace']
         cmd = ["kubectl", "delete", "deviceconfig", name, "-n", namespace]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
@@ -892,7 +889,6 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
         sel_pods = list(filter(lambda x: pod_name in x['metadata'].get('name', None), k8_pod_list))
         if len(sel_pods) < exp_pod_count:
             Logger.warn(f"Found {len(sel_pods)} instances of pod_name: {pod_name}")
-            Logger.debug(f"PodList:\n{LogPrettyPrinter.pformat(k8_pod_list)}")
             return False
 
         match_status = True
@@ -902,7 +898,7 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
                 match_status = False
                 status = status_json.get('phase', None)
                 Logger.warn(f"Pod: {pod_name} instance in {status} and not in {exp_status}")
-                Logger.debug(f"PodInfo:\n{LogPrettyPrinter.pformat(sel_pod_info)}")
+                #Logger.debug(f"PodInfo:\n{LogPrettyPrinter.pformat(sel_pod_info)}")
         return match_status
 
     assert len(pod_list) > 0, "No pods specified to verify"
@@ -922,6 +918,8 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
             time.sleep(sleep_time)
         else:
             break
+    if k8_pod_list:
+        Logger.debug(f"Status of the Pods {pod_list}\n{LogPrettyPrinter.pformat(k8_pod_list)}")
     return failed_pods
 
 def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
@@ -934,7 +932,6 @@ def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod
         sel_pods = list(filter(lambda x: pod_name in x['metadata'].get('name', None), k8_pod_list))
         if len(sel_pods) == 0:
             return True
-        Logger.debug(f"Pod: {pod_name} still running. PodInfo: {LogPrettyPrinter.pformat(sel_pods[0])}")
         return False
 
     assert len(pod_list) > 0, "No pods specified to verify"
@@ -955,6 +952,8 @@ def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod
             time.sleep(sleep_time)
         else:
             break
+    if k8_pod_list:
+        Logger.debug(f"Status of Pods {pod_list}\n{LogPrettyPrinter.pformat(k8_pod_list)}")
     return running_pods
 
 def k8_create_configmap(k8_cluster : common.k8_cluster, namespace : str, configmap_name : str, configmap_json_file : str):
@@ -1007,7 +1006,7 @@ def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configm
         try:
             api_response = api.delete_namespaced_config_map(configmap_name, namespace)
         except ApiException as e:
-            Logger.error(f"Failed to delete config-map, error : {e}")
+            Logger.debug(f"Failed to delete config-map, error : {e}")
             return -1, "", str(e)
         return 0, "", ""
     else:
@@ -1165,7 +1164,7 @@ def k8_create_token(k8_cluster : common.k8_cluster, namespace : str, sa_name : s
             api_response = api.create_namespaced_service_account_token(name = sa_name, 
                                                                        namespace = namespace,
                                                                        body = token_request)
-            Logger.debug(f"Created token: {api_response.status.token}")
+            Logger.debug(f"Created token: {api_response}")
             return api_response.status.token
         except ApiException as e:
             Logger.error(f"Failed to create token for sa-account : {sa_name}, error: {e}")
@@ -1300,7 +1299,7 @@ def crictl_cleanup_images(k8_cluster):
         assert ret_code == 0, f"Failed prune images from worker node {wn.ip_address}, error: {resp_stderr}"
     return
 
-def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, deviceconfig_name : str) -> Dict:
+def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, deviceconfig_name : str = None) -> Dict:
     """
     API to get deviceconfig information
 
@@ -1407,6 +1406,7 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
     """
 
     global Logger
+    global LogPrettyPrinter
     ret_values = {}
     if k8_cluster.k8_kube_config:
         api = client.CustomObjectsApi()
@@ -1416,6 +1416,7 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
             Logger.error(f"Failed to list deviceconfigs for namespace {namespace}, error: {e}")
             return ret_values
 
+        Logger.debug(f"Status of DeviceConfig CR\n{LogPrettyPrinter.pformat(k8_deviceconfig_info)}")
         for item in k8_deviceconfig_info.get('items', []):
             ret_values[item.get('metadata').get('name')] = item
     else:
@@ -1447,7 +1448,7 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
     """
 
     global Logger
-
+    global LogPrettyPrinter
     if k8_cluster.k8_kube_config:
         pod_name = "curl-cmd-pod"
         namespace = "default"
@@ -1470,26 +1471,36 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
         )
 
         v1 = client.CoreV1Api()
-        try:
-            v1.create_namespaced_pod(body=curl_pod_manifest, namespace=namespace)
-            Logger.debug(f"Pod : {pod_name}created. Waiting for completion...")
-
-            for _ in range(retry):
-                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
-                if pod_status.status.phase in ["Succeeded", "Failed"]:
-                    break
-                time.sleep(20)
-
-            # Retrieve logs from the completed Pod
-            pod_logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
-            return 0, pod_logs, ""
-        except ApiException as e:
-            Logger.error(f"Failed to create pod: {pod_name}, error: {e}")
-        finally:
-            # Clean up: Delete the Pod
+        for _ in range(retry):
             try:
-                v1.delete_namespaced_pod(name=pod_name, namespace=namespace, body=client.V1DeleteOptions())
+                v1.create_namespaced_pod(body=curl_pod_manifest, namespace=namespace)
+                Logger.debug(f"Pod : {pod_name} created. Waiting for completion...")
+
+                cmd_complete = False
+                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+                for _ in range(20):
+                    Logger.debug(f"Pod : {pod_name} current status : {pod_status.status.phase}")
+                    if pod_status.status.phase in ["Succeeded", "Failed"]:
+                        cmd_complete = True
+                        break
+                    time.sleep(10)
+                    pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+
+                if pod_status.status.phase in ["Succeeded", "Failed"]:
+                    # Retrieve logs from the completed Pod
+                    pod_logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+                    Logger.debug(f"Response of curl-command {args}\n{LogPrettyPrinter.pformat(pod_logs)}")
+                    return 0, pod_logs, ""
+                else:
+                    Logger.warn(f"Unexpected curl-command POD Status\n{LogPrettyPrinter.pformat(pod_status)}")
             except ApiException as e:
-                Logger.error(f"Failed to delete pod: {pod_name}, error: {e}")
+                Logger.error(f"Failed to create pod: {pod_name}, error: {e}")
+            finally:
+                # Clean up: Delete the Pod
+                try:
+                    v1.delete_namespaced_pod(name=pod_name, namespace=namespace, body=client.V1DeleteOptions())
+                except ApiException as e:
+                    Logger.error(f"Failed to delete pod: {pod_name}, error: {e}")
+            time.sleep(20)
     return -1, "", ""
 

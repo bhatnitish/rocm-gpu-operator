@@ -40,7 +40,14 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
         Logger.info(f"{release_name} helm-chart is already installed/running - skip rest of setup/fixture")
         return
 
-    # cleanup
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     if ret_code != 0:
         k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
@@ -118,8 +125,9 @@ def deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, 
 
     def _cleanup_deviceconfigs():
         for spec_name, tcfg in test_cfg_map.items():
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, cr_spec)
+            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster,
+                                                                                 environment.gpu_operator_namespace,
+                                                                                 spec_name)
             if ret_code != 0:
                 Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
         return
@@ -238,8 +246,9 @@ def test_k8_amdgpu_driver_disable(request, gpu_cluster, images, gpu_operator_ins
     test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, request.node.name)
     def _cleanup_deviceconfigs():
         for spec_name, tcfg in test_cfg_map.items():
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, cr_spec)
+            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, 
+                                                                                 environment.gpu_operator_namespace,
+                                                                                 spec_name)
             if ret_code != 0:
                 Logger.warn(f"Failed to delete/cleanup device_config, stderr: {ret_stderr}")
         return

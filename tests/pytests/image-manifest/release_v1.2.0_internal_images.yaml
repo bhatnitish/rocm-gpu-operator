@@ -9,64 +9,64 @@ images:
 
         gpu-operator:
             location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
-            version     : v1.0.0
+            version     : v1.2.0
             kind        : helm-chart
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
-            location    : container://docker.io/rocm/gpu-operator
-            version     : v1.0.0
+            location    : container://registry.test.pensando.io:5000/rocm/gpu-operator
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
 
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://docker.io/rocm/device-metrics-exporter
-            version     : v1.0.0
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
+            secret      : docker-amdpsdo-auth
 
+        test-runner:
+            key         : testRunner.image
+            location    : container://docker.io/rocm/test-runner
+            version     : v1.2.0-beta.0
+            kind        : container
+            secret      : docker-amdpsdo-auth
+        
         device-plugin:
             key         : devicePlugin.devicePluginImage
-            location    : container://docker.io/rocm/k8s-device-plugin
+            location    : container://registry.test.pensando.io:5000/rocm/k8s-device-plugin
             version     : latest
             kind        : container
-            secret      : docker-amd-auth
 
         node-labeller:
             key         : devicePlugin.nodeLabellerImage
-            location    : container://docker.io/rocm/k8s-device-plugin
+            location    : container://registry.test.pensando.io:5000/rocm/k8s-device-plugin
             version     : labeller-latest
             kind        : container
-            secret      : docker-amd-auth
 
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
-            location    : container://docker.io/rocm/kernel-module-management-signimage
-            version     : v1.0.0
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-signimage
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
-            location    : container://docker.io/rocm/kernel-module-management-worker
-            version     : v1.0.0
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-worker
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
-            location    : container://docker.io/rocm/kernel-module-management-operator
-            version     : v1.0.0
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-operator
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
-            location    : container://docker.io/rocm/kernel-module-management-webhook-server
-            version     : v1.0.0
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-webhook-server
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
 
     openshift:
         driver:
@@ -76,26 +76,58 @@ images:
 
         gpu-operator:
             location    : http://assets-hq.pensando.io/builds/hourly-gpu-operator/v1.2.0-20/gpu-operator-helm-openshift-v1.2.0-v1.2.0-20.tgz
-            version     : v1.0.0
+            build       : v1.2.0-20
+            version     : v1.2.0
             kind        : helm-chart
 
         device-metrics-exporter:
             key         : metricsExporter.image
-            location    : container://rocm/device-metrics-exporter
-            version     : v1.0.0
+            location    : container://registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0
+            build       : v1.2.0-6
+            version     : v1.2.0
             kind        : container
-            secret      : docker-amd-auth
 
+        test-runner:
+            key         : testRunner.image
+            location    : container://registry.test.pensando.io:5000/test-runner/test-runner:v1.2.0
+            build       : v1.2.0-6
+            version     : v1.2.0
+            kind        : container
+        
         device-plugin:
             key         : devicePlugin.devicePluginImage
             location    : container://registry.test.pensando.io:5000/k8s-device-plugin/deviceplugin:v2
-            version     : latest
+            version     : v1.2.0
             kind        : container
 
         node-labeller:
             key         : devicePlugin.nodeLabellerImage
             location    : container://registry.test.pensando.io:5000/internal-k8s-nodelabeller:v1.2.0.beta
-            version     : labeller-latest
+            version     : v1.2.0
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://rocm/kernel-module-management-signimage
+            version     : v1.2.0
+            kind        : container
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://rocm/kernel-module-management-worker
+            version     : v1.2.0
+            kind        : container
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://rocm/kernel-module-management-operator
+            version     : v1.2.0
+            kind        : container
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://rocm/kernel-module-management-webhook-server
+            version     : v1.2.0
             kind        : container
 
     standalone:

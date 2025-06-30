@@ -47,7 +47,14 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
         Logger.info(f"{release_name} helm-chart is already installed/running - skip rest of setup/fixture")
         return
 
-    # cleanup
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     if ret_code != 0:
         k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
@@ -77,11 +84,28 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     k8_helper.assert_or_debug(ret_code == 0, f"Failed to install {release_name} helm-chart error: {ret_stderr}", False)
 
-def deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+@pytest.fixture(scope="module")
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment, k8_helper):
     global Logger
+
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
+    class DeviceConfigCRInfo(object):
+        pass
+
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    k8_helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    k8_helper.assert_or_debug(ret_code == 0,
+                              "Error while getting gpu-nodes from k8-cluster",
+                              environment.pause_on_failure)
+    k8_helper.assert_or_debug(len(gpu_nodes) > 0,
+                              "No nodes with AMD/GPU found in the cluster",
+                              environment.pause_on_failure)
 
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
@@ -92,9 +116,20 @@ def deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, 
         }
     test_config.update(images)
 
-    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'test_runner_deviceconfig')
-
+    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'node_labeller')
+    exporter_port_map = {}
     devicecfg_list = []
+    if len(test_cfg_map) > 1:
+        # Assign unique NodePorts for each deviceconfig instance
+        for idx, cfg_name in enumerate(test_cfg_map.keys()):
+            cfg = test_cfg_map[cfg_name]
+            cfg['metricsExporter.nodePort'] = 32500 + idx * 100
+            exporter_port_map[cfg['selector.value']] = cfg['metricsExporter.nodePort']
+    else:
+        for node in gpu_nodes:
+            node_hostname = k8_util.k8_get_node_hostname(node)
+            exporter_port_map[node_hostname] = 32500
+
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
@@ -105,6 +140,22 @@ def deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, 
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
     k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
 
+    devcfg_info = DeviceConfigCRInfo()
+    setattr(devcfg_info, "test_cfg_map", test_cfg_map)
+    setattr(devcfg_info, "exporter_port_map", exporter_port_map)
+    setattr(devcfg_info, "devicecfg_list", devicecfg_list)
+    yield devcfg_info
+
+    device_cfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, None)
+    for devcfg_name, _ in device_cfg_info.items():
+        k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+    return
+
+def test_node_labeller_enable_flag(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+    global Logger
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    k8_helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
     # Watch for all pod creation
     '''
     test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
@@ -118,23 +169,6 @@ def deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, 
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
     k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
 
-    time.sleep(30) # Wait for exporter to start working
-
-    return test_cfg_map
-
-def test_node_labeller_enable_flag(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
-    global Logger
-
-    test_cfg_map = deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, k8_helper)
-    def _cleanup_deviceconfigs():
-        for spec_name, tcfg in test_cfg_map.items():
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, cr_spec)
-            if ret_code != 0:
-                Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
-        return
-    request.addfinalizer(_cleanup_deviceconfigs)
-
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     k8_helper.assert_or_debug(ret_code == 0,
                               "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
@@ -142,9 +176,7 @@ def test_node_labeller_enable_flag(request, gpu_cluster, images, gpu_operator_in
                               "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
 
     # Check each worker node for annotations applied by node-labeller
-    ret_code, node_info_list = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
-    for node_info in node_info_list:
+    for node_info in gpu_nodes:
         node_name = node_info["metadata"]["name"]
         k8_helper.assert_or_debug('metadata' in node_info,
                                   f"Metadata missing in node_info for {node_info}", environment.pause_on_failure)
@@ -155,7 +187,7 @@ def test_node_labeller_enable_flag(request, gpu_cluster, images, gpu_operator_in
                                   f"Missing {EXPECTED_LABELS - assigned_labels} for node {node_name}", environment.pause_on_failure)
 
     # Now disable labeller
-    for spec_name, tcfg in test_cfg_map.items():
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['devicePlugin.enableNodeLabeller'] = False
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
@@ -170,9 +202,9 @@ def test_node_labeller_enable_flag(request, gpu_cluster, images, gpu_operator_in
                               f"Some of the pods are still running - {running_pods}", environment.pause_on_failure)
 
     # Check absense of annotations for each worker node after removal of node-labeller
-    ret_code, node_info_list = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     k8_helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
-    for node_info in node_info_list:
+    for node_info in gpu_nodes:
         node_name = node_info["metadata"]["name"]
         k8_helper.assert_or_debug('metadata' in node_info,
                                   f"Metadata missing in node_info for {node_info}", environment.pause_on_failure)
@@ -186,20 +218,11 @@ def test_node_labeller_enable_flag(request, gpu_cluster, images, gpu_operator_in
                     found = True
                     break
             k8_helper.assert_or_debug(not found,
-                                      "Unexpected label {exp_label} assigned to node {node_name}", environment.pause_on_failure)
+                                      f"Unexpected label {exp_label} assigned to node {node_name}", environment.pause_on_failure)
 
 @pytest.mark.skip()
-def test_node_labeller_check_labels(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+def test_node_labeller_check_labels(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
     global Logger
-    test_cfg_map = deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, k8_helper)
-    def _cleanup_deviceconfigs():
-        for spec_name, tcfg in test_cfg_map.items():
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, cr_spec)
-            if ret_code != 0:
-                Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
-        return
-    request.addfinalizer(_cleanup_deviceconfigs)
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
@@ -260,17 +283,8 @@ def test_node_labeller_check_labels(request, gpu_cluster, images, gpu_operator_i
         k8_helper.assert_or_debug(vram_count != False and  int(vram_count) > 0, f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}', environment.pause_on_failure)
 
 @pytest.mark.skip()
-def test_gpu_operator_labels_check(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+def test_gpu_operator_labels_check(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
     global Logger
-    test_cfg_map = deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, k8_helper)
-    def _cleanup_deviceconfigs():
-        for spec_name, tcfg in test_cfg_map.items():
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, cr_spec)
-            if ret_code != 0:
-                Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
-        return
-    request.addfinalizer(_cleanup_deviceconfigs)
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)

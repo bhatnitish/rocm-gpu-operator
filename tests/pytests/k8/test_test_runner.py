@@ -34,7 +34,7 @@ Logger = logging.getLogger("k8.test_k8_test_runner")
 
 
 @pytest.fixture(autouse=True, scope="module")
-def skip_module(request, environment):
+def skip_module(environment):
     if environment.gpu_operator_version in ["v1.0.0", "v1.1.0"]:
         pytest.skip(f"Skipping test-runner for current version {environment.gpu_operator_version}")
     return
@@ -49,7 +49,14 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
         yield
         return
 
-    # cleanup
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     if ret_code != 0:
         k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
@@ -81,67 +88,86 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     return
 
 @pytest.fixture(scope="module")
-def deviceconfig_deploy(gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment, k8_helper):
     global Logger
+
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
+    class DeviceConfigCRInfo(object):
+        pass
+
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    k8_helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    k8_helper.assert_or_debug(ret_code == 0,
+                              "Error while getting gpu-nodes from k8-cluster",
+                              environment.pause_on_failure)
+    k8_helper.assert_or_debug(len(gpu_nodes) > 0,
+                              "No nodes with AMD/GPU found in the cluster",
+                              environment.pause_on_failure)
 
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
             'driver.enable' : True,
-            'devicePlugin.enableNodeLabeller' : True,
+            'devicePlugin.enableNodeLabeller' : False,
             'metricsExporter.enable' : True,
             'testRunner.enable' : True,
         }
     test_config.update(images)
 
-    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'test_runner_deviceconfig')
-
+    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'test_runner')
+    exporter_port_map = {}
     devicecfg_list = []
+    if len(test_cfg_map) > 1:
+        # Assign unique NodePorts for each deviceconfig instance
+        for idx, cfg_name in enumerate(test_cfg_map.keys()):
+            cfg = test_cfg_map[cfg_name]
+            cfg['metricsExporter.nodePort'] = 32500 + idx * 100
+            exporter_port_map[cfg['selector.value']] = cfg['metricsExporter.nodePort']
+    else:
+        for node in gpu_nodes:
+            node_hostname = k8_util.k8_get_node_hostname(node)
+            exporter_port_map[node_hostname] = 32500
+
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        k8_helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr : {ret_stderr}", environment.pause_on_failure)
+        k8_helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
     k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
 
-    # Watch for all pod creation
-    '''
-    test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
-    test-deviceconfig-metrics-exporter-27gq9                     2/2     Running       0                 12d
-    test-deviceconfig-node-labeller-54vpd                        1/1     Running       0                 12d
-    '''
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
-        common.PodInfo('node-labeller', len(gpu_nodes), 1),
-        common.PodInfo('test-runner', len(gpu_nodes), 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    devcfg_info = DeviceConfigCRInfo()
+    setattr(devcfg_info, "test_cfg_map", test_cfg_map)
+    setattr(devcfg_info, "exporter_port_map", exporter_port_map)
+    setattr(devcfg_info, "devicecfg_list", devicecfg_list)
+    yield devcfg_info
 
-    time.sleep(30) # Wait for exporter to start working
-    yield
+    device_cfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, None)
+    for devcfg_name, _ in device_cfg_info.items():
+        k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+    return
 
-    def _cleanup_deviceconfigs():
-        for spec_name, tcfg in test_cfg_map.items():
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, cr_spec)
-            if ret_code != 0:
-                Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
-        return
-
-    _cleanup_deviceconfigs()
-
-def test_deviceconfig_test_runner_deploy(request, gpu_cluster, images, gpu_operator_install, deviceconfig_deploy, environment, k8_helper):
+def test_deviceconfig_test_runner_deploy(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
     k8_helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+
+    # Watch for all pod creation
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
 
     '''
     failed_endpoints = set()
@@ -156,3 +182,93 @@ def test_deviceconfig_test_runner_deploy(request, gpu_cluster, images, gpu_opera
     k8_helper.assert_or_debug(len(failed_endpoints) == 0,
                     f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}", environment.pause_on_failure)
     '''
+
+def test_deviceconfig_test_runner_disable(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
+    k8_helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+
+    # disable test-runner
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['testRunner.enable'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        k8_helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    export_pods = [
+        common.PodInfo('test-runner', 1, 1),
+    ]
+    running_pods = k8_util.k8_check_pod_terminated(gpu_cluster, environment.gpu_operator_namespace, export_pods)
+    k8_helper.assert_or_debug(not running_pods,
+                              f"Some of the pods are still running post uninstallation - {running_pods}",
+                              environment.pause_on_failure)
+    # Watch for all pod creation
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+
+    # re-enable test-runner
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['testRunner.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        k8_helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    # Watch for all pod creation
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+
+def test_deviceconfig_testrunner_disable_exporter(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
+    k8_helper.assert_or_debug(len(gpu_nodes), "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+
+    # disable exporter and check for metrics
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        k8_helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    export_pods = [
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    running_pods = k8_util.k8_check_pod_terminated(gpu_cluster, environment.gpu_operator_namespace, export_pods)
+    k8_helper.assert_or_debug(not running_pods,
+                              f"Some of the pods are still running post uninstallation - {running_pods}",
+                              environment.pause_on_failure)
+    devplugin_pods = [
+        common.PodInfo('device-plugin', 1, 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devplugin_pods)
+    k8_helper.assert_or_debug(not failed_pods,
+                              f"One or more pods are not ready - {failed_pods}",
+                              environment.pause_on_failure)
+
+    # Re enable exporter and check for test-runner
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        k8_helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
+    k8_helper.assert_or_debug(not failed_pods,
+                              f"One or more pods are not ready - {failed_pods}",
+                              environment.pause_on_failure)

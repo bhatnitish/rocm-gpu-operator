@@ -1,0 +1,150 @@
+---
+
+images:
+    k8:
+        driver:
+            key         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
+            version     : v1.2.1
+            kind        : helm-chart
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://registry.test.pensando.io:5000/rocm/gpu-operator
+            version     : v1.2.1
+            kind        : container
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://docker.io/rocm/device-metrics-exporter
+            version     : v1.2.1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://docker.io/rocm/test-runner
+            version     : v1.2.1-beta.0
+            kind        : container
+            secret      : docker-amdpsdo-auth
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://registry.test.pensando.io:5000/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://registry.test.pensando.io:5000/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-signimage
+            version     : v1.2.1
+            kind        : container
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-worker
+            version     : v1.2.1
+            kind        : container
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-operator
+            version     : v1.2.1
+            kind        : container
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://registry.test.pensando.io:5000/rocm/kernel-module-management-webhook-server
+            version     : v1.2.1
+            kind        : container
+
+    openshift:
+        driver:
+            1ag         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : http://assets-hq.pensando.io/builds/hourly-gpu-operator/v1.2.0-20/gpu-operator-helm-openshift-v1.2.0-v1.2.0-20.tgz
+            build       : v1.2.0-20
+            version     : v1.2.0
+            kind        : helm-chart
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0
+            build       : v1.2.0-6
+            version     : v1.2.0
+            kind        : container
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://registry.test.pensando.io:5000/test-runner/test-runner:v1.2.0
+            build       : v1.2.0-6
+            version     : v1.2.0
+            kind        : container
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://registry.test.pensando.io:5000/k8s-device-plugin/deviceplugin:v2
+            version     : v1.2.0
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://registry.test.pensando.io:5000/internal-k8s-nodelabeller:v1.2.0.beta
+            version     : v1.2.0
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://rocm/kernel-module-management-signimage
+            version     : v1.2.1
+            kind        : container
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://rocm/kernel-module-management-worker
+            version     : v1.2.1
+            kind        : container
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://rocm/kernel-module-management-operator
+            version     : v1.2.1
+            kind        : container
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://rocm/kernel-module-management-webhook-server
+            version     : v1.2.1
+            kind        : container
+
+    standalone:
+        device-metrics-exporter:
+            - location  : http://assets-hq.pensando.io/builds/hourly-device-metrics-exporter/v1.2.0-6/amdgpu-exporter-v1.2.0-6-1.2.0_ubuntu_22.04_amd64.deb
+              build     : v1.2.0-6
+              kind      : debian
+              version   : v1.2.0
+              os        :
+                distro  : Ubuntu
+                release : 22.04
+
+            - location  : http://assets-hq.pensando.io/builds/hourly-device-metrics-exporter/v1.2.0-6/amdgpu-exporter-v1.2.0-6-1.2.0_ubuntu_24.04_amd64.deb
+              build     : v1.2.0-6
+              kind      : debian
+              version   : v1.2.0
+              os        :
+                distro  : Ubuntu
+                release : 24.04
+

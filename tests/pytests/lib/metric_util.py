@@ -95,7 +95,7 @@ def parse_metric_data(http_response):
         entry = str(line).strip()
         if entry == "": # Empty line
             continue
-        if entry[0] == '#': # Comment
+        if '#' in entry: # Comment
             continue
         '''
         gpu_gfx_activity{card_model="",gpu_id="0",hostname="test-deviceconfig-metrics-exporter-dcq7m",serial_number="0"} 0

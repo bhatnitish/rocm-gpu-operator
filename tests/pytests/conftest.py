@@ -425,15 +425,7 @@ def cleanup_cluster(gpu_cluster, release_name, environment):
         device_cfg_info = k8_util.k8_get_deviceconfigs_info(k8_cluster, namespace, None)
 
         for devcfg_name, _ in device_cfg_info.items():
-            device_config_spec = {
-                'apiVersion'    : 'amd.com/v1alpha1',
-                'kind'          : 'DeviceConfig',
-                'metadata'      : {
-                    'name'      : devcfg_name,
-                    'namespace' : namespace,
-                },
-            }
-            k8_util.k8_delete_deviceconfig_cr(k8_cluster, device_config_spec)
+            k8_util.k8_delete_deviceconfig_cr(k8_cluster, namespace, devcfg_name)
         return
     # Init k8 config
     k8_util.k8_lib_init(gpu_cluster)

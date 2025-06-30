@@ -17,7 +17,7 @@ e2e-targets:
          pip install -r scripts/requirements.txt && \
          wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
          /usr/src/github.com/pensando/gpu-operator/tests/jobs/k8_jobd_ctl.py --testbed /warmd.json --reboot-workers --fetch-kube-config && \
-         ./k8_test_launcher.sh --image-manifest ./release_v1.0.0_images.yaml --secrets $PWD/secrets.json"
+         ./k8_test_launcher.sh --image-manifest image-manifest/release_v1.0.0_internal_images.yaml --secrets $PWD/secrets.json"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     area:
@@ -37,7 +37,7 @@ e2e-targets:
          pip install -r scripts/requirements.txt && \
          wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
          /usr/src/github.com/pensando/gpu-operator/tests/jobs/k8_jobd_ctl.py --testbed /warmd.json --reboot-workers --fetch-kube-config && \
-         ./k8_test_launcher.sh --image-manifest ./release_v1.1.0_images.yaml --secrets $PWD/secrets.json"
+         ./k8_test_launcher.sh --image-manifest image-manifest/release_v1.1.0_internal_images.yaml --secrets $PWD/secrets.json"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     area:
@@ -57,7 +57,7 @@ e2e-targets:
          pip install -r scripts/requirements.txt && \
          wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
          /usr/src/github.com/pensando/gpu-operator/tests/jobs/k8_jobd_ctl.py --testbed /warmd.json --reboot-workers --fetch-kube-config && \
-         ./k8_test_launcher.sh --image-manifest ./release_v1.2.0_images.yaml --secrets $PWD/secrets.json"
+         ./k8_test_launcher.sh --image-manifest image-manifest/release_v1.2.0_internal_images.yaml --secrets $PWD/secrets.json"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     area:
@@ -77,7 +77,7 @@ e2e-targets:
          pip install -r scripts/requirements.txt && \
          wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
          /usr/src/github.com/pensando/gpu-operator/tests/jobs/k8_jobd_ctl.py --testbed /warmd.json --reboot-workers --fetch-kube-config && \
-         ./k8_test_launcher.sh --image-manifest ./release_v1.2.1_images.yaml --secrets $PWD/secrets.json"
+         ./k8_test_launcher.sh --image-manifest image-manifest/release_v1.2.1_internal_images.yaml --secrets $PWD/secrets.json"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     area:
@@ -97,7 +97,7 @@ e2e-targets:
          pip install -r scripts/requirements.txt && \
          wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
          /usr/src/github.com/pensando/gpu-operator/tests/jobs/k8_jobd_ctl.py --testbed /warmd.json --reboot-workers --fetch-kube-config && \
-         ./k8_test_launcher.sh --image-manifest ./release_v1.2.2_images.yaml --secrets $PWD/secrets.json"
+         ./k8_test_launcher.sh --image-manifest image-manifest/release_v1.2.2_internal_images.yaml --secrets $PWD/secrets.json"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     area:
