@@ -137,6 +137,7 @@ HTML_DIR := $(BUILD_DIR)/html
 default: docker-build-env ## Quick start to build everything from docker shell container
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
+	    --network host \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
 		-e "USER_UID=$(shell id -u)" \
@@ -147,7 +148,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all
+		"source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
 
 .PHONY: all
 all: generate manager manifests helm-k8s helm-openshift bundle-build docker-build
