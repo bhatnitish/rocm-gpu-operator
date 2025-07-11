@@ -52,6 +52,7 @@ const (
 	memoryPartitioningSupportedLabel  = "amd.com/memory-partitioning-supported"
 	partitionTypeLabel                = "amd.com/compute-memory-partition"
 	// kubevirt
+	DriverTypeFlag          = "driver_type"
 	DriverTypeContainer     = "container"
 	DriverTypeVFPassthrough = "vf-passthrough"
 	DriverTypePFPassthrough = "pf-passthrough"

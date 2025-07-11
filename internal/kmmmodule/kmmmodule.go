@@ -292,15 +292,6 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		commandArgs += " -" + key + "=" + val
 	}
 
-	switch devConfig.Spec.Driver.DriverType {
-	case utils.DriverTypeVFPassthrough:
-		commandArgs += " -driver_type=" + utils.DriverTypeVFPassthrough
-	case utils.DriverTypePFPassthrough:
-		commandArgs += " -driver_type=" + utils.DriverTypePFPassthrough
-	default:
-		commandArgs += " -driver_type=" + utils.DriverTypeContainer
-	}
-
 	command := []string{"sh", "-c", commandArgs}
 
 	nodeSelector := map[string]string{}
