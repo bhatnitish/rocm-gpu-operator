@@ -302,7 +302,7 @@ docker-build-env: ## Build the docker shell container
 	fi
 
 .PHONY: docker/shell
-docker/shell: docker-build-env ## Bring up and attach to a shell container that has dev environment configured
+docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
 		--name gpu-operator-build \
@@ -315,7 +315,7 @@ docker/shell: docker-build-env ## Bring up and attach to a shell container that 
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
+		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
 
 .PHONY: dep-docs
 dep-docs:
