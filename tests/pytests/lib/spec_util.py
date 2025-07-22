@@ -577,24 +577,32 @@ def build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ct
             test_configs[f"{ctxt_name}_{dev_series}"] = local_test_config
     return test_configs
 
-def build_deviceconfig_cr_template(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, driver_version = None):
+def build_deviceconfig_cr_template(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, amdgpu_driver_spec):
     global Logger
+
     test_configs = {}
-    common_driver_options = get_common_amdgpu_driver(gpu_cluster.worker_nodes, gpu_nodes)
-    if len(common_driver_options) > 0:
-        if driver_version:
-            if driver_version not in common_driver_options:
-                return build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, driver_version)
-            selected_driver_version = driver_version
-        else:
+    local_test_config = copy.deepcopy(init_test_config)
+    if amdgpu_driver_spec["driver-deployment"] == "inbox":
+        local_test_config['driver.enable'] = False
+        local_test_config['driver.version'] = "0.0"
+        local_test_config['driver.blacklist'] = False
+    else:
+        local_test_config['driver.version'] = amdgpu_driver_spec["default-version"]
+    local_test_config['metadata.name'] = f'deviceconfig-clusterwide'
+    test_configs[ctxt_name] = local_test_config
+
+    # TODO: Reimplement workflow where we can create multiple deviceconfig CRs
+    """
+        common_driver_options = get_common_amdgpu_driver(gpu_cluster.worker_nodes, gpu_nodes)
+        if len(common_driver_options) > 0:
             # Chose one from the common-options
             selected_driver_version = next(iter(common_driver_options))
-        local_test_config = copy.deepcopy(init_test_config)
-        local_test_config['driver.version'] = selected_driver_version
-        local_test_config['metadata.name'] = f'deviceconfig-clusterwide'
-        test_configs[ctxt_name] = local_test_config
-        return test_configs
-    else:
-        test_configs = build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, driver_version)
+            local_test_config = copy.deepcopy(init_test_config)
+            local_test_config['driver.version'] = selected_driver_version
+            local_test_config['metadata.name'] = f'deviceconfig-clusterwide'
+            test_configs[ctxt_name] = local_test_config
+        else:
+            test_configs = build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, driver_version)
+    """
     return test_configs
 

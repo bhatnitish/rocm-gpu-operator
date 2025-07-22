@@ -22,6 +22,7 @@ function usage() {
     echo "          --help print help/usage information"
     echo "          --skip-kube-config"
     echo "          --secrets secrets.json file"
+    echo "          --amdgpu-driver-spec <driver-version-spec>"
     echo "          --image-manifest <path-to-image-manifest>"
     echo "          --module <module-name>. Eq: test_<module_name>.py"
     echo "          --testcase <testcase-name> Eq: def test_<tc_name>"
@@ -38,11 +39,12 @@ DEPLOYMENT="k8"
 TC_MODULE="ALL"
 TC_NAME="ALL"
 ENABLE_DEBUGGING="NA"
+DRIVER_SPEC="NA"
 
 function collect_tech_support() {
-    echo "Collect tech-support"
-    tar -zcvf pytest_logs.tgz logs/
-    ls -ltr $PWD
+    echo "Collect test run logs"
+    tar -zcf pytest_logs.tgz logs/
+    ls -ltr $PWD/pytest_logs.tgz
 }
 
 function upload_reports() {
@@ -111,7 +113,8 @@ function launch_pytest() {
             xml_file=logs/${test_sel}.xml
         fi
     fi
-    CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
+    CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings"
+    #CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
     if [[ "${ENABLE_DEBUGGING}" == "YES" ]];
     then
         CMD_OPT+=" --pause-on-failure"
@@ -126,12 +129,17 @@ function launch_pytest() {
     then
         CMD_OPT+=" --secrets-json ${SECRETS}"
     fi
+    if [[ "${DRIVER_SPEC}" != "NA" ]];
+    then
+        CMD_OPT+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
+    fi
     pytest ${test_sel} --log-file=logs/${DEPLOYMENT}_test_run.log \
-        --junit-xml=${xml_file} --html ${html_file} --deployment ${DEPLOYMENT} \
+        --junit-xml=${xml_file} --deployment ${DEPLOYMENT} \
         --image-manifest ${IMAGE_MANIFEST} ${CMD_OPT}
+        #--junit-xml=${xml_file} --html ${html_file} --deployment ${DEPLOYMENT} \
     ret=$?
     collect_tech_support
-    upload_reports
+    #upload_reports
     exit $ret
 }
 
@@ -158,6 +166,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --secrets)
             SECRETS="$2"
+            shift
+        ;;
+        --amdgpu-driver-spec)
+            DRIVER_SPEC="$2"
             shift
         ;;
 	--debug)

@@ -30,14 +30,16 @@ import lib.spec_util as spec_util
 import lib.metric_util as metric_util
 
 #pytestmark = pytest.mark.skip("debugging")
-Logger = logging.getLogger("k8.test_k8_metric_exporter")
+Logger = logging.getLogger("k8.test_metric_exporter")
 
-DEFAULT_LABELS = {
+
+DEFAULT_LABELS = ['serial_number', 'card_model', 'gpu_id', 'hostname']
+DEFAULT_LABEL_MAP = {
     'v1.0.0' : ['serial_number', 'card_model', 'gpu_uuid'],
-    'v1.1.0' : ['serial_number', 'card_model', 'gpu_id', 'hostname'],
-    'v1.2.0' : ['serial_number', 'card_model', 'gpu_id', 'hostname'],
-    'v1.2.1' : ['serial_number', 'card_model', 'gpu_id', 'hostname'],
-    'v1.2.2' : ['serial_number', 'card_model', 'gpu_id', 'hostname'],
+    'v1.1.0' : DEFAULT_LABELS,
+    'v1.2.0' : DEFAULT_LABELS,
+    'v1.2.1' : DEFAULT_LABELS,
+    'v1.2.2' : DEFAULT_LABELS,
 }
 
 @pytest.fixture(scope="module")
@@ -53,7 +55,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
     devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -83,7 +85,14 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     k8_helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
     time.sleep(30)
     yield
-    time.sleep(20)
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     k8_helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", False)
     return
@@ -95,7 +104,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
     devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -120,7 +129,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
         }
     test_config.update(images)
 
-    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'exporter')
+    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'exporter', environment.amdgpu_driver_spec)
     exporter_port_map = {}
     devicecfg_list = []
     if len(test_cfg_map) > 1:
@@ -142,7 +151,8 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -307,7 +317,8 @@ def test_deviceconfig_exporter_nodeport_rbac_support(gpu_cluster, images, gpu_op
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -431,7 +442,8 @@ def test_deviceconfig_exporter_nodeport_rbac_support(gpu_cluster, images, gpu_op
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -463,7 +475,8 @@ def test_deviceconfig_exporter_nodeport_rbac_http(gpu_cluster, images, gpu_opera
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -589,7 +602,8 @@ def test_deviceconfig_exporter_nodeport_rbac_http(gpu_cluster, images, gpu_opera
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -690,7 +704,7 @@ def test_deviceconfig_exporter_nodeport_exp_config(request, gpu_cluster, images,
             expected_metrics = set(label_metrics_tuple[1])
             expected_metrics.update(['promhttp_metric_handler_errors_total'])
             expected_labels = set(label_metrics_tuple[0])
-            expected_labels.update(DEFAULT_LABELS[environment.gpu_operator_version])
+            expected_labels.update(DEFAULT_LABEL_MAP.get(environment.gpu_operator_version, DEFAULT_LABELS))
             for node in gpu_nodes:
                 node_ip = k8_util.k8_get_node_address(node)
                 cluster_node = gpu_cluster.get_worker_node(node_ip)
@@ -773,7 +787,8 @@ def test_deviceconfig_exporter_servicetype_default_deploy(gpu_cluster, images, g
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     # Watch for all pod creation
     '''
@@ -857,7 +872,8 @@ def test_deviceconfig_exporter_servicetype_default_rbac_support(gpu_cluster, ima
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -962,7 +978,8 @@ def test_deviceconfig_exporter_servicetype_default_rbac_http(gpu_cluster, images
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),

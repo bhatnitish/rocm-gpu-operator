@@ -23,6 +23,8 @@ import paramiko
 import shutil
 import logging
 import requests
+import hashlib
+from datetime import datetime
 from fabric import Connection
 from invoke.exceptions import UnexpectedExit
 from invoke.exceptions import CommandTimedOut
@@ -175,7 +177,7 @@ class cluster_node(object):
                     ret_stderr = f"Error : {resp}"
             except Exception as e:
                 ret_code = -1
-                ret_stderr = "Exception : {e}"
+                ret_stderr = f"Exception : {e}"
             time.sleep(5)
         return ret_code, ret_stdout, ret_stderr
 
@@ -197,7 +199,7 @@ class cluster_node(object):
                     ret_stderr = f"Error : {resp}"
             except Exception as e:
                 ret_code = -1
-                ret_stderr = "Exception : {e}"
+                ret_stderr = f"Exception : {e}"
             time.sleep(5)
         return ret_code, ret_stdout, ret_stderr
 
@@ -220,7 +222,7 @@ class cluster_node(object):
                         ret_stderr = f"Error : {resp}"
                 except Exception as e:
                     ret_code = -1
-                    ret_stderr = "Exception : {e}"
+                    ret_stderr = f"Exception : {e}"
             else:
                 '''
                 curl -s -k -H "Authorization: Bearer $TOKEN" http://10.11.130.28:32500/metrics
@@ -254,7 +256,7 @@ class cluster_node(object):
                         ret_stderr = f"Error : {resp}"
                 except Exception as e:
                     ret_code = -1
-                    ret_stderr = "Exception : {e}"
+                    ret_stderr = f"Exception : {e}"
             else:
                 '''
                 curl -s -k -H "Authorization: Bearer $TOKEN" https://10.11.130.28:32500/metrics
@@ -331,6 +333,7 @@ class k8_cluster(cluster):
         self._k8_master = None
         self._k8_kube_config = None
         self._k8_secrets = {}
+        self._k8_registry = 'docker.io'
         if master_node:
             assert master_node.NodeType == "master"
             self._k8_master = k8_master_node(master_node.IpAddress, master_node.Username, master_node.Password, master_node.Identity)
@@ -354,6 +357,14 @@ class k8_cluster(cluster):
     @k8_secrets.setter
     def k8_secrets(self, secrets):
         self._k8_secrets = secrets
+
+    @property
+    def k8_registry(self):
+        return self._k8_registry
+
+    @k8_registry.setter
+    def k8_registry(self, registry):
+        self._k8_registry = registry
  
 class standalone_gpu_nodes(cluster):
 
@@ -372,4 +383,21 @@ class SlurmGpuCluster(cluster):
 
     def __init__(self):
         pass
+
+def generate_8byte_sha(seed : str) -> str:
+    """
+    Generates an 8-byte SHA-256 hash from an input string.
+    """
+    # Encode the input string to bytes (UTF-8 is common)
+    input_str = f"{seed}@{time.time()}"
+    input_bytes = input_str.encode('utf-8')
+    # Create a SHA-256 hash object
+    sha256_hash = hashlib.sha256()
+    # Update the hash object with the input bytes
+    sha256_hash.update(input_bytes)
+    # Get the hexadecimal representation of the full hash
+    full_hex_digest = sha256_hash.hexdigest()
+    # Truncate the hexadecimal string to the first 16 characters (8 bytes * 2 hex chars/byte)
+    eight_byte_hex_digest = full_hex_digest[:16]
+    return eight_byte_hex_digest
 

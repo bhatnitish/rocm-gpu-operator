@@ -15,25 +15,25 @@ images:
 
         gpu-operator:
             location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
-            version     : v1.2.2
+            version     : v1.3.0
             kind        : helm-chart
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
             location    : container://<registry>/rocm/gpu-operator
-            version     : v1.2.2
+            version     : v1.3.0
             kind        : container
 
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://<registry>/rocm/device-metrics-exporter
-            version     : v1.2.1
+            version     : v1.3.0
             kind        : container
 
         test-runner:
             key         : testRunner.image
             location    : container://<registry>/rocm/test-runner
-            version     : v1.2.1-beta.0
+            version     : v1.3.0
             kind        : container
         
         device-plugin:
@@ -51,24 +51,24 @@ images:
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
             location    : container://<registry>/rocm/kernel-module-management-signimage
-            version     : v1.2.2
+            version     : v1.3.0
             kind        : container
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
             location    : container://<registry>/rocm/kernel-module-management-worker
-            version     : v1.2.2
+            version     : v1.3.0
             kind        : container
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
             location    : container://<registry>/rocm/kernel-module-management-operator
-            version     : v1.2.2
+            version     : v1.3.0
             kind        : container
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
             location    : container://<registry>/rocm/kernel-module-management-webhook-server
-            version     : v1.2.2
+            version     : v1.3.0
             kind        : container
 

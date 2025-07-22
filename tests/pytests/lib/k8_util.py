@@ -41,8 +41,11 @@ K8Items = List[dict]
 def k8_lib_init(k8_cluster : common.k8_cluster) -> None:
     global Logger
     if k8_cluster.k8_kube_config:
-        # Do k8 cluster initialization
-        config.load_kube_config(config_file = k8_cluster.k8_kube_config)
+        # Load Kubernetes configuration
+        try:
+            config.load_kube_config(config_file = k8_cluster.k8_kube_config)
+        except config.ConfigException as e:
+            pytest.fail(f"failed to load kube-config, error : {e}")
 
         # Build k8_cluster with worker-node information
         ret_code, k8_nodes = k8_get_nodes(k8_cluster)
@@ -64,7 +67,7 @@ def k8_lib_init(k8_cluster : common.k8_cluster) -> None:
         for namespace in namespaces:
             ret_code, ret_stdout, ret_stderr = k8_create_namespace(k8_cluster, namespace)
             if ret_code != 0:
-                Logger.error(f"Failed to create namespace {namespace}, error: {ret_stderr}")
+                Logger.debug(f"Failed to create namespace {namespace}, error: {ret_stderr}")
 
         for entry in k8_cluster.k8_secrets["secrets"]:
             ret_code, ret_stdout, ret_stderr = k8_delete_secret(k8_cluster,
@@ -187,6 +190,7 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
                 return -1, "", f"Missing values.yaml : {values_yaml}"
             if k8_cluster.k8_master.is_local():
                     cmd.extend(["-f", values_yaml])
+        Logger.debug(f"helm-install command: {' '.join(cmd)}")
         cmd_resp = subprocess.run(cmd, check=False,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
@@ -203,6 +207,7 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
                 remote_file = os.path.join("workspace", os.path.basename(values_yaml))
                 k8_cluster.k8_master.put(values_yaml, remote_file)
                 cmd.extend(["-f", remote_file])
+        Logger.debug(f"helm-install command: {' '.join(cmd)}")
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
 def helm_uninstall(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> (int, str, str):
@@ -810,6 +815,33 @@ def k8_delete_all_pods(k8_cluster : common.k8_cluster, namespace : str):
         cmd = f"kubectl delete pods --all -n {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
+def k8_delete_all_pods_with_prefix(k8_cluster : common.k8_cluster, namespace : str, pod_name_prefix: str) -> int:
+    """
+    API to delete all pods with given name prefix
+    """
+    global Logger
+    global LogPrettyPrinter
+    ret_code = 0
+    if k8_cluster.k8_kube_config:
+        api = client.CoreV1Api()
+
+        delete_list = []
+        try:
+            pods = api.list_namespaced_pod(namespace = namespace)
+            for pod in pods.items:
+                if pod.metadata.name.startswith(pod_name_prefix):
+                    delete_list.append(pod.metadata.name)
+        except ApiException as e:
+            Logger.error(f"Failed to get all pods from namespace {namespace}, error: {e}")
+            return -1
+
+        Logger.info(f"Deleting following pods from the cluster : {delete_list}")
+        for pod_name in delete_list:
+            ret_code, ret_stdout, ret_stderr = k8_delete_pod(k8_cluster, pod_name, namespace, force = True)
+            if ret_code != 0:
+                Logger.error(f"Failed to delete pod {pod_name}, error {ret_stderr}")
+    return ret_code
+
 def k8_get_namespaces(k8_cluster : common.k8_cluster):
     """
     API to get all namespaces in a given k8 cluster
@@ -867,7 +899,7 @@ def k8_create_namespace(k8_cluster : common.k8_cluster, namespace : str):
         cmd = f"kubectl create namespace {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
-def k8_check_pod_status(k8_cluster : common.k8_cluster, namespace : str, pod_list : List):
+def k8_check_pod_status(k8_cluster : common.k8_cluster, namespace : str, pod_list : List) -> Dict:
     pod_status = dict()
     ret_code, k8_pod_list = k8_get_pods(k8_cluster, namespace)
     assert ret_code == 0, "Error while getting all pods from k8-cluster"
@@ -1413,7 +1445,7 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
         try:
             k8_deviceconfig_info = api.list_custom_object_for_all_namespaces(version = "v1alpha1", group = "amd.com", resource_plural = "deviceconfigs")
         except ApiException as e:
-            Logger.error(f"Failed to list deviceconfigs for namespace {namespace}, error: {e}")
+            Logger.debug(f"Failed to list deviceconfigs for namespace {namespace}, error: {e}")
             return ret_values
 
         Logger.debug(f"Status of DeviceConfig CR\n{LogPrettyPrinter.pformat(k8_deviceconfig_info)}")
@@ -1442,6 +1474,46 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
                 ret_values[item.get('metadata').get('name')] = item
     return ret_values
 
+def k8_lookup_crd(k8_cluster : common.k8_cluster, crd_name : str) -> Dict:
+    """
+    API to retrieve DeviceConfig CRD information post gpu-operator installation
+
+    Parameters:
+    k8_cluster : instance of lib.common.k8_cluster
+    crd_name : The name of crd to lookup/filter
+
+    Returns:
+    Dict: dict of CRD information or None on error
+    """
+
+    global Logger
+    global LogPrettyPrinter
+    
+    if k8_cluster.k8_kube_config:
+        api = client.ApiextensionsV1Api()
+
+        try:
+            crd_list = api.list_custom_resource_definition().to_dict()
+        except ApiException as e:
+            Logger.error(f"Error retrieving CRDs from cluster, error: {e}")
+            return None
+    else:
+        #  kubectl get crd deviceconfigs.amd.com -n kube-amd-gpu  -o json
+        cmd = ["kubectl", "get" "crd"]
+        cmd.append("-o json")
+
+        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
+        if ret_code != 0:
+            Logger.error(f"Failed to list CRDs error : {ret_code}, {resp_stdout}, {resp_stderr}")
+            return None
+        crd_list = json.loads(resp_stdout)
+
+    for crd in crd_list.get('items', None):
+        if crd['metadata']['name'] == crd_name:
+            return crd
+    Logger.debug(f"CRDs from the cluster\n{LogPrettyPrinter.pformat(crd_list)}")
+    return None
+
 def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> (int, int, str):
     """
     API to run a curl command in the kubernetes cluster to collect information
@@ -1450,7 +1522,7 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
     global Logger
     global LogPrettyPrinter
     if k8_cluster.k8_kube_config:
-        pod_name = "curl-cmd-pod"
+        pod_name = f"curl-cmd-pod-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
         namespace = "default"
 
         curl_pod_manifest = client.V1Pod(
@@ -1462,7 +1534,7 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
                 containers=[
                     client.V1Container(
                         name="curl-container",
-                        image="curlimages/curl",
+                        image=f"{k8_cluster.k8_registry}/curlimages/curl",
                         command=["curl"],
                         args=args
                     )
@@ -1503,4 +1575,125 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
                     Logger.error(f"Failed to delete pod: {pod_name}, error: {e}")
             time.sleep(20)
     return -1, "", ""
+
+def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : List):
+    """
+    Runs a command on a specific Kubernetes worker node using an ephemeral debug pod.
+
+    Args:
+        k8_cluster (common.k8_cluster): k8_cluster object.
+        node_name (str): The name of the worker node.
+        command_to_run (list): The shell command to execute on the node.
+
+    Returns:
+        tuple: A tuple containing (pod_name, exit_code, logs)
+    """
+    global Logger
+    global LogPrettyPrinter
+    if k8_cluster.k8_kube_config:
+        v1 = client.CoreV1Api()
+        pod_name = f"node-debug-{node-name}-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
+        namespace = "default"
+
+        chroot_cmd = ["chroot", "/host", "sh", "-c"]
+        full_cmd = chroot_cmd.extend(command_to_run)
+        # Define the debug pod
+        debug_pod_manifest = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": pod_name,
+                "namespace": namespace,
+                "labels": {
+                    "app": "node-debugger",
+                    "node": node_name
+                }
+            },
+            "spec": {
+                "nodeName": node_name,  # Target the specific node
+                "restartPolicy": "Never", # Ensure it doesn't restart after command completes
+                "hostPID": True,         # Allows access to host process IDs
+                "hostNetwork": True,     # Allows access to host network namespace
+                "hostIPC": True,         # Allows access to host IPC namespace
+                "containers": [
+                    {
+                        "name": "debugger",
+                        "image": f"{k8_cluster.k8_registry}/ubuntu",
+                        "command": full_cmd,
+                        "securityContext": {
+                            "privileged": True # Essential for full host access
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "host-root",
+                                "mountPath": "/host"
+                            }
+                        ]
+                    }
+                ],
+                "volumes": [
+                    {
+                        "name": "host-root",
+                        "hostPath": {
+                            "path": "/",
+                            "type": "Directory"
+                        }
+                    }
+                ]
+            }
+        }
+
+        try:
+            Logger.debug(f"Creating debug pod {pod_name} on node '{node_name}'...")
+            v1.create_namespaced_pod(body=debug_pod_manifest, namespace=namespace)
+
+            # Wait for the pod to complete
+            timeout_seconds = 300 # 5 minutes timeout
+            start_time = time.time()
+            while True:
+                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+                if pod_status.status.phase in ["Succeeded", "Failed"]:
+                    Logger.info(f"Pod {pod_name} finished with status: {pod_status.status.phase}")
+                    break
+                if time.time() - start_time > timeout_seconds:
+                    Logger.error(f"Pod {pod_name} timed out after {timeout_seconds} seconds.")
+                    return None, -1, f"Pod {pod_name} timed out after {timeout_seconds} seconds."
+                time.sleep(5)
+
+            # Get container status to check exit code
+            exit_code = -1
+            if pod_status.status.container_statuses:
+                for container_status in pod_status.status.container_statuses:
+                    if container_status.name == "debugger" and container_status.state.terminated:
+                        exit_code = container_status.state.terminated.exit_code
+                        break
+            else:
+                Logger.debug("No container statuses found in the pod.")
+
+            # Get logs
+            logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+            Logger.debug(f"Logs from {pod_name}:\n{LogPrettyPrinter.pformat(logs)}")
+
+            # Delete the pod
+            Logger.debug(f"Deleting pod {pod_name}...")
+            v1.delete_namespaced_pod(name=pod_name, namespace=namespace, body=client.V1DeleteOptions(
+                propagation_policy='Foreground',
+                grace_period_seconds=0
+            ))
+
+            return pod_name, exit_code, logs
+
+        except client.ApiException as e:
+            Logger.error(f"Kubernetes API Error: {e}")
+            # Attempt to get logs if pod was created but failed
+            if 'pod_name' in locals():
+                try:
+                    logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+                    Logger.info(f"Logs (before error): {logs}")
+                except Exception as log_e:
+                    Logger.error(f"Could not retrieve logs after API error: {log_e}")
+            return None, -1, f"Kubernetes API Error: {e}"
+        except Exception as e:
+            Logger.error(f"An unexpected error occurred: {e}")
+            return None, -1, f"An unexpected error occurred: {e}"
 

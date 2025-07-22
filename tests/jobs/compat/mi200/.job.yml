@@ -25,7 +25,7 @@ e2e-targets:
     resources:
     - generic:
       - type: K8-GPU-Node
-        name: AMD-GPU-MI250
+        name: AMD-GPU-MI200
         vendor: Pensando
         count: 1
 
@@ -45,7 +45,7 @@ e2e-targets:
     resources:
     - generic:
       - type: K8-GPU-Node
-        name: AMD-GPU-MI250
+        name: AMD-GPU-MI200
         vendor: Pensando
         count: 1
 
@@ -65,7 +65,7 @@ e2e-targets:
     resources:
     - generic:
       - type: K8-GPU-Node
-        name: AMD-GPU-MI250
+        name: AMD-GPU-MI200
         vendor: Pensando
         count: 1
 
@@ -85,7 +85,7 @@ e2e-targets:
     resources:
     - generic:
       - type: K8-GPU-Node
-        name: AMD-GPU-MI250
+        name: AMD-GPU-MI200
         vendor: Pensando
         count: 1
 
@@ -105,7 +105,27 @@ e2e-targets:
     resources:
     - generic:
       - type: K8-GPU-Node
-        name: AMD-GPU-MI250
+        name: AMD-GPU-MI200
+        vendor: Pensando
+        count: 1
+
+  gpu-operator-pytest-v1.3.0:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /usr/src/github.com/pensando/gpu-operator/tests/pytests && \
+         pip install -r scripts/requirements.txt && \
+         wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
+         /usr/src/github.com/pensando/gpu-operator/tests/jobs/k8_jobd_ctl.py --testbed /warmd.json --reboot-workers --fetch-kube-config && \
+         ./k8_test_launcher.sh --image-manifest image-manifest/release_v1.3.0_internal_images.yaml --secrets $PWD/secrets.json"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    area:
+    sub-area:
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        name: AMD-GPU-MI200
         vendor: Pensando
         count: 1
 

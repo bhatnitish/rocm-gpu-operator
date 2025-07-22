@@ -27,7 +27,7 @@ import lib.spec_util as spec_util
 import lib.common as common
 
 #pytestmark = pytest.mark.skip("debugging")
-Logger = logging.getLogger("k8.test_k8_node_labeller")
+Logger = logging.getLogger("k8.test_node_labeller")
 
 EXPECTED_LABELS = {
     "amd.com/gpu.device-id",
@@ -50,7 +50,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
     devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -80,7 +80,15 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     k8_helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
     time.sleep(30)
     yield
-    time.sleep(20)
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
+    # Uninstall gpu-operator helm-chart
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     k8_helper.assert_or_debug(ret_code == 0, f"Failed to install {release_name} helm-chart error: {ret_stderr}", False)
 
@@ -91,7 +99,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
     devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -116,7 +124,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
         }
     test_config.update(images)
 
-    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'node_labeller')
+    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'node_labeller', environment.amdgpu_driver_spec)
     exporter_port_map = {}
     devicecfg_list = []
     if len(test_cfg_map) > 1:
@@ -138,7 +146,8 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
 
     # Check for corresponding deviceconfig created
     k8_helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, gpu_nodes)
+    for devcfg in devicecfg_list:
+        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)

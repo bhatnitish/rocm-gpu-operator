@@ -17,6 +17,7 @@
 '''
 
 import pytest
+import pdb
 import os
 import re
 import json
@@ -24,7 +25,6 @@ import shutil
 import requests
 import logging
 from datetime import datetime
-from py.xml import html
 from lib import common
 from lib import k8_util
 from pathlib import Path
@@ -82,6 +82,14 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+            "--amdgpu-driver-spec",
+            action = "store",
+            default = "lib/files/amd-deviceconfig-driver-spec.json",
+            required = False,
+            help = "AMDGPU Driver to use"
+    )
+
+    parser.addoption(
             "--pause-on-failure",
             action = "store_true",
             default = False,
@@ -91,7 +99,7 @@ def pytest_addoption(parser):
 
 def pytest_html_report_title(report):
     # Add a custom title to the report
-    report.title = f"GPU-Operator/Metric-Exporter Test Results"
+    report.title = f"GPU-Operator/DeviceConfig K8 Test Results"
 
 def pytest_html_results_summary(prefix, summary, postfix):
     # Insert custom HTML into the summary section of the report
@@ -121,7 +129,10 @@ def environment(request):
     setattr(tenv, 'download_folder', 'downloads')
     setattr(tenv, 'global_registry', request.config.option.global_registry)
     setattr(tenv, 'sandbox_dir', "logs")
-    setattr(tenv, 'image_manifest', request.config.option.image_manifest)
+    if request.config.option.amdgpu_driver_spec:
+        with open(request.config.option.amdgpu_driver_spec, "r") as fp:
+            driver_spec = json.load(fp)
+            setattr(tenv, 'amdgpu_driver_spec', driver_spec)
     setattr(tenv, 'pause_on_failure', request.config.option.pause_on_failure)
     if request.config.option.skip_kube_config:
         setattr(tenv, 'kube_config_file', None)
@@ -251,20 +262,32 @@ def images(request, environment, gpu_cluster):
 
     file_obj = Path(request.config.option.image_manifest)
     image_manifest = dict(yaml.load(file_obj))
+
+    # Process metadata section of image-manifest
+    image_metadata = image_manifest['images'].get('meta', {})
+    registry = 'docker.io'
+    if 'registry' in image_metadata:
+        registry = image_metadata['registry'].get('default', 'docker.io')
+        if 'mirror' in image_metadata['registry']:
+            if image_metadata['registry']['mirror'].get('enable', 'no') == 'yes':
+                registry = image_metadata['registry']['mirror']['url']
+    setattr(environment, 'default_registry', registry)
+    gpu_cluster.k8_registry = environment.default_registry
     assert environment.deployment_mode in image_manifest['images'], f"Missing images for {environment.deployment_mode}"
     if environment.deployment_mode == "standalone":
-        image_info = images_standalone(request, environment, image_manifest['images'][environment.deployment_mode])
+        image_info = images_standalone(request, environment, image_manifest['images'])
 
     if environment.deployment_mode == "k8":
-        image_info = images_k8(request, environment, gpu_cluster, image_manifest['images'][environment.deployment_mode])
+        image_info = images_k8(request, environment, gpu_cluster, image_manifest['images'])
 
     if environment.deployment_mode == "openshift":
-        image_info = images_openshift(request, environment, gpu_cluster, image_manifest['images'][environment.deployment_mode])
+        image_info = images_openshift(request, environment, gpu_cluster, image_manifest['images'])
 
     assert image_info != None, f"Failed to build images for {environment.deployment_mode}"
     return image_info
 
 def images_standalone(request, environment, image_manifest):
+    images = image_manifest['standalone']
     file_name = 'amdgpu-exporter_1.0.0_amd64.deb'
     exp_image_folder = os.path.join(environment.download_folder, environment.metrics_exporter_version)
     os.makedirs(exp_image_folder, exist_ok=True)
@@ -293,20 +316,21 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
     global Logger
     image_info = dict()
 
+    images = image_manifest['k8']
     # prepare to download gpu-operator
-    setattr(environment, 'gpu_operator_version', image_manifest['gpu-operator']['version'])
-    if 'build' in image_manifest['gpu-operator']:
-        setattr(environment, 'gpu_operator_build', image_manifest['gpu-operator']['build'])
-    setattr(environment, 'metrics_exporter_version', image_manifest['device-metrics-exporter']['version'])
-    if 'build' in image_manifest['device-metrics-exporter']:
-        setattr(environment, 'metrics_exporter_build', image_manifest['device-metrics-exporter']['build'])
+    setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
+    if 'build' in images['gpu-operator']:
+        setattr(environment, 'gpu_operator_build', images['gpu-operator']['build'])
+    setattr(environment, 'metrics_exporter_version', images['device-metrics-exporter']['version'])
+    if 'build' in images['device-metrics-exporter']:
+        setattr(environment, 'metrics_exporter_build', images['device-metrics-exporter']['build'])
 
     os.makedirs(environment.download_folder, exist_ok=True)
     gpu_cluster.k8_master.run_command(f"rm -r -f {environment.download_folder}")
     gpu_cluster.k8_master.run_command(f"mkdir -p {environment.download_folder}")
     image_info['image_folder'] = environment.download_folder
 
-    for artifact, artifact_info in image_manifest.items():
+    for artifact, artifact_info in images.items():
         Logger.info(f"Downloading {artifact}")
         if 'repo://' in artifact_info['location']:
             pattern = r"repo://([a-zA-Z0-9.-]+/[^:]+):([^/]+)"
@@ -404,7 +428,11 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
             elif artifact_info['kind'] == 'helm-chart':
                 image_info[f'{artifact}.helm-chart'] = file_path
         elif 'container://' in artifact_info['location']:
-            url = artifact_info['location']
+            location = artifact_info['location']
+            if '<registry>' in location and environment.default_registry:
+                url = location.replace('<registry>', environment.default_registry)
+            else:
+                url = location
             parsed_data = urlparse(url)
             image_info[f"{artifact_info['key']}.repository"] = f"{parsed_data.netloc}{parsed_data.path}"
             if artifact_info.get('version'):
@@ -418,19 +446,21 @@ def cleanup_cluster(gpu_cluster, release_name, environment):
     global Logger
     Logger.info("Delete any deviceconfig CRs from the cluster")
     def _delete_deviceconfigs(k8_cluster : common.k8_cluster, namespace : str) -> None:
-        """
-        API to delete all CRs of kind deviceconfig
-        """
-        global Logger
         device_cfg_info = k8_util.k8_get_deviceconfigs_info(k8_cluster, namespace, None)
 
         for devcfg_name, _ in device_cfg_info.items():
             k8_util.k8_delete_deviceconfig_cr(k8_cluster, namespace, devcfg_name)
         return
+
+    def _delete_debug_pods(k8_cluster : common.k8_cluster, namespace : str) -> None:
+        k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "node-debug-")
+        k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "curl-cmd-pod-")
+
     # Init k8 config
     k8_util.k8_lib_init(gpu_cluster)
     # cleanup
     _delete_deviceconfigs(gpu_cluster, environment.gpu_operator_namespace)
+    _delete_debug_pods(gpu_cluster, "default")
     if k8_util.is_helm_chart_deployed(gpu_cluster, release_name, environment.gpu_operator_namespace):
         Logger.warn(f"helm {release_name} is already deployed - cleanup")
         ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name,
