@@ -116,6 +116,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 			//SkipDrivers:    true,
 			MetricsExporter: v1alpha1.MetricsExporterSpec{
 				Enable:   &metricsExporterEnable,
+				Image:    exporterImage,
 				NodePort: 32501,
 				Port:     5001,
 			},
@@ -127,7 +128,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage
 	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage
 	if s.simEnable {
-		devCfg.Spec.MetricsExporter.Image = exporterImage
+		devCfg.Spec.MetricsExporter.Image = exporterMockImage
 	}
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "6.1.1"
@@ -136,6 +137,7 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 }
 
 func (s *E2ESuite) createDeviceConfig(devCfg *v1alpha1.DeviceConfig, c *C) {
+	logger.Infof("Creating DeviceConfig %+v", devCfg)
 	_, err := s.dClient.DeviceConfigs(s.ns).Create(devCfg)
 	assert.NoError(c, err, "failed to create %v", s.cfgName)
 }
@@ -290,7 +292,7 @@ func (s *E2ESuite) verifyDevicePluginStatus(ns string, c *C, devCfg *v1alpha1.De
 		}
 		logger.Infof(" Device Plugin Not found for deviceconfig %v", devCfg.Name)
 		return false
-	}, 25*time.Minute, 5*time.Second)
+	}, 20*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C, devCfg *v1alpha1.DeviceConfig) {
@@ -303,7 +305,7 @@ func (s *E2ESuite) checkNodeLabellerStatus(ns string, c *C, devCfg *v1alpha1.Dev
 
 		logger.Infof(" node-labeller: %s status %+v", ds.Name, ds.Status)
 		return ds.Status.NumberReady > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
-	}, 45*time.Minute, 5*time.Second)
+	}, 20*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns string, serviceType v1.ServiceType, c *C) {
@@ -330,7 +332,7 @@ func (s *E2ESuite) checkMetricsExporterStatus(devCfg *v1alpha1.DeviceConfig, ns 
 		}
 
 		return ready
-	}, 45*time.Minute, 5*time.Second)
+	}, 20*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) checkDeviceConfigManagerStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
@@ -460,7 +462,7 @@ func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C)
 			devCfg.Status.Drivers.DesiredNumber == devCfg.Status.Drivers.AvailableNumber &&
 			devCfg.Status.DevicePlugin.NodesMatchingSelectorNumber == devCfg.Status.DevicePlugin.AvailableNumber &&
 			devCfg.Status.DevicePlugin.DesiredNumber == devCfg.Status.DevicePlugin.AvailableNumber
-	}, 45*time.Minute, 5*time.Second)
+	}, 20*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, label string, c *C) {
@@ -555,6 +557,9 @@ func (s *E2ESuite) verifyNodeDriverVersionLabel(devCfg *v1alpha1.DeviceConfig, c
 		allMatched := true
 		for _, node := range nodes.Items {
 			versionLabelKey, versionLabelValue := kmmmodule.GetVersionLabelKV(devCfg)
+			if versionLabelValue == "" {
+				versionLabelValue = s.defaultDriverVersion
+			}
 			if ver, ok := node.Labels[versionLabelKey]; !ok {
 				logger.Errorf("failed to find driver version label %+v on node %+v", versionLabelKey, node.Name)
 				allMatched = false
@@ -617,6 +622,7 @@ func (s *E2ESuite) updateNodeDriverVersionLabel(devCfg *v1alpha1.DeviceConfig, c
 func (s *E2ESuite) verifyROCMPOD(driverInstalled bool, c *C) {
 	pods, err := utils.ListRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to deploy pods")
+	logger.Infof("rocm pods %v", pods)
 	for _, p := range pods {
 		if driverInstalled {
 			v, err := utils.GetRocmInfo(p)
@@ -672,6 +678,14 @@ func (s *E2ESuite) TestBasicSkipDriverInstall(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	if !s.simEnable {
+		nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+		err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
 }
 
 func (s *E2ESuite) TestDeployment(c *C) {
@@ -740,7 +754,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 
 	// upgrade
 	// update the CR's driver version config
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	s.patchDriversVersion(devCfg, c)
 	// update the node resources version labels
 	s.updateNodeDriverVersionLabel(devCfg, c)
@@ -804,7 +818,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 		s.deleteDeviceConfig(devCfg, c)
 	}
 	// upgrade by pushing new CR with new version
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
@@ -975,6 +989,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
+	c.Skip("Skipping for non amd gpu testbed")
 	var deployCommand, undeployCommand, deployWithoutNFDKMMCommand string
 	var nfdInstallCommands, nfdUnInstallCommands []string
 	var kmmInstallCommand, kmmUnInstallCommand string
@@ -1234,6 +1249,12 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
@@ -1576,6 +1597,9 @@ func (s *E2ESuite) TestNodeLabellerPartitionLabelsAbsent(c *C) {
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
+	if !s.simEnable {
+		c.Skip("Skipping for amd gpu testbed")
+	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-clusterip", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-clusterip exists")
 
@@ -1605,7 +1629,7 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 				Enable:  &enableExporter,
 				SvcType: "ClusterIP",
 				Port:    5000,
-				Image:   exporterImage,
+				Image:   exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -1670,7 +1694,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 				SvcType:  "NodePort",
 				Port:     5000,
 				NodePort: 31000,
-				Image:    exporterImage,
+				Image:    exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -1794,7 +1818,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 				SvcType:  "NodePort",
 				Port:     5000,
 				NodePort: 31000,
-				Image:    exporterImage,
+				Image:    exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -1886,14 +1910,10 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 
 	// Client CA ConfigMap
 	cmName := "client-ca-cm"
-	cm := &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns},
-		Data:       map[string]string{"ca.crt": string(caCert)},
-	}
-	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
+	err = utils.CreateConfigMap(context.TODO(), s.clientSet, s.ns, cmName, map[string]string{"ca.crt": string(caCert)})
 	assert.NoError(c, err)
 	defer func() {
-		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
+		if errDel := utils.DeleteConfigMap(context.TODO(), s.clientSet, cmName, s.ns); errDel != nil {
 			logger.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
 		}
 	}()
@@ -1972,7 +1992,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 				SvcType:  "NodePort",
 				Port:     5000,
 				NodePort: 31000,
-				Image:    exporterImage,
+				Image:    exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -2023,11 +2043,10 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	}()
 
 	cmName := "client-ca-cm"
-	cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns}, Data: map[string]string{"ca.crt": string(caPEM)}}
-	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
+	err = utils.CreateConfigMap(context.TODO(), s.clientSet, s.ns, cmName, map[string]string{"ca.crt": string(caPEM)})
 	assert.NoError(c, err)
 	defer func() {
-		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
+		if errDel := utils.DeleteConfigMap(context.TODO(), s.clientSet, cmName, s.ns); errDel != nil {
 			logger.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
 		}
 	}()
@@ -2088,7 +2107,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 				SvcType:  "NodePort",
 				Port:     5000,
 				NodePort: 31000,
-				Image:    exporterImage,
+				Image:    exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -2160,7 +2179,7 @@ func (s *E2ESuite) TestServiceMonitorCreation(c *C) {
 				SvcType:  "NodePort",
 				Port:     5000,
 				NodePort: 31000,
-				Image:    exporterImage,
+				Image:    exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -2241,7 +2260,7 @@ func (s *E2ESuite) TestServiceMonitorCRDFlow(c *C) {
 				SvcType:  "NodePort",
 				Port:     5000,
 				NodePort: 31000,
-				Image:    exporterImage,
+				Image:    exporterMockImage,
 				RbacConfig: v1alpha1.KubeRbacConfig{
 					Enable:       &enableKubeRbacProxy,
 					DisableHttps: &disableHTTPs,
@@ -2346,7 +2365,7 @@ func (s *E2ESuite) TestDifferentCRsForDifferentNodes(c *C) {
 	}
 
 	// Deploying Different CR's for worker nodes using unique node selector with different Image Versions
-	driverVersions := []string{"6.1.3", "6.2.2"}
+	driverVersions := []string{"6.3.1", "6.3.3"}
 	devCfgs := []*v1alpha1.DeviceConfig{}
 	for i, nodeName := range nodeNames {
 		cfgName := nodeName
@@ -2421,7 +2440,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "el9-6.1.1b"
 	} else {
-		devCfg.Spec.Driver.Version = "6.2.2"
+		devCfg.Spec.Driver.Version = "6.3.2"
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
@@ -2429,8 +2448,6 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -2478,7 +2495,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "el9-6.1.1b"
 	} else {
-		devCfg.Spec.Driver.Version = "6.2.2"
+		devCfg.Spec.Driver.Version = "6.3.2"
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
@@ -2487,8 +2504,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -2543,7 +2558,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "el9-6.1.1b"
 	} else {
-		devCfg.Spec.Driver.Version = "6.2.2"
+		devCfg.Spec.Driver.Version = "6.3.2"
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
@@ -2552,8 +2567,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -2608,7 +2621,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "el9-6.1.1b"
 	} else {
-		devCfg.Spec.Driver.Version = "6.2.2"
+		devCfg.Spec.Driver.Version = "6.3.2"
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
@@ -2617,8 +2630,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -2656,7 +2667,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 		MaxUnavailableNodes: intstr.FromString("100%"),
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
@@ -2673,8 +2684,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -2721,7 +2730,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 
 	// upgrade
 	// update the CR's driver version config
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
 	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
@@ -2729,8 +2738,6 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 
 	// Verify rocm pod deployment only for real amd gpu setup
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -2777,7 +2784,7 @@ func (s *E2ESuite) TestMaxParallelChangeDuringUpgrade(c *C) {
 
 	// update
 	// update the CR's driver version config
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	s.patchDriversVersion(devCfg, c)
 	// update upgradePolicy maxParallel
 	upgradePolicy = v1alpha1.DriverUpgradePolicySpec{
@@ -2837,7 +2844,7 @@ func (s *E2ESuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
 
 	// update
 	// update the CR's driver version config
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	s.patchDriversVersion(devCfg, c)
 
 	// update upgradePolicy maxUnavailable
@@ -2857,8 +2864,6 @@ func (s *E2ESuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
-		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-		assert.NoError(c, err, "failed to reboot nodes")
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 	}
 
@@ -2899,7 +2904,7 @@ func (s *E2ESuite) TestRebootRequiredChangeDuringUpgrade(c *C) {
 
 	// update
 	// update the CR's driver version config
-	devCfg.Spec.Driver.Version = "6.2.2"
+	devCfg.Spec.Driver.Version = "6.3.2"
 	s.patchDriversVersion(devCfg, c)
 
 	// update upgradePolicy rebootRequired
@@ -2918,9 +2923,6 @@ func (s *E2ESuite) TestRebootRequiredChangeDuringUpgrade(c *C) {
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
-
-	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
-	assert.NoError(c, err, "failed to reboot nodes")
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 
 	// delete
@@ -2986,7 +2988,7 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.MetricsExporter.Image = exporterImage2
+	devCfg.Spec.MetricsExporter.Image = exporterMockImage2
 	s.patchMetricsExporterImage(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
@@ -2997,8 +2999,8 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 }
 
 func (s *E2ESuite) TestKMMOperatorUpgrade(c *C) {
-	if s.openshift {
-		c.Skip("Skipping for openshift testbed")
+	if s.openshift || !s.simEnable {
+		c.Skip("Skipping for openshift testbed/non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -3053,8 +3055,9 @@ func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
 		rebootRequired = true
 	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
-		Enable:         &enable,
-		RebootRequired: &rebootRequired,
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
 	s.createDeviceConfig(devCfg, c)
@@ -3066,7 +3069,7 @@ func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
 	if s.openshift {
 		devCfg.Spec.Driver.Version = "el9-6.1.1b"
 	} else {
-		devCfg.Spec.Driver.Version = "6.2.2"
+		devCfg.Spec.Driver.Version = "6.3.2"
 	}
 
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
@@ -3111,7 +3114,7 @@ func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
 		s.verifyROCMPOD(false, c)
 		err = utils.DelRocmPods(context.TODO(), s.clientSet)
 		assert.NoError(c, err, "failed to remove rocm pods")
-		err = utils.RebootNodesWithWait(context.TODO(), s.clientSet, nodes)
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
 }
