@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
@@ -31,10 +32,13 @@ import (
 const (
 	npdNamespace = "kube-system"
 
-	npdServiceAccountPath                 = "./yamls/config/npd/node-problem-detector-rbac.yaml"
-	npdCustomPluginMonitorConfigPath      = "./yamls/config/npd/node-problem-detector-config.yaml"
-	npdDaemonSetPath                      = "./yamls/config/npd/node-problem-detector.yaml"
-	npdCustomPluginMonitorErrorConfigPath = "./yamls/config/npd/node-problem-detector-error-config.yaml"
+	npdServiceAccountPath                     = "./yamls/config/npd/node-problem-detector-rbac.yaml"
+	npdCustomPluginMonitorConfigPath          = "./yamls/config/npd/node-problem-detector-config.yaml"
+	npdMTLSCustomPluginMonitorConfigPath      = "./yamls/config/npd/node-problem-detector-config-mtls.yaml"
+	npdDaemonSetPath                          = "./yamls/config/npd/node-problem-detector.yaml"
+	npdMTLSDaemonSetPath                      = "./yamls/config/npd/node-problem-detector-mtls.yaml"
+	npdCustomPluginMonitorErrorConfigPath     = "./yamls/config/npd/node-problem-detector-error-config.yaml"
+	npdMTLSCustomPluginMonitorErrorConfigPath = "./yamls/config/npd/node-problem-detector-error-config-mtls.yaml"
 )
 
 func kubectlCreateCmd(filePath string) {
@@ -47,22 +51,39 @@ func kubectlDeleteCmd(filePath string) {
 	utils.RunCommand(cmd)
 }
 
-func setupNPD() {
+func setupNPD(withMTLS bool) {
+	if withMTLS {
+		kubectlCreateCmd(npdServiceAccountPath)
+		kubectlCreateCmd(npdMTLSCustomPluginMonitorConfigPath)
+		kubectlCreateCmd(npdMTLSDaemonSetPath)
+		return
+	}
 	kubectlCreateCmd(npdServiceAccountPath)
 	kubectlCreateCmd(npdCustomPluginMonitorConfigPath)
 	kubectlCreateCmd(npdDaemonSetPath)
 }
 
-func tearDownNPD() {
+func tearDownNPD(withMTLS bool) {
+	if withMTLS {
+		kubectlDeleteCmd(npdMTLSDaemonSetPath)
+		kubectlDeleteCmd(npdMTLSCustomPluginMonitorConfigPath)
+		kubectlDeleteCmd(npdServiceAccountPath)
+		return
+	}
 	kubectlDeleteCmd(npdDaemonSetPath)
 	kubectlDeleteCmd(npdCustomPluginMonitorConfigPath)
 	kubectlDeleteCmd(npdServiceAccountPath)
 }
 
-func (s *E2ESuite) setErrorConfigForNPD(c *C) {
+func (s *E2ESuite) setErrorConfigForNPD(c *C, withMTLS bool) {
 	// Update the NPD config to generate an error condition
-	kubectlDeleteCmd(npdCustomPluginMonitorConfigPath)
-	kubectlCreateCmd(npdCustomPluginMonitorErrorConfigPath)
+	if withMTLS {
+		kubectlDeleteCmd(npdMTLSCustomPluginMonitorConfigPath)
+		kubectlCreateCmd(npdMTLSCustomPluginMonitorErrorConfigPath)
+	} else {
+		kubectlDeleteCmd(npdCustomPluginMonitorConfigPath)
+		kubectlCreateCmd(npdCustomPluginMonitorErrorConfigPath)
+	}
 	// restart the NPD pods to apply the new error config
 	err := s.clientSet.CoreV1().Pods(npdNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{
 		LabelSelector: "app=node-problem-detector",
@@ -70,10 +91,15 @@ func (s *E2ESuite) setErrorConfigForNPD(c *C) {
 	assert.NoError(c, err, "unable to restart npd pods")
 }
 
-func (s *E2ESuite) restoreOriginalConfigForNPD(c *C) {
+func (s *E2ESuite) restoreOriginalConfigForNPD(c *C, withMTLS bool) {
 	// Revert the NPD config to the original state
-	kubectlDeleteCmd(npdCustomPluginMonitorErrorConfigPath)
-	kubectlCreateCmd(npdCustomPluginMonitorConfigPath)
+	if withMTLS {
+		kubectlDeleteCmd(npdMTLSCustomPluginMonitorErrorConfigPath)
+		kubectlCreateCmd(npdMTLSCustomPluginMonitorConfigPath)
+	} else {
+		kubectlDeleteCmd(npdCustomPluginMonitorErrorConfigPath)
+		kubectlCreateCmd(npdCustomPluginMonitorConfigPath)
+	}
 	// restart the NPD pods to apply the original config
 	err := s.clientSet.CoreV1().Pods(npdNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{
 		LabelSelector: "app=node-problem-detector",
@@ -148,19 +174,21 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
 
 	exporterEnable := true
+	driverEnable := false
 	devCfg := s.getDeviceConfig(c)
 	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
 	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
 	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.Driver.Enable = &driverEnable
 
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)
 
 	// Create NPD daemonset and required service account
 	logger.Infof("Setting up Node Problem Detector (NPD)")
-	setupNPD()
-	defer tearDownNPD()
+	setupNPD(false)
+	defer tearDownNPD(false)
 
 	// Check if NPD is running on all GPU nodes
 	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
@@ -172,7 +200,7 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 
 	//update npd config to to trigger error in Node condition
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.setErrorConfigForNPD(c)
+	s.setErrorConfigForNPD(c, false)
 
 	// Check if NPD has detected the error condition
 	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to true")
@@ -180,7 +208,120 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 
 	// restore NPD config to original state
 	logger.Infof("Restore Node Problem Detector (NPD) config to original state")
-	s.restoreOriginalConfigForNPD(c)
+	s.restoreOriginalConfigForNPD(c, false)
+
+	// Check node condition AMDGPUUnhealthy is set to false
+	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")
+	s.verifyNodeCondition(c, "AMDGPUUnhealthy", corev1.ConditionFalse)
+}
+
+func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	// setup required certs
+	caCert, serverCert, serverKey, clientCert, clientKey, err := s.setupKubeRbacCerts(c, true)
+	assert.NoError(c, err)
+
+	// Secret for metrics exporter TLS
+	secretName := "kube-tls-secret"
+	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, serverCert, serverKey)
+	assert.NoError(c, err)
+	defer func() {
+		if errDel := utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns); errDel != nil {
+			logger.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
+		}
+	}()
+
+	// Client CA ConfigMap
+	cmName := "client-ca-cm"
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns},
+		Data:       map[string]string{"ca.crt": string(caCert)},
+	}
+	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
+	assert.NoError(c, err)
+	defer func() {
+		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
+			logger.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
+		}
+	}()
+
+	// ----Below set of secrets are for client/NPD----
+	// client certificate and key for NPD
+	clientSecretName := "npd-client-cert"
+	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, clientSecretName, npdNamespace, clientCert, clientKey)
+	assert.NoError(c, err)
+	defer func() {
+		if errDel := utils.DeleteTLSSecret(context.TODO(), s.clientSet, clientSecretName, npdNamespace); errDel != nil {
+			logger.Errorf("failed to delete TLS secret %s: %+v", clientSecretName, errDel)
+		}
+	}()
+
+	// create root-ca secret in npd namespace to validate exporter's certificates
+	rootCaSecretName := "exporter-rootca"
+	secretKeys := make(map[string]string)
+	secretKeys["ca.crt"] = string(caCert)
+	err = utils.CreateOpaqueSecret(context.Background(), s.clientSet, rootCaSecretName, npdNamespace, secretKeys)
+	assert.NoError(c, err, fmt.Sprintf("root-ca-secret creation is expected to succeed. Failed with error %v", err))
+	defer func() {
+		utils.DeleteOpaqueSecret(context.Background(), s.clientSet, rootCaSecretName, npdNamespace)
+	}()
+
+	// Create device config with metrics exporter enabled and TLS settings
+	_, err = s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
+
+	exporterEnable := true
+	enableKubeRbacProxy := true
+	disableHTTPs := false
+	enableDriver := false
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
+	devCfg.Spec.MetricsExporter.Image = exporterImage
+	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
+	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.MetricsExporter.NodePort = 31000
+	devCfg.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeNodePort
+	devCfg.Spec.MetricsExporter.RbacConfig = v1alpha1.KubeRbacConfig{
+		Enable:       &enableKubeRbacProxy,
+		DisableHttps: &disableHTTPs,
+	}
+	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &corev1.LocalObjectReference{Name: secretName}
+	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &corev1.LocalObjectReference{Name: cmName}
+	devCfg.Spec.Driver.Enable = &enableDriver
+
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+
+	logger.Infof("-----Waiting-----")
+	time.Sleep(15 * time.Minute)
+
+	// Create NPD daemonset with TLS options and required service account
+	logger.Infof("Setting up Node Problem Detector (NPD)")
+	setupNPD(true)
+	defer tearDownNPD(true)
+
+	// Check if NPD is running on all GPU nodes
+	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
+	s.verifyNPDRunning(c)
+
+	// Check node condition AMDGPUUnhealthy is set to false
+	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")
+	s.verifyNodeCondition(c, "AMDGPUUnhealthy", corev1.ConditionFalse)
+
+	//update npd config to to trigger error in Node condition
+	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
+	s.setErrorConfigForNPD(c, true)
+
+	// Check if NPD has detected the error condition
+	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to true")
+	s.verifyNodeCondition(c, "AMDGPUUnhealthy", corev1.ConditionTrue)
+
+	// restore NPD config to original state
+	logger.Infof("Restore Node Problem Detector (NPD) config to original state")
+	s.restoreOriginalConfigForNPD(c, true)
 
 	// Check node condition AMDGPUUnhealthy is set to false
 	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")
