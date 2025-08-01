@@ -81,7 +81,7 @@ device_config_template_v1_2_0 = {
     },
     'spec'          : {
         'commonConfig' : {
-            'initContainerImage': 'registry.test.pensando.io:5000/busybox:1.36',
+            'initContainerImage': '',
         },
         'driver'    : {
             'image' : '',
@@ -129,6 +129,8 @@ device_config_templates = {
     'v1.2.2' : device_config_template_v1_2_0,
     'v1.3.0' : device_config_template_v1_2_0,
 }
+
+device_config_template_default = device_config_template_v1_2_0
 
 
 wl_template = {
@@ -260,9 +262,16 @@ def dump_yaml(file_name, data):
 
 def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections = {}):
     global Logger
-    device_config = copy.deepcopy(device_config_templates[gpu_operator_version])
+    device_config = copy.deepcopy(device_config_templates.get(gpu_operator_version, device_config_template_default))
     device_config['metadata']['name'] = spec.get('metadata.name', 'deviceconfig')
     device_config['metadata']['namespace'] = spec.get('metadata.namespace', 'kube-amd-gpu')
+
+    # commonConfig
+    if not skip_sections.get('commonConfig', False):
+        if spec.get('commonConfig.initContainerImage', None):
+            device_config['spec']['commonConfig']['initContainerImage'] = spec.get('commonConfig.initContainerImage')
+    else:
+        del device_config['spec']['commonConfig']
 
     # driver
     if not skip_sections.get('driver', False):

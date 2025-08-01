@@ -44,22 +44,29 @@ builds:
         reference: main
 
   build-external-device-metrics-exporter:
-    commands: ["sh", "-c", "echo \"Pickup metrics-exporter image from external repo/sanity-build\""]
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch ${JOB_BASE_BRANCH}"]
     owners: ["email: srivatsa.sangli@amd.com"]
     artifacts:
-     - /gpu-operator/
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+     - /device-metrics-exporter/tools/techsupport_dump.sh
 
   build-external-test-runner:
-    commands: ["sh", "-c", "echo \"Pickup test-runner image from external repo/sanity-build\""]
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker --alien-branch ${JOB_BASE_BRANCH}"]
     owners: ["email: srivatsa.sangli@amd.com"]
     artifacts:
-     - /gpu-operator/
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
 
   build-external-kernel-module-manager:
-    commands: ["sh", "-c", "echo \"Pickup kmm image from external repo/sanity-build\""]
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-manager \
+       --alien-repo pensando/kernel-module-management --alien-target build-kernel-module-management --alien-branch ${JOB_BASE_BRANCH}"]
     owners: ["email: srivatsa.sangli@amd.com"]
     artifacts:
-     - /gpu-operator/
+     - /kernel-module-management/kernel-module-management-operator.tar.gz
 
 targets:
   gpu-operator-sanity:
@@ -111,8 +118,10 @@ jobs:
     labels: ["CI-Pytest-Compat-MI210"]
   tests/jobs/compat/mi250:
     labels: ["CI-Pytest-Compat-MI250"]
+  tests/jobs/sanity:
+    labels: ["CI-Sanity-Build"]
       # ci-internal:
     #    labels: [""]
 host_mounts:
   "/sys/module": "/sys/module"
-  "/lib/modules": "/lib/modules"
+  "/lib/modules": "/lib/modules4"

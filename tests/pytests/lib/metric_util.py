@@ -22,27 +22,10 @@ import copy
 import logging
 import shutil
 import re
+import json
+from collections import namedtuple
 
 Logger = logging.getLogger("lib.metricutil")
-
-LABELS = [
-    "gpu_uuid",
-    "serial_number",
-    "gpu_id",
-    "pod",
-    "namespace",
-    "container",
-    "job_id",
-    "job_user",
-    "job_partition",
-    "cluster_name",
-    "card_series",
-    "card_model",
-    "card_vendor",
-    "vbios_version",
-    "driver_version",
-    "hostname",
-]
 
 METRICS = [
     "gpu_average_package_power",
@@ -79,6 +62,27 @@ METRICS = [
     "gpu_ecc_uncorrect_sdma",
 ]
 
+def get_label_details(version_string):
+    global Logger
+    with open('lib/files/label-support-matrix.json', 'r') as fp:
+        label_data = json.load(fp)
+
+    version = version_string.split('-', 1)[0]
+    label_support_info = {}
+    for label, info in label_data.items():
+        min_version = info['min-version']
+        if min_version > version:
+            Logger.debug(f"skipping label : {label} with info: {info} for current-version : {version}")
+            continue
+        if info.get("eos-version", None) != None:
+            eos_version = info["eos-version"]
+            if version > eos_version:
+                Logger.debug(f"skipping label : {label} with info: {info} for current-version : {version}")
+                continue
+
+        label_support_info[label] = info["mandatory"].get(version, "no")
+    return label_support_info
+
 def dump_metrics(http_response, out_file):
     metric_data = str(http_response)
     with open(out_file, "w") as fp:
@@ -88,9 +92,14 @@ def dump_metrics(http_response, out_file):
     return
 
 def parse_metric_data(http_response):
+    global Logger
     metrics = {}
     pattern = r'(?P<metric_name>\w+)\{(?P<labels>.*?)\} (?P<value>\d+)'
     metric_data = str(http_response)
+
+    with open('lib/files/label-support-matrix.json', 'r') as fp:
+        label_data = json.load(fp)
+
     for line in metric_data.split('\\n'):
         entry = str(line).strip()
         if entry == "": # Empty line
@@ -110,7 +119,7 @@ def parse_metric_data(http_response):
             }
             for lv in match.groupdict()['labels'].split(','):
                 l, v = lv.split("=")
-                if l in LABELS:
+                if l in label_data.keys():
                     metrics[metric_name]['labels'][l] = v
         elif 'gpu_nodes_total' in entry.strip():
             metrics['gpu_nodes_total'] = entry.strip().split()[-1]

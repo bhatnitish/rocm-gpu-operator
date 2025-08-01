@@ -33,15 +33,6 @@ import lib.metric_util as metric_util
 Logger = logging.getLogger("k8.test_metric_exporter")
 
 
-DEFAULT_LABELS = ['serial_number', 'card_model', 'gpu_id', 'hostname']
-DEFAULT_LABEL_MAP = {
-    'v1.0.0' : ['serial_number', 'card_model', 'gpu_uuid'],
-    'v1.1.0' : DEFAULT_LABELS,
-    'v1.2.0' : DEFAULT_LABELS,
-    'v1.2.1' : DEFAULT_LABELS,
-    'v1.2.2' : DEFAULT_LABELS,
-}
-
 @pytest.fixture(scope="module")
 def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_helper):
     global Logger
@@ -636,8 +627,11 @@ def test_deviceconfig_exporter_nodeport_exp_config(request, gpu_cluster, images,
         k8_helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
 
     exporter_config_defn = {}
+    label_support_info = metric_util.get_label_details(environment.gpu_operator_version)
+    non_mandatory_labels = list(filter(lambda x: label_support_info[x] == "no", label_support_info.keys()))
+    mandatory_labels = list(filter(lambda x: label_support_info[x] == "yes", label_support_info.keys()))
     for idx in range(10):
-        label_subset = random.sample(metric_util.LABELS, 5)
+        label_subset = random.sample(non_mandatory_labels, 5)
         metric_subset = random.sample(metric_util.METRICS, 5)
         config_map = {
             "GPUConfig" : {
@@ -704,7 +698,7 @@ def test_deviceconfig_exporter_nodeport_exp_config(request, gpu_cluster, images,
             expected_metrics = set(label_metrics_tuple[1])
             expected_metrics.update(['promhttp_metric_handler_errors_total'])
             expected_labels = set(label_metrics_tuple[0])
-            expected_labels.update(DEFAULT_LABEL_MAP.get(environment.gpu_operator_version, DEFAULT_LABELS))
+            expected_labels.update(mandatory_labels)
             for node in gpu_nodes:
                 node_ip = k8_util.k8_get_node_address(node)
                 cluster_node = gpu_cluster.get_worker_node(node_ip)

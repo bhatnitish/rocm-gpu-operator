@@ -8,32 +8,23 @@ images:
                 enable: yes
                 url: registry.test.pensando.io:5000
     k8:
-        driver:
-            key         : driver.image
-            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
-            kind        : container
-
         gpu-operator:
-            location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
-            version     : v1.2.0
+            image       : /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.2.0.tgz
             kind        : helm-chart
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
-            location    : container://<registry>/rocm/gpu-operator
-            version     : v1.2.0
+            image       : /gpu-operator/amd-gpu-operator-latest.tar.gz
             kind        : container
 
         device-metrics-exporter:
             key         : metricsExporter.image
-            location    : container://<registry>/rocm/device-metrics-exporter
-            version     : v1.2.0
+            image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
             kind        : container
 
         test-runner:
             key         : testRunner.image
-            location    : container://<registry>/rocm/test-runner
-            version     : v1.2.0-beta.0
+            image       : /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
             kind        : container
         
         device-plugin:
@@ -51,30 +42,24 @@ images:
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
             location    : container://<registry>/rocm/kernel-module-management-signimage
-            version     : v1.2.0
+            version     : latest
             kind        : container
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
             location    : container://<registry>/rocm/kernel-module-management-worker
-            version     : v1.2.0
+            version     : latest
             kind        : container
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
-            location    : container://<registry>/rocm/kernel-module-management-operator
-            version     : v1.2.0
+            image       : /kernel-module-management/kernel-module-management-operator.tar.gz
+            version     : latest
             kind        : container
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
             location    : container://<registry>/rocm/kernel-module-management-webhook-server
-            version     : v1.2.0
-            kind        : container
-
-        init-container-image:
-            key         : commonConfig.initContainerImage
-            location    : container://registry.test.pensando.io:5000/busybox
-            version     : 1.36
+            version     : latest
             kind        : container
 

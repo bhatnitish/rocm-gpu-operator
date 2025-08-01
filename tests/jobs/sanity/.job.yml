@@ -1,0 +1,66 @@
+---
+version: 2.0
+meta:
+
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+
+e2e-targets:
+  gpu-operator-pytest-sanity-devcfg-driver:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
+         /gpu-operator/ci-internal/setup_sanity.sh --registry local --testbed /warmd.json --image-manifest $PWD/images.yaml && \
+         ./k8_test_launcher.sh --image-manifest $PWD/images.yaml --secrets $PWD/secrets.json"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter
+      - build-external-test-runner
+      - build-external-kernel-module-manager
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        name: AMD-GPU-MI210
+        vendor: Pensando
+        count: 1
+
+  gpu-operator-pytest-sanity-devcfg-inbox:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
+         /gpu-operator/ci-internal/setup_sanity.sh --registry local --testbed /warmd.json --image-manifest $PWD/images.yaml && \
+         ./k8_test_launcher.sh --image-manifest $PWD/images.yaml \
+         --secrets $PWD/secrets.json --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter
+      - build-external-test-runner
+      - build-external-kernel-module-manager
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        name: AMD-GPU-MI250
+        vendor: Pensando
+        count: 1
+
+logfiles:
+  - /gpu-operator/tests/pytests/pytest_logs.tgz

@@ -5,6 +5,8 @@
 /helm-charts-k8s/charts/*.tgz
 /helm-charts-openshift/charts/*.tgz
 *.out
+.container_ready
+*.sw*
 
 # node app for e2e test
 id_rsa*

@@ -1,0 +1,239 @@
+{
+  "gpu_uuid": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "serial_number": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "yes",
+      "v1.1.0": "yes",
+      "v1.2.0": "yes",
+      "v1.2.1": "yes",
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "gpu_id": {
+    "min-version": "v1.1.0",
+    "mandatory": {
+      "v1.0.0": "yes",
+      "v1.1.0": "yes",
+      "v1.2.0": "yes",
+      "v1.2.1": "yes",
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "pod": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "namespace": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "container": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "job_id": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "job_user": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "job_partition": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "cluster_name": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "card_series": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "card_model": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "card_vendor": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "vbios_version": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "driver_version": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "no",
+      "v1.1.0": "no",
+      "v1.2.0": "no",
+      "v1.2.1": "no",
+      "v1.3.0": "no",
+      "v1.3.1": "no",
+      "v1.4.0": "no",
+      "tot": "no"
+    }
+  },
+  "hostname": {
+    "min-version": "v1.0.0",
+    "mandatory": {
+      "v1.0.0": "yes",
+      "v1.1.0": "yes",
+      "v1.2.0": "yes",
+      "v1.2.1": "yes",
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "gpu_partition_id": {
+    "min-version": "v1.2.1",
+    "mandatory": {
+      "v1.2.1": "yes",
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "gpu_compute_partition_type": {
+    "min-version": "v1.2.1",
+    "mandatory": {
+      "v1.2.1": "yes",
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  },
+  "gpu_memory_partition_type": {
+    "min-version": "v1.3.0",
+    "mandatory": {
+      "v1.3.0": "yes",
+      "v1.3.1": "yes",
+      "v1.4.0": "yes",
+      "tot": "yes"
+    }
+  }
+}

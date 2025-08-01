@@ -31,10 +31,9 @@ if [ -z "${VENV}" ]; then
 	VENV="${PKG_DIR}/venv"
 	echo "No venv folder specified. Creating one in ${VENV}"
 	mkdir -p ${VENV}
+        python3 -m venv ${VENV}
 fi
 
-echo "Refreshing venv ..."
-virtualenv -p $(which python3) ${VENV}
 echo "Activating the venv ..."
 source ${VENV}/bin/activate
 pip install --upgrade pip

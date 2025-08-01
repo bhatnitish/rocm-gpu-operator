@@ -72,3 +72,9 @@ images:
             version     : v1.2.1
             kind        : container
 
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+

@@ -43,6 +43,7 @@ DRIVER_SPEC="NA"
 
 function collect_tech_support() {
     echo "Collect test run logs"
+    cp $IMAGE_MANIFEST logs/
     tar -zcf pytest_logs.tgz logs/
     ls -ltr $PWD/pytest_logs.tgz
 }
@@ -74,7 +75,7 @@ function setup_pyenv() {
         source venv/bin/activate &> /dev/null
     else
         echo "Setup pyenv with all required packages"
-        sh scripts/prepare_env.sh &> /dev/null
+        ./scripts/prepare_env.sh venv &> /dev/null
         source venv/bin/activate &> /dev/null
     fi
     export PYTHONPATH=$PYTHONPATH:$PWD
@@ -133,9 +134,15 @@ function launch_pytest() {
     then
         CMD_OPT+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
     fi
+    CMD_OPT+=" --image-manifest ${IMAGE_MANIFEST}"
+
+    echo ""
+    echo "****** USING FOLLOWING IMAGES FOR THE TEST ******"
+    cat ${IMAGE_MANIFEST}
+    echo ""
+    echo "Running test with cmd-opt ${CMD_OPT}"
     pytest ${test_sel} --log-file=logs/${DEPLOYMENT}_test_run.log \
-        --junit-xml=${xml_file} --deployment ${DEPLOYMENT} \
-        --image-manifest ${IMAGE_MANIFEST} ${CMD_OPT}
+        --junit-xml=${xml_file} --deployment ${DEPLOYMENT} ${CMD_OPT}
         #--junit-xml=${xml_file} --html ${html_file} --deployment ${DEPLOYMENT} \
     ret=$?
     collect_tech_support

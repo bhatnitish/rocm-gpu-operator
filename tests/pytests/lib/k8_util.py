@@ -52,7 +52,11 @@ def k8_lib_init(k8_cluster : common.k8_cluster) -> None:
         assert ret_code == 0, f"Failed to collect worker nodes from k8/cluster"
         for node in k8_nodes:
             if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
-                continue # skip control-plane node
+                if 'node-role.kubernetes.io/worker' in node['metadata']['labels']:
+                    Logger.info(f"control-plane node is also a worker-node")
+                else:
+                    Logger.warn(f"control-plane node is not a worker-node - skipping it")
+                    continue # skip control-plane node
 
             node_ip = k8_get_node_address(node)
             Logger.debug(f"Adding {node_ip} worker-node to the cluster")
