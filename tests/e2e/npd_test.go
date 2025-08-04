@@ -19,6 +19,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
@@ -30,15 +32,17 @@ import (
 )
 
 const (
-	npdNamespace = "kube-system"
-
-	npdServiceAccountPath                     = "./yamls/config/npd/node-problem-detector-rbac.yaml"
-	npdCustomPluginMonitorConfigPath          = "./yamls/config/npd/node-problem-detector-config.yaml"
-	npdMTLSCustomPluginMonitorConfigPath      = "./yamls/config/npd/node-problem-detector-config-mtls.yaml"
-	npdDaemonSetPath                          = "./yamls/config/npd/node-problem-detector.yaml"
-	npdMTLSDaemonSetPath                      = "./yamls/config/npd/node-problem-detector-mtls.yaml"
-	npdCustomPluginMonitorErrorConfigPath     = "./yamls/config/npd/node-problem-detector-error-config.yaml"
-	npdMTLSCustomPluginMonitorErrorConfigPath = "./yamls/config/npd/node-problem-detector-error-config-mtls.yaml"
+	npdNamespace                                    = "kube-system"
+	npdServiceAccountPath                           = "./yamls/config/npd/node-problem-detector-rbac.yaml"
+	npdCustomPluginMonitorConfigPath                = "./yamls/config/npd/node-problem-detector-config.yaml"
+	npdCustomPluginMonitorErrorConfigPath           = "./yamls/config/npd/node-problem-detector-error-config.yaml"
+	npdMTLSCustomPluginMonitorConfigPath            = "./yamls/config/npd/node-problem-detector-config-mtls.yaml"
+	npdMTLSCustomPluginMonitorErrorConfigPath       = "./yamls/config/npd/node-problem-detector-error-config-mtls.yaml"
+	npdPrometheusCustomPluginMonitorConfigPath      = "yamls/config/npd/node-problem-detector-config-prom.yaml"
+	npdPrometheusCustomPluginMonitorErrorConfigPath = "yamls/config/npd/node-problem-detector-error-config-prom.yaml"
+	npdDaemonSetPath                                = "./yamls/config/npd/node-problem-detector.yaml"
+	npdMTLSDaemonSetPath                            = "./yamls/config/npd/node-problem-detector-mtls.yaml"
+	prometheusServiceMonitorPath                    = "./yamls/config/npd/prometheus-servicemonitor.yaml"
 )
 
 func kubectlCreateCmd(filePath string) {
@@ -51,60 +55,76 @@ func kubectlDeleteCmd(filePath string) {
 	utils.RunCommand(cmd)
 }
 
-func setupNPD(withMTLS bool) {
-	if withMTLS {
-		kubectlCreateCmd(npdServiceAccountPath)
-		kubectlCreateCmd(npdMTLSCustomPluginMonitorConfigPath)
-		kubectlCreateCmd(npdMTLSDaemonSetPath)
-		return
+func setupNPD(saFilePath, configFilePath, daemonSetFilePath string) {
+	kubectlCreateCmd(saFilePath)
+	if configFilePath != "" {
+		kubectlCreateCmd(configFilePath)
 	}
-	kubectlCreateCmd(npdServiceAccountPath)
-	kubectlCreateCmd(npdCustomPluginMonitorConfigPath)
-	kubectlCreateCmd(npdDaemonSetPath)
+	kubectlCreateCmd(daemonSetFilePath)
 }
 
-func tearDownNPD(withMTLS bool) {
-	if withMTLS {
-		kubectlDeleteCmd(npdMTLSDaemonSetPath)
-		kubectlDeleteCmd(npdMTLSCustomPluginMonitorConfigPath)
-		kubectlDeleteCmd(npdServiceAccountPath)
-		return
+func tearDownNPD(saFilePath, configFilePath, daemonSetFilePath string) {
+	kubectlDeleteCmd(daemonSetFilePath)
+	if configFilePath != "" {
+		kubectlDeleteCmd(configFilePath)
 	}
-	kubectlDeleteCmd(npdDaemonSetPath)
-	kubectlDeleteCmd(npdCustomPluginMonitorConfigPath)
-	kubectlDeleteCmd(npdServiceAccountPath)
+	kubectlDeleteCmd(saFilePath)
 }
 
-func (s *E2ESuite) setErrorConfigForNPD(c *C, withMTLS bool) {
-	// Update the NPD config to generate an error condition
-	if withMTLS {
-		kubectlDeleteCmd(npdMTLSCustomPluginMonitorConfigPath)
-		kubectlCreateCmd(npdMTLSCustomPluginMonitorErrorConfigPath)
-	} else {
-		kubectlDeleteCmd(npdCustomPluginMonitorConfigPath)
-		kubectlCreateCmd(npdCustomPluginMonitorErrorConfigPath)
+func (s *E2ESuite) getPrometheusEndpointURL() (string, error) {
+	// Get the Prometheus endpoint
+	endpoints, err := s.clientSet.CoreV1().Endpoints("default").Get(context.Background(), "prometheus-operated", metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get endpoints for service prometheus-operated: %v", err)
 	}
+	var endpointIP string
+	var port int32
+	for _, subset := range endpoints.Subsets {
+		if len(subset.Addresses) > 0 && len(subset.Ports) > 0 {
+			endpointIP = subset.Addresses[0].IP
+			port = subset.Ports[0].Port
+			break
+		}
+	}
+	if endpointIP == "" || port == 0 {
+		return "", fmt.Errorf("no valid endpoint found for service prometheus-operated")
+	}
+
+	return fmt.Sprintf("http://%s:%d", endpointIP, port), nil
+}
+
+func (s *E2ESuite) createNPDConfigWithPrometheusEndpoint(conf, prometheusEndpoint string) (string, error) {
+	fileContent, err := os.ReadFile(conf)
+	if err != nil {
+		return "", err
+	}
+	fileContentString := string(fileContent)
+	// Replace the placeholder with the actual Prometheus endpoint
+	fileContentString = strings.ReplaceAll(fileContentString, "$$PROM_ENDPOINT$$", prometheusEndpoint)
+
+	utils.RunCommand(fmt.Sprintf("echo '%s' | kubectl apply -f -", fileContentString))
+	return fileContentString, nil
+}
+
+func deleteNPDConfig(conf string) {
+	cmd := fmt.Sprintf("echo '%s' | kubectl delete -f -", conf)
+	utils.RunCommand(cmd)
+}
+
+func (s *E2ESuite) restartNPDPods(c *C) {
+	// Restart the NPD pods to apply the new config
+	err := s.clientSet.CoreV1().Pods(npdNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{
+		LabelSelector: "app=node-problem-detector",
+	})
+	assert.NoError(c, err, "unable to restart npd pods")
+}
+
+func (s *E2ESuite) updateConfigForNPD(c *C, existingConfigPath, newConfigPath string) {
+	// Update the NPD config
+	kubectlDeleteCmd(existingConfigPath)
+	kubectlCreateCmd(newConfigPath)
 	// restart the NPD pods to apply the new error config
-	err := s.clientSet.CoreV1().Pods(npdNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: "app=node-problem-detector",
-	})
-	assert.NoError(c, err, "unable to restart npd pods")
-}
-
-func (s *E2ESuite) restoreOriginalConfigForNPD(c *C, withMTLS bool) {
-	// Revert the NPD config to the original state
-	if withMTLS {
-		kubectlDeleteCmd(npdMTLSCustomPluginMonitorErrorConfigPath)
-		kubectlCreateCmd(npdMTLSCustomPluginMonitorConfigPath)
-	} else {
-		kubectlDeleteCmd(npdCustomPluginMonitorErrorConfigPath)
-		kubectlCreateCmd(npdCustomPluginMonitorConfigPath)
-	}
-	// restart the NPD pods to apply the original config
-	err := s.clientSet.CoreV1().Pods(npdNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: "app=node-problem-detector",
-	})
-	assert.NoError(c, err, "unable to restart npd pods")
+	s.restartNPDPods(c)
 }
 
 func (s *E2ESuite) verifyNPDRunning(c *C) {
@@ -165,6 +185,28 @@ func (s *E2ESuite) verifyNodeCondition(c *C, conditionType corev1.NodeConditionT
 	}, 2*time.Minute, 10*time.Second, "Node condition %v is not set to %v for nodes", conditionType, expectedStatus)
 }
 
+func setupPrometheusOperator() {
+	// Deploy prometheus operator
+	helmCmds := []string{
+		"helm repo add prometheus-community https://prometheus-community.github.io/helm-charts",
+		"helm repo update",
+		"helm install prometheus-e2e prometheus-community/kube-prometheus-stack",
+	}
+	for _, cmd := range helmCmds {
+		utils.RunCommand(cmd)
+	}
+}
+
+func tearDownPrometheusOperator() {
+	// Uninstall prometheus operator
+	helmCmds := []string{
+		"helm uninstall prometheus-e2e",
+	}
+	for _, cmd := range helmCmds {
+		utils.RunCommand(cmd)
+	}
+}
+
 func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
@@ -187,8 +229,8 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 
 	// Create NPD daemonset and required service account
 	logger.Infof("Setting up Node Problem Detector (NPD)")
-	setupNPD(false)
-	defer tearDownNPD(false)
+	setupNPD(npdServiceAccountPath, npdCustomPluginMonitorConfigPath, npdDaemonSetPath)
+	defer tearDownNPD(npdServiceAccountPath, npdCustomPluginMonitorConfigPath, npdDaemonSetPath)
 
 	// Check if NPD is running on all GPU nodes
 	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
@@ -200,7 +242,7 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 
 	//update npd config to to trigger error in Node condition
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.setErrorConfigForNPD(c, false)
+	s.updateConfigForNPD(c, npdCustomPluginMonitorConfigPath, npdCustomPluginMonitorErrorConfigPath)
 
 	// Check if NPD has detected the error condition
 	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to true")
@@ -208,7 +250,7 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 
 	// restore NPD config to original state
 	logger.Infof("Restore Node Problem Detector (NPD) config to original state")
-	s.restoreOriginalConfigForNPD(c, false)
+	s.updateConfigForNPD(c, npdCustomPluginMonitorErrorConfigPath, npdCustomPluginMonitorConfigPath)
 
 	// Check node condition AMDGPUUnhealthy is set to false
 	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")
@@ -281,7 +323,7 @@ func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
 	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
 	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
-	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.MetricsExporter.Port = 5001
 	devCfg.Spec.MetricsExporter.NodePort = 31000
 	devCfg.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeNodePort
 	devCfg.Spec.MetricsExporter.RbacConfig = v1alpha1.KubeRbacConfig{
@@ -295,13 +337,10 @@ func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
 
-	logger.Infof("-----Waiting-----")
-	time.Sleep(15 * time.Minute)
-
 	// Create NPD daemonset with TLS options and required service account
 	logger.Infof("Setting up Node Problem Detector (NPD)")
-	setupNPD(true)
-	defer tearDownNPD(true)
+	setupNPD(npdServiceAccountPath, npdMTLSCustomPluginMonitorConfigPath, npdMTLSDaemonSetPath)
+	defer tearDownNPD(npdServiceAccountPath, npdMTLSCustomPluginMonitorConfigPath, npdMTLSDaemonSetPath)
 
 	// Check if NPD is running on all GPU nodes
 	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
@@ -313,7 +352,7 @@ func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
 
 	//update npd config to to trigger error in Node condition
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.setErrorConfigForNPD(c, true)
+	s.updateConfigForNPD(c, npdMTLSCustomPluginMonitorConfigPath, npdMTLSCustomPluginMonitorErrorConfigPath)
 
 	// Check if NPD has detected the error condition
 	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to true")
@@ -321,7 +360,107 @@ func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
 
 	// restore NPD config to original state
 	logger.Infof("Restore Node Problem Detector (NPD) config to original state")
-	s.restoreOriginalConfigForNPD(c, true)
+	s.updateConfigForNPD(c, npdMTLSCustomPluginMonitorErrorConfigPath, npdMTLSCustomPluginMonitorConfigPath)
+
+	// Check node condition AMDGPUUnhealthy is set to false
+	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")
+	s.verifyNodeCondition(c, "AMDGPUUnhealthy", corev1.ConditionFalse)
+}
+
+func (s *E2ESuite) TestNPDWithPrometheus(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
+
+	exporterEnable := true
+	driverEnable := false
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
+	devCfg.Spec.MetricsExporter.Image = exporterImage
+	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
+	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.Driver.Enable = &driverEnable
+	devCfg.Spec.MetricsExporter.Prometheus = &v1alpha1.PrometheusConfig{
+		ServiceMonitor: &v1alpha1.ServiceMonitorConfig{
+			Enable:          &exporterEnable,
+			Interval:        "15s",
+			HonorLabels:     &exporterEnable,
+			HonorTimestamps: &exporterEnable,
+		},
+	}
+
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)
+
+	logger.Infof("Setting up Prometheus Operator")
+	setupPrometheusOperator()
+	defer tearDownPrometheusOperator()
+
+	logger.Infof("-----Waiting for 1 minute for Prometheus operator to come up-----")
+	time.Sleep(1 * time.Minute)
+
+	// Create Prometheus ServiceMonitor for NPD
+	logger.Infof("Creating Prometheus ServiceMonitor to scrape Exporter metrics")
+	kubectlCreateCmd(prometheusServiceMonitorPath)
+	defer kubectlDeleteCmd(prometheusServiceMonitorPath)
+
+	logger.Infof("-----Waiting for 1 minute for Prometheus to scrape metrics-----")
+	time.Sleep(1 * time.Minute)
+
+	logger.Infof("Fetching Prometheus endpoint URL")
+	prometheusEndpoint, err := s.getPrometheusEndpointURL()
+	if err != nil {
+		logger.Errorf("Failed to get Prometheus endpoint URL: %v", err)
+		return
+	}
+
+	logger.Infof("Creating NPD config with Prometheus endpoint %s", prometheusEndpoint)
+	npdConfig, err := s.createNPDConfigWithPrometheusEndpoint(npdPrometheusCustomPluginMonitorConfigPath, prometheusEndpoint)
+	if err != nil {
+		logger.Errorf("Failed to create NPD config with Prometheus endpoint: %v", err)
+		return
+	}
+	defer deleteNPDConfig(npdConfig)
+
+	// Create NPD daemonset and required service account
+	logger.Infof("Setting up Node Problem Detector (NPD)")
+	setupNPD(npdServiceAccountPath, "", npdDaemonSetPath)
+	defer tearDownNPD(npdServiceAccountPath, "", npdDaemonSetPath)
+
+	// Check if NPD is running on all GPU nodes
+	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
+	s.verifyNPDRunning(c)
+
+	// Check node condition AMDGPUUnhealthy is set to false
+	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")
+	s.verifyNodeCondition(c, "AMDGPUUnhealthy", corev1.ConditionFalse)
+
+	//update npd config to to trigger error in Node condition
+	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
+	deleteNPDConfig(npdConfig)
+	npdErrConfig, err := s.createNPDConfigWithPrometheusEndpoint(npdPrometheusCustomPluginMonitorErrorConfigPath, prometheusEndpoint)
+	if err != nil {
+		logger.Errorf("Failed to update NPD config:  Error %v", err)
+		return
+	}
+	s.restartNPDPods(c)
+
+	// Check if NPD has detected the error condition
+	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to true")
+	s.verifyNodeCondition(c, "AMDGPUUnhealthy", corev1.ConditionTrue)
+
+	// restore NPD config to original state
+	logger.Infof("Restore Node Problem Detector (NPD) config to original state")
+	deleteNPDConfig(npdErrConfig)
+	_, err = s.createNPDConfigWithPrometheusEndpoint(npdPrometheusCustomPluginMonitorConfigPath, prometheusEndpoint)
+	if err != nil {
+		logger.Errorf("Failed to update NPD config:  Error %v", err)
+		return
+	}
+	s.restartNPDPods(c)
 
 	// Check node condition AMDGPUUnhealthy is set to false
 	logger.Infof("Verify if Node condition AMDGPUUnhealthy is set to false")

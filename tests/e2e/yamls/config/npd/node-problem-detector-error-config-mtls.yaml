@@ -30,8 +30,8 @@ data:
             "counter-metric",
             "-m=GPU_ECC_UNCORRECT_UMC",
             "-t=-1",
-            "-exporter-root-ca=/etc/tls/amd-device-exporter-rootca",
-            "-client-cert=/etc/tls/npd-client-cert"
+            "--exporter-root-ca=/etc/tls/amd-device-exporter-rootca",
+            "--client-cert=/etc/tls/npd-client-cert"
           ],
           "timeout": "15s"
         }

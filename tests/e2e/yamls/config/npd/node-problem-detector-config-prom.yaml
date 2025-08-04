@@ -27,11 +27,11 @@ data:
           "path": "/var/lib/amd-metrics-exporter/amdgpuhealth",
           "args": [
             "query",
-            "counter-metric",
-            "-m=GPU_ECC_UNCORRECT_UMC",
-            "-t=1",
-            "--exporter-root-ca=/etc/tls/amd-device-exporter-rootca",
-            "--client-cert=/etc/tls/npd-client-cert"
+            "gauge-metric",
+            "-m=GPUMetricField_GPU_EDGE_TEMPERATURE",
+            "-t=100",
+            "-d=1m",
+            "--prometheus-endpoint=$$PROM_ENDPOINT$$"
           ],
           "timeout": "15s"
         }
