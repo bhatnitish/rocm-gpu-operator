@@ -112,6 +112,7 @@ device_config_template_v1_2_0 = {
         },
         'testRunner' : {
             'enable' : False,
+            'config' : None,
             'image'  : '',
             'imagePullPolicy': 'Always',
         },
@@ -147,7 +148,7 @@ wl_template = {
         'containers': [
             {
                 'name': 'pytorch-gpu-container',
-                'image': 'rocm/pytorch:latest',
+                'image': 'docker.io/rocm/pytorch:latest',
                 'workingDir': '/root',
                 'command': [
                     '/bin/bash',
@@ -166,7 +167,12 @@ wl_template = {
         ],
         'nodeSelector': {
             'kubernetes.io/hostname': 'node'
-        }
+        },
+        'imagePullSecrets': [
+            {
+                'name': 'docker-amdpsdo-auth',
+            }
+        ]
     }
 }
 
@@ -258,7 +264,7 @@ helm_deployment_template_0 = {
 def dump_yaml(file_name, data):
     with open(file_name, 'w') as fp:
         yaml.dump(data, fp)
-    return True
+    return data
 
 def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections = {}):
     global Logger
