@@ -16,14 +16,10 @@
  limitations under the License.
 '''
 
-import sys
-import os
-import copy
+import pdb
 import logging
-import shutil
-import re
 import json
-from collections import namedtuple
+from prometheus_client.parser import text_string_to_metric_families
 
 Logger = logging.getLogger("lib.metricutil")
 
@@ -93,38 +89,15 @@ def dump_metrics(http_response, out_file):
 
 def parse_metric_data(http_response):
     global Logger
+    metrics_content = http_response.decode('utf-8')
     metrics = {}
-    pattern = r'(?P<metric_name>\w+)\{(?P<labels>.*?)\} (?P<value>\d+)'
-    metric_data = str(http_response)
-
-    with open('lib/files/label-support-matrix.json', 'r') as fp:
-        label_data = json.load(fp)
-
-    for line in metric_data.split('\\n'):
-        entry = str(line).strip()
-        if entry == "": # Empty line
-            continue
-        if '#' in entry: # Comment
-            continue
-        '''
-        gpu_gfx_activity{card_model="",gpu_id="0",hostname="test-deviceconfig-metrics-exporter-dcq7m",serial_number="0"} 0
-        '''
-        match = re.match(pattern, entry.strip())
-        if match:
-            metric_name = match.groupdict()['metric_name']
-            metric_value = match.groupdict()['value']
-            metrics[metric_name] = {
-                    'value' : metric_value,
-                    'labels' : {},
+    for metrics_family in text_string_to_metric_families(metrics_content):
+        for entry in metrics_family.samples:
+            metrics[entry.name] = {
+                'type' : metrics_family.type,
+                'value' : entry.value,
+                'labels' : entry.labels
             }
-            for lv in match.groupdict()['labels'].split(','):
-                l, v = lv.split("=")
-                if l in label_data.keys():
-                    metrics[metric_name]['labels'][l] = v
-        elif 'gpu_nodes_total' in entry.strip():
-            metrics['gpu_nodes_total'] = entry.strip().split()[-1]
-        else:
-            Logger.error(f"Failed to parse metric data for {entry}")
     return metrics
 
 def health(port, node):

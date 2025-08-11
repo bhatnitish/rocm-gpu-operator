@@ -75,8 +75,8 @@ function setup_pyenv() {
         source venv/bin/activate &> /dev/null
     else
         echo "Setup pyenv with all required packages"
-        ./scripts/prepare_env.sh venv &> /dev/null
-        source venv/bin/activate &> /dev/null
+        $PWD/scripts/prepare_env.sh $PWD/venv &> /dev/null
+        source $PWD/venv/bin/activate &> /dev/null
     fi
     export PYTHONPATH=$PYTHONPATH:$PWD
 }

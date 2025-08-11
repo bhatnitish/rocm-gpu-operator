@@ -21,3 +21,5 @@ jinja2
 ruamel.yaml
 requests
 kubernetes
+prometheus_client
+xmltodict

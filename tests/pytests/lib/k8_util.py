@@ -1998,11 +1998,20 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
                     time.sleep(10)
                     pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
 
+                exit_code = -1
+                if pod_status.status.container_statuses:
+                    for container_status in pod_status.status.container_statuses:
+                        if container_status.name == "curl-container" and container_status.state.terminated:
+                            exit_code = container_status.state.terminated.exit_code
+                            break
+                else:
+                    Logger.debug("No container statuses found in the pod_status.")
+
                 if pod_status.status.phase in ["Succeeded", "Failed"]:
                     # Retrieve logs from the completed Pod
                     pod_logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
                     Logger.debug(f"Response of curl-command {args}\n{LogPrettyPrinter.pformat(pod_logs)}")
-                    return 0, pod_logs, ""
+                    return exit_code, pod_logs, ""
                 else:
                     Logger.warn(f"Unexpected curl-command POD Status\n{LogPrettyPrinter.pformat(pod_status)}")
             except ApiException as e:

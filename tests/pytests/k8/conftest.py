@@ -160,12 +160,16 @@ class K8Helper:
         return
 
     @staticmethod
-    def assert_or_debug(condition, message, pause_on_failure = False):
+    def assert_or_debug(condition, message, pause_on_failure = False, expected_to_fail = False):
         global Logger
-        if not condition and pause_on_failure:
-            Logger.error(f"Pausing for failure : {message}")
-            pytest.set_trace()
-        assert condition, message
+        if not condition:
+            if pause_on_failure:
+                Logger.error(f"Pausing for failure : {message}")
+                pytest.set_trace()
+            if expected_to_fail:
+                pytest.xfail(message)
+            else:
+                pytest.fail(message)
 
 @pytest.fixture(scope="session")
 def k8_helper():

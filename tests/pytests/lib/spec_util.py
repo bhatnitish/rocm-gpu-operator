@@ -60,6 +60,7 @@ device_config_template_v1_0_0 = {
             'image'             : '',
             'enable'            : False,
             'nodePort'          : 32500,
+            'port'              : 5000,
             'serviceType'       : DQ('ClusterIP'),
             'rbacConfig' : {
                 'enable'        : False,
@@ -104,6 +105,7 @@ device_config_template_v1_2_0 = {
             'imagePullPolicy'   : 'Always',
             'enable'            : False,
             'nodePort'          : 32500,
+            'port'              : 5000,
             'serviceType'       : DQ('ClusterIP'),
             'rbacConfig' : {
                 'enable'        : False,
@@ -313,10 +315,14 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         if spec.get('metricsExporter.serviceType', None):
             device_config['spec']['metricsExporter']['serviceType'] = DQ(spec.get('metricsExporter.serviceType'))
             device_config['spec']['metricsExporter']['nodePort'] = spec.get('metricsExporter.nodePort', 32500)
+            device_config['spec']['metricsExporter']['port'] = spec.get('metricsExporter.port', 5000)
         if spec.get('metricsExporter.config', None):
             device_config['spec']['metricsExporter']['config'] = {
                     'name' : spec.get('metricsExporter.config')
             }
+        else:
+            if 'config' in device_config['spec']['metricsExporter']:
+                del device_config['spec']['metricsExporter']['config']
         device_config['spec']['metricsExporter']['rbacConfig']['enable'] = spec.get('metricsExporter.rbacConfig.enable', False)
         device_config['spec']['metricsExporter']['rbacConfig']['disableHttps'] = spec.get('metricsExporter.rbacConfig.disableHttps', True)
         if spec.get('metricsExporter.image.secret', None):

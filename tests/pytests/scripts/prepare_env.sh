@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
 
 #
 # Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+set -x
 SCRIPT_PATH=$(realpath ${BASH_SOURCE})
 PKG_DIR=${PWD}
 
@@ -27,11 +28,11 @@ fi
 
 VENV=$1
 
-if [ -z "${VENV}" ]; then
-	VENV="${PKG_DIR}/venv"
-	echo "No venv folder specified. Creating one in ${VENV}"
-	mkdir -p ${VENV}
-        python3 -m venv ${VENV}
+if [ ! -d "${VENV}" ];
+then
+    echo "No venv folder available. Creating one in ${VENV}"
+    mkdir -p ${VENV}
+    python3 -m venv ${VENV}
 fi
 
 echo "Activating the venv ..."
