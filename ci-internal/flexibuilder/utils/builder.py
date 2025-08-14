@@ -246,12 +246,15 @@ class BuilderInterface:
                     Logger.info("Using asset-hq/hourly")
                     for submission in repo_submissions:
                         release_tag = submission.get("ReleaseTag")
-                        assetIntf = BuilderInterface.AssetArtifactInterface(self.target_spec, self.target_name,
-                                                                            GlobalOptions.repository, release_tag)
-                        resp = assetIntf.DownloadArtifactsFromAssetURL()
-                        if resp == types.return_codes.SUCCESS:
-                            self.__release_candidate = submission["ReleaseTag"]
-                            break
+                        try:
+                            assetIntf = BuilderInterface.AssetArtifactInterface(self.target_spec, self.target_name,
+                                                                                GlobalOptions.repository, release_tag)
+                            resp = assetIntf.DownloadArtifactsFromAssetURL()
+                            if resp == types.return_codes.SUCCESS:
+                                self.__release_candidate = submission["ReleaseTag"]
+                                break
+                        except Exception as e:
+                            Logger.error(f"Error: Exception while downloading from minio server, {e}")
             return resp
 
         def GetReleaseCandidate(self):

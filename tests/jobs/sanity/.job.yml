@@ -14,9 +14,7 @@ e2e-targets:
         "/bin/sh",
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
-         wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
-         /gpu-operator/ci-internal/setup_sanity.sh --registry local --testbed /warmd.json --image-manifest $PWD/images.yaml && \
-         ./k8_test_launcher.sh --image-manifest $PWD/images.yaml --secrets $PWD/secrets.json"
+         /gpu-operator/ci-internal/run_sanity.sh --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -28,6 +26,9 @@ e2e-targets:
       - build-external-device-metrics-exporter
       - build-external-test-runner
       - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
     resources:
     - generic:
       - type: K8-GPU-Node
@@ -40,10 +41,7 @@ e2e-targets:
         "/bin/sh",
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
-         wget http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json && \
-         /gpu-operator/ci-internal/setup_sanity.sh --registry local --testbed /warmd.json --image-manifest $PWD/images.yaml && \
-         ./k8_test_launcher.sh --image-manifest $PWD/images.yaml \
-         --secrets $PWD/secrets.json --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
+         /gpu-operator/ci-internal/run_sanity.sh --type sanity --registry local --testbed /warmd.json --amdgpu-driver inbox"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -55,6 +53,9 @@ e2e-targets:
       - build-external-device-metrics-exporter
       - build-external-test-runner
       - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
     resources:
     - generic:
       - type: K8-GPU-Node

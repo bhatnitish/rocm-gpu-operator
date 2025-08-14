@@ -48,26 +48,6 @@ function collect_tech_support() {
     ls -ltr $PWD/pytest_logs.tgz
 }
 
-function upload_reports() {
-
-    echo "JOB_ID=${JOB_ID}"
-    echo "TARGET_NAME=${TARGET_NAME}"
-    echo "TARGET_ID=${TARGET_ID}"
-    echo "JOB_PR=${JOB_PR}"
-    if [[ ! -z "${JOB_ID}" ]] ;
-    then
-        echo "Using JOBD Environment variables to evaluate PR/JOB/Target"
-        final_report="${TARGET_ID}.html"
-        sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "rm -rf /var/www/html/${TARGET_NAME}/${TARGET_ID}"
-        sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "mkdir -p /var/www/html/${TARGET_NAME}/${TARGET_ID}"
-        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/k8.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
-
-        echo "Links:"
-        echo "Consolidated report       : http://10.11.18.6/${TARGET_NAME}/${TARGET_ID}/${final_report}"
-        echo ""
-    fi
-}
-
 function setup_pyenv() {
     if [[ -f venv/bin/activate ]] ;
     then
@@ -114,8 +94,7 @@ function launch_pytest() {
             xml_file=logs/${test_sel}.xml
         fi
     fi
-    CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings"
-    #CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
+    CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
     if [[ "${ENABLE_DEBUGGING}" == "YES" ]];
     then
         CMD_OPT+=" --pause-on-failure"
@@ -141,12 +120,12 @@ function launch_pytest() {
     cat ${IMAGE_MANIFEST}
     echo ""
     echo "Running test with cmd-opt ${CMD_OPT}"
+    export PYTHONIOENCODING=utf-8
     pytest ${test_sel} --log-file=logs/${DEPLOYMENT}_test_run.log \
-        --junit-xml=${xml_file} --deployment ${DEPLOYMENT} ${CMD_OPT}
-        #--junit-xml=${xml_file} --html ${html_file} --deployment ${DEPLOYMENT} \
+        --junit-xml=${xml_file} --deployment ${DEPLOYMENT} ${CMD_OPT} \
+        --html ${html_file}
     ret=$?
     collect_tech_support
-    #upload_reports
     exit $ret
 }
 

@@ -109,6 +109,11 @@ def pytest_html_results_summary(prefix, summary, postfix):
     postfix.extend([html.h3("Post Run Information")])
     '''
 
+def pytest_configure(config):
+    if 'junit_suite_name' not in config.inicfg:
+        config.inicfg['junit_suite_name'] = 'GPU Operator TestSuite'
+
+
 @pytest.hookimpl(optionalhook=True)
 def pytest_metadata(metadata):
     metadata.clear()
@@ -318,7 +323,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
 
     images = image_manifest['k8']
     # prepare to download gpu-operator
-    setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
+    setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'].split("-", 1)[0])
     if 'build' in images['gpu-operator']:
         setattr(environment, 'gpu_operator_build', images['gpu-operator']['build'])
     setattr(environment, 'metrics_exporter_version', images['device-metrics-exporter']['version'])

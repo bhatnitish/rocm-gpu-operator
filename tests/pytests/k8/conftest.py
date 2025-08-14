@@ -42,7 +42,7 @@ class PodStatus(Enum):
 class K8Helper:
 
     @staticmethod
-    def wait_kmm_worker_completion(gpu_cluster, environment, devcfgs):
+    def wait_kmm_worker_completion(gpu_cluster, environment, devcfg_name):
         # Check for kmm-worker-{gpu-node-name}-test-deviceconfig PODs to be started and completed
         global Logger
         if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
@@ -55,8 +55,7 @@ class K8Helper:
 
         # Check for build pods
         build_pods = []
-        for devcfg_name in devcfgs:
-            build_pods.append(common.PodInfo(f"{devcfg_name}-build", 1, 1))
+        build_pods.append(common.PodInfo(f"{devcfg_name}-build", 1, 1))
 
         build_pod_status = set()
         time.sleep(20)
@@ -174,3 +173,7 @@ class K8Helper:
 @pytest.fixture(scope="session")
 def k8_helper():
     return K8Helper
+
+def pytest_configure(config):
+    config.inicfg['junit_suite_name'] = 'K8/GPU Operator TestSuite'
+

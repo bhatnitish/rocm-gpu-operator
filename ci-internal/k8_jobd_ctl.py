@@ -5,10 +5,8 @@ import sys
 import pdb
 import json
 import argparse
-import subprocess
-import shutil
 import time
-import docker
+import logging
 
 
 GlobalOptions = argparse.Namespace()
@@ -23,6 +21,34 @@ DOCKER_DAEMON_CONFIG = {
     },
     "storage-driver": "overlay2"
 }
+
+def _init_logger():
+    try:
+        log_dir = os.path.join(os.getenv("PWD"), "logs")
+        os.makedirs(log_dir, exist_ok = True)
+
+        # Configure file logging
+        logging.basicConfig(
+            filename=os.path.join(log_dir, "k8_jobd_ctl.log"),
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+        # Create a console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.DEBUG) # Set level for console output
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+
+        # Add the console handler to the root logger
+        logging.getLogger().addHandler(console_handler)
+        logging.getLogger("paramiko").setLevel(logging.WARNING)
+        logging.getLogger('invoke').setLevel(logging.WARNING)
+        logging.getLogger('kubernetes').setLevel(logging.WARNING)
+    except Exception as e:
+        print(f"Failed to initialize logger - using default settings, error {e}")
+    finally:
+        return logging.getLogger('k8_jobd_ctl')
 
 def _init_cmdline_args():
     global GlobalOptions
@@ -42,6 +68,10 @@ def _init_cmdline_args():
     image_cmd.add_argument("--setup-insecure-registry", action='store_true', default=False, help = "Load images into the registry")
     image_cmd.add_argument("--registry", default=None, help = "Destination Registry")
     image_cmd.add_argument("--image-manifest", default='/tmp/images.yaml', help = "output images yaml")
+
+    report_cmd = subparsers.add_parser("report", help="Reporting related commands")
+    report_cmd.add_argument("--testbed", required = True, help = "jobd testbed json file")
+    report_cmd.add_argument("--show", action='store_true', default=False, help = "Print test report, uses pytest junit-xml")
     cmd_opts = parser.parse_args()
     GlobalOptions.__dict__.update(cmd_opts.__dict__)
     return parser
@@ -85,12 +115,12 @@ def put(node, src_file, dest_file, sudo = False, timeout = 90):
     with Connection(node["ip"], user = node["username"], connect_kwargs = conn_kwargs) as conn:
         try:
             dest_tmp_file = os.path.join("/tmp", os.path.basename(dest_file))
-            con.put(src_file, dest_tmp_file)
+            conn.put(src_file, dest_tmp_file)
             cp_cmd = []
             if sudo:
                 cp_cmd.append("sudo")
             cp_cmd.extend(["cp", dest_tmp_file, dest_file])
-            result = conn.run(cp_cmd.join(" "), hide = True, in_stream=False, timeout = timeout)
+            result = conn.run(" ".join(cp_cmd), hide = True, in_stream=False, timeout = timeout)
             return result
         except UnexpectedExit as ue:
             return ue.result
@@ -111,12 +141,7 @@ def get(node, remote_file, local_file):
         os.makedirs(os.path.dirname(local_file))
     
     with Connection(node["ip"], user = node["username"], connect_kwargs = conn_kwargs) as conn:
-        try:
-            conn.get(remote_file, local_file)
-            return True
-        except:
-            print(f"Failed to download file {remote_file}")
-    return False
+        conn.get(remote_file, local_file)
 
 def k8_get_node_info(master, node_name = None):
     if node_name:
@@ -134,10 +159,10 @@ def k8_get_node_info(master, node_name = None):
         k8_nodes_info = json.loads(result.stdout)
         return 0, k8_nodes_info.get("items", None)
 
-def k8_get_worker_nodename(master, worker_ip):
+def k8_get_worker_nodename(logger, master, worker_ip):
     ret_code, items = k8_get_node_info(master)
     if ret_code != 0:
-        print("Failed to retrieve node information from k8 cluster")
+        logger.error("Failed to retrieve node information from k8 cluster")
         return None
     for node_info in items:
         addresses = node_info["status"]["addresses"]
@@ -200,7 +225,7 @@ def _get_worker_nodes(testbed_info):
     worker_nodes = list(filter(lambda x: x["type"] == "worker", testbed_info["instances"]))
     return worker_nodes
 
-def _cordon_uncordon_node(master, worker_nodename : str, cordon : bool):
+def _cordon_uncordon_node(logger, master, worker_nodename : str, cordon : bool):
     if cordon:
         cmd = ["kubectl", "cordon", worker_nodename]
         msg = f"Cordoning node {worker_nodename}"
@@ -209,14 +234,14 @@ def _cordon_uncordon_node(master, worker_nodename : str, cordon : bool):
         msg = f"Uncordoning node {worker_nodename}"
     result = run_command(master, " ".join(cmd))
     if result.return_code == 0:
-        print(f"{msg}, successful")
+        logger.info(f"{msg}, successful")
     else:
-        print(f"{msg}, failed")
+        logger.error(f"{msg}, failed")
     return result.return_code
 
-def _reboot_node(master, worker, worker_nodename):
+def _reboot_node(logger, master, worker, worker_nodename):
     cmd = ["sudo", "reboot"]
-    print(f"Rebooting worker node : {worker_nodename}")
+    logger.debug(f"Rebooting worker node : {worker_nodename}")
     try:
         result = run_command(worker, " ".join(cmd))
     except:
@@ -224,7 +249,7 @@ def _reboot_node(master, worker, worker_nodename):
     while True:
         ret_code, node_info = k8_get_node_info(master, worker_nodename)
         if ret_code != 0:
-            print("Failed to retrieve node information from k8 cluster")
+            logger.error("Failed to retrieve node information from k8 cluster")
             return
         conditions = node_info["status"]["conditions"]
         for entry in conditions:
@@ -240,19 +265,19 @@ def _reboot_node(master, worker, worker_nodename):
                 }
                 """
                 if entry["status"] == "Unknown":
-                    print(f"Worker node : {worker_nodename} is offline")
+                    logger.info(f"Worker node : {worker_nodename} is offline")
                     return
                 elif entry["status"] == "True":
                     time.sleep(10)
     return
 
-def _wait_node_ready(master, worker_nodename):
-    print(f"Waiting for worker-node {worker_nodename} to come online")
+def _wait_node_ready(logger, master, worker_nodename):
+    logger.debug(f"Waiting for worker-node {worker_nodename} to come online")
     countdown = 100
     for _ in range(100):
         ret_code, node_info = k8_get_node_info(master, worker_nodename)
         if ret_code != 0:
-            print("Failed to retrieve node information from k8 cluster")
+            logger.error("Failed to retrieve node information from k8 cluster")
             return
         conditions = node_info["status"]["conditions"]
         for entry in conditions:
@@ -270,45 +295,49 @@ def _wait_node_ready(master, worker_nodename):
                 if entry["status"] == "Unknown":
                     time.sleep(20)
                 elif entry["status"] == "True":
-                    print(f"Worker-node {worker_nodename} is online")
+                    logger.info(f"Worker-node {worker_nodename} is online")
                     return True
-    print(f"Failed to connect to worker-node {worker_nodename} post reboot")
+    logger.error(f"Failed to connect to worker-node {worker_nodename} post reboot")
     return False
         
-def _fetch_kube_config(master):
+def _fetch_kube_config(logger, master):
     cmd = ["sudo", "cp", "/etc/kubernetes/admin.conf", "/tmp/config"]
     result = run_command(master, " ".join(cmd))
     if result.return_code != 0:
-        print("Failed to copy /etc/kubernetes/admin.conf to /tmp folder")
+        logger.error("Failed to copy /etc/kubernetes/admin.conf to /tmp folder")
         return False
 
     cmd = ["sudo", "chmod", "755", "/tmp/config"]
     result = run_command(master, " ".join(cmd))
     if result.return_code != 0:
-        print("Failed enable read/write permission to /tmp/config")
+        logger.error("Failed enable read/write permission to /tmp/config")
         return False
 
     dest_file = os.path.join(os.getenv("HOME"), ".kube", "config")
-    get(master, "/tmp/config", dest_file)
-    os.system(f"chmod 600 {dest_file}")
+    try:
+        get(master, "/tmp/config", dest_file)
+        os.system(f"chmod 600 {dest_file}")
+    except Exception as e:
+        logger.error(f"Failed to fetch kube-config, error : {e}")
+        return False
     return True
 
-def _reboot_workers(master, workers):
+def _reboot_workers(logger, master, workers):
     ret = True
     for worker in workers:
         node_ip = worker["ip"]
-        worker_nodename = k8_get_worker_nodename(master, node_ip)
+        worker_nodename = k8_get_worker_nodename(logger, master, node_ip)
         if worker_nodename:
-            if _cordon_uncordon_node(master, worker_nodename, True) == 0:
-                _reboot_node(master, worker, worker_nodename)
+            if _cordon_uncordon_node(logger, master, worker_nodename, True) == 0:
+                _reboot_node(logger, master, worker, worker_nodename)
                 time.sleep(180)
-                ret = _wait_node_ready(master, worker_nodename)
+                ret = _wait_node_ready(logger, master, worker_nodename)
             else:
                 ret = False
-            if _cordon_uncordon_node(master, worker_nodename, False) != 0:
+            if _cordon_uncordon_node(logger, master, worker_nodename, False) != 0:
                 ret = False
         else:
-            print(f"No such node found with ip-address {node_ip}")
+            logger.error(f"No such node found with ip-address {node_ip}")
             ret = False
     return ret
 
@@ -322,7 +351,9 @@ def _generate_testbed_yaml(testbed_info, file_name):
         yaml.dump(testbed_info, fp)
     return True
 
-def _load_images(registry, image_manifest):
+def _load_images(logger, registry, image_manifest):
+    import docker
+
     if not registry:
         return False
 
@@ -339,31 +370,30 @@ def _load_images(registry, image_manifest):
 
     client = docker.from_env(timeout=300)
     for artifact_name, artifact_info in image_manifest_templ['images']['k8'].items():
-        print(f"Processing {artifact_name} section")
+        logger.info(f"Processing {artifact_name} section")
         if artifact_info.get('image', None) != None:
             image_file = artifact_info['image']
             if not os.path.exists(image_file):
-                print(f"Fatal Error: Specified image-file {image_file} missing")
-                result = False
-                continue
+                logger.error(f"Fatal Error: Specified image-file {image_file} missing")
+                return False
 
             if artifact_info['kind'] == 'helm-chart':
                 artifact_info['location'] = f"file://{image_file}"
-                artifact_info['version'] = 'sanity' # TODO derive correct version for each artifact
+                #artifact_info['version'] = 'sanity' # TODO derive correct version for each artifact
             elif artifact_info['kind'] == 'container':
                 try:
                     with open(image_file, 'rb') as fp:
                         loaded_images = client.images.load(fp)
                     if not loaded_images:
                         result = False
-                        print(f"Fatal Error: Failed to collect loaded-images information, image-file : {image_file}")
+                        logger.error(f"Fatal Error: Failed to collect loaded-images information, image-file : {image_file}")
                         continue
                 except docker.errors.APIError as de:
-                    print(f"Fatal Error: Unable to load image {image_file}, error : {de}")
+                    logger.error(f"Fatal Error: Unable to load image {image_file}, error : {de}")
                     result = False
                     continue
                 except Exception as e:
-                    print(f"Fatal Error: Unknown error while loading image {image_file}, error : {e}")
+                    logger.error(f"Fatal Error: Unknown error while loading image {image_file}, error : {e}")
                     result = False
                     continue
 
@@ -374,63 +404,153 @@ def _load_images(registry, image_manifest):
                 image_name, image_tag = image_ver.split(':')
 
                 # Push tag to specified registry
-                tag = "sanity"
-                # TODO: Replace tag with metadata-derived version information, currently using common tag=sanity
+                tag = image_tag
+                # TODO: Replace tag with metadata-derived version information, currently using common tag=image_tag
                 loaded_image.tag(repository = f"{registry}/rocm/{image_name}", tag = tag)
                 new_image = f"{registry}/rocm/{image_name}"
 
-                try:
-                    resp = client.images.push(f"{new_image}:{tag}", stream=True, decode=True)
-                except docker.errors.APIError as de:
-                    print(f"Fatal Error: Unable to tag image {image_file}, error : {de}")
+                done = False
+                for _ in range(5):
+                    successful = True
+                    try:
+                        for line in client.images.push(f"{new_image}:{tag}", stream=True, decode=True):
+                            if 'errorDetail' in line:
+                                err_msg = line['errorDetail']['message']
+                                logger.error(f"Error while pushing image {new_image}:{tag}, error: {err_msg}")
+                                successful = False
+                                break
+                            logger.debug(f"{new_image}:{tag} => {line}")
+                    except docker.errors.APIError as de:
+                        logger.error(f"Fatal Error: Unable to tag image {image_file}, error : {de}")
+                        result = False
+                        break
+                    except Exception as e:
+                        logger.error(f"Fatal Error: Unknown error while tagging image {image_file}, error : {e}")
+                        result = False
+                        break
+                    if successful:
+                        logger.info(f"Successfully pushed {new_image}:{tag}")
+                        done = True
+                        break
+                    else:
+                        logger.warn("Failed to push docker images, retry after 10sec")
+                        time.sleep(10)
+
+                if done:
+                    artifact_info['location'] = f"container://{new_image}"
+                    artifact_info['version'] = tag
+                    logger.info(f"Using: {new_image}:{tag}")
+                else:
+                    logger.error(f"Failed to push image {new_image}:{tag}")
                     result = False
-                    continue
-                except Exception as e:
-                    print(f"Fatal Error: Unknown error while tagging image {image_file}, error : {e}")
-                    result = False
-                    continue
-                artifact_info['location'] = f"container://{new_image}"
-                artifact_info['version'] = tag
     if result:
+        # Update driver section
+        artifact_name = 'driver'
+        driver_info = image_manifest_templ['images']['k8'][artifact_name]
+        driver_info['location'] = f"container://{registry}/driver-builds"
         with open(image_manifest, 'w') as fp:
             yaml.dump(image_manifest_templ, fp)
     return result
 
-def _upload_docker_daemon_conf(registry, testbed_info):
+def _upload_docker_daemon_conf(logger, registry, testbed_info):
     # Generate/Update /etc/docker/daemon.json file
     daemon_conf = DOCKER_DAEMON_CONFIG
-    daemon_conf["insecure-registries"].append(registy)
-    with open("docker_daemon.json", "w") as fp:
-        json.dump(daemon_conf, indent=4)
+    daemon_conf["insecure-registries"].append(registry)
+    with open("/tmp/docker_daemon.json", "w") as fp:
+        json.dump(daemon_conf, fp, indent=4)
 
     masters = _get_master_nodes(testbed_info)
     workers = _get_worker_nodes(testbed_info)
     cmd = ["sudo", "systemctl", "restart", "docker"]
     for node in masters + workers:
-        result = put(node, "docker_daemon.json" "/etc/docker/daemon.json", sudo = True) 
+        result = put(node, "/tmp/docker_daemon.json", "/etc/docker/daemon.json", sudo = True) 
         if result.return_code != 0:
-            print(f"Failed to upload docker_daemon.json to /etc/docker/daemon.json for node {node}")
-            return -1
+            logger.error(f"Failed to upload docker_daemon.json to /etc/docker/daemon.json for node {node}")
+            return result.return_code
         result = run_command(node, " ".join(cmd))
         if result.return_code != 0:
-            print("Failed restart docker daemon")
-            return -1
+            logger.error("Failed restart docker daemon, result: ")
+            return result.return_code
     return 0
 
-def _run_testbed_commands():
+def _upload_crio_registry_conf(logger, registry, testbed_info):
+    """
+    Generates a CRI-O registry configuration file for an insecure registry.
+
+    Args:
+        registry_location (str): The hostname or hostname:port of the insecure registry.
+        config_filename (str, optional): The name of the configuration file to create.
+                                        Defaults to "runner-registry.conf".
+    """
+    import tomlkit
+
+    # Define the output directory
+    output_directory = os.path.join(os.getenv("PWD"), "logs")
+    # Ensure the output directory exists
+    os.makedirs(output_directory, exist_ok=True)
+
+    config_filename="runner-registry.conf"
+    local_file = os.path.join(output_directory, config_filename)
+
+    # Create a new TOML document
+    doc = tomlkit.document()
+
+    # Create the [[registry]] table
+    registry_table = tomlkit.table()
+    registry_table.add("location", registry)
+    registry_table.add("insecure", True)
+
+    # Add the registry table to the document
+    doc.add("registry", tomlkit.aot())  # Add Array of Tables
+    doc["registry"].append(registry_table)
+
+    # Write the TOML content to the file
+    try:
+        with open(local_file, "w") as f:
+            f.write(tomlkit.dumps(doc))
+        logger.info(f"CRI-O insecure registry configuration written to: {local_file}")
+    except Exception as e:
+        logger.error(f"er occurred while writing the file: {e}")
+        return -1
+
+    masters = _get_master_nodes(testbed_info)
+    workers = _get_worker_nodes(testbed_info)
+    cmd_daemon = ["sudo", "systemctl", "daemon-reload"]
+    cmd_crio = ["sudo", "systemctl", "restart", "crio"]
+    cmd_kubelet = ["sudo", "systemctl", "restart", "kubelet"]
+    for node in masters + workers:
+        result = put(node, local_file, os.path.join("/etc/containers/registries.conf.d/", config_filename), sudo = True) 
+        if result.return_code != 0:
+            logger.error(f"Failed to upload docker_daemon.json to /etc/docker/daemon.json for node {node}")
+            return result.return_code
+        result = run_command(node, " ".join(cmd_daemon))
+        if result.return_code != 0:
+            logger.error(f"Failed acheive systemctl daemon-reload, result: {result}")
+            return result.return_code
+        result = run_command(node, " ".join(cmd_crio))
+        if result.return_code != 0:
+            logger.error(f"Failed acheive systemctl restart crio, result: {result}")
+            return result.return_code
+        result = run_command(node, " ".join(cmd_kubelet))
+        if result.return_code != 0:
+            logger.error(f"Failed acheive systemctl restart kubelet, result: {result}")
+            return result.return_code
+    return 0
+
+def _run_testbed_commands(logger):
     if GlobalOptions.fetch_kube_config:
         testbed_info = _load_testbed_json(GlobalOptions.testbed)
         if testbed_info:
             masters = _get_master_nodes(testbed_info)
             workers = _get_worker_nodes(testbed_info)
-            print(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
+            logger.debug(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
         else:
-            print(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
+            logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
             sys.exit(1)
-        if masters and _fetch_kube_config(masters[0]):
-            print("Successfully downloaded /etc/kubernetes/admin.conf file")
+        if masters and _fetch_kube_config(logger, masters[0]):
+            logger.debug("Successfully downloaded /etc/kubernetes/admin.conf file")
         else:
-            print("Failed to download /etc/kubernetes/admin.conf file - Abort")
+            logger.error("Failed to download /etc/kubernetes/admin.conf file - Abort")
             sys.exit(1)
 
     if GlobalOptions.reboot_workers:
@@ -438,14 +558,14 @@ def _run_testbed_commands():
         if testbed_info:
             masters = _get_master_nodes(testbed_info)
             workers = _get_worker_nodes(testbed_info)
-            print(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
+            logger.debug(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
         else:
-            print(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
+            logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
             sys.exit(1)
-        if workers and _reboot_workers(masters[0], workers):
-            print("Successfully rebooted all worker nodes - cluster is ready to use")
+        if workers and _reboot_workers(logger, masters[0], workers):
+            logger.info("Successfully rebooted all worker nodes - cluster is ready to use")
         else:
-            print("Failed to reboot all worker nodes - test-result could be unreliable")
+            logger.error("Failed to reboot all worker nodes - test-result could be unreliable")
             sys.exit(1)
 
     if GlobalOptions.testbed_yaml:
@@ -453,38 +573,160 @@ def _run_testbed_commands():
         if testbed_info:
             masters = _get_master_nodes(testbed_info)
             workers = _get_worker_nodes(testbed_info)
-            print(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
+            logger.debug(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
         else:
-            print(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
+            logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
             sys.exit(1)
         if _generate_testbed_yaml(testbed_info, GlobalOptions.testbed_yaml):
-            print(f"Successfully generated testbed-yaml - {GlobalOptions.testbed_yaml}")
+            logger.info(f"Successfully generated testbed-yaml - {GlobalOptions.testbed_yaml}")
         else:
-            print(f"Failed to genreate testbed-yaml file")
+            logger.error(f"Failed to genreate testbed-yaml file")
             sys.exit(1)
 
-def _run_image_commands():
+def _run_image_commands(logger):
     if GlobalOptions.load_images:
-        if _load_images(GlobalOptions.registry, GlobalOptions.image_manifest):
-            print(f"Images loaded to specified registry, Successfully generated image-manifest - {GlobalOptions.image_manifest}")
+        if _load_images(logger, GlobalOptions.registry, GlobalOptions.image_manifest):
+            logger.info(f"Images loaded to specified registry, Successfully generated image-manifest - {GlobalOptions.image_manifest}")
         else:
-            print(f"Failed to load images into the registry: {GlobalOptions.registry}")
+            logger.error(f"Failed to load images into the registry: {GlobalOptions.registry}")
             sys.exit(1)
     if GlobalOptions.setup_insecure_registry:
         testbed_info = _load_testbed_json(GlobalOptions.testbed)
-        if _upload_docker_daemon_conf(GlobalOptions.registry, testbed_info):
-            print("Successfully uploaded new /etc/docker/daemon.json to all nodes")
+        if _upload_docker_daemon_conf(logger, GlobalOptions.registry, testbed_info) == 0:
+            logger.info("Successfully uploaded new /etc/docker/daemon.json to all nodes")
         else:
-            print(f"Failed to upload /etc/docker/daemon.json to all nodes")
+            logger.error(f"Failed to upload /etc/docker/daemon.json to all nodes")
             sys.exit(1)
+        if _upload_crio_registry_conf(logger, GlobalOptions.registry, testbed_info) == 0:
+            logger.info("Successfully uploaded new /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
+        else:
+            logger.error(f"Failed to upload /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
+            sys.exit(1)
+
+def _generate_report(logger):
+    import xmltodict
+    import glob
+    from pathlib import Path
+    import prettytable
+
+    path_expr = os.path.join("logs", "*.xml")
+
+    test_results = dict()
+    for report_xml in  glob.iglob(path_expr, recursive = True):
+        testsuite_name = Path(report_xml).stem
+        with open(report_xml) as xml_file:
+            tb_result_data = xmltodict.parse(xml_file.read())
+            test_results[testsuite_name] = tb_result_data
+
+    if not test_results:
+        print(f"Test Result: NA (no test results available)")
+        return False
+
+    final_status = "Success"
+    ts_statistcs = dict()
+    for ts_name, results in test_results.items():
+        result_table = prettytable.PrettyTable()
+        result_table.title = f"Testsuite : {ts_name}"
+        result_table.field_names = ["Test Module", "TestCase", "Status", "Time"]
+        result_table.align["Test Module"] = 'l'
+        result_table.align["TestCase"] = 'l'
+        result_table.hrules = prettytable.prettytable.HRuleStyle.FRAME
+        result_table.max_table_width = 140
+
+        module_name = ""
+        module_statistics = dict()
+        for idx, test in enumerate(results['testsuites']['testsuite']['testcase']):
+            mod_name = test['@classname'][len(ts_name) + 1:]
+            row_entry = []
+            if module_name != mod_name:
+                module_name = mod_name
+                row_entry.append(module_name)
+                module_statistics[module_name] = { 
+                    'tm_pass_count' : 0,
+                    'tm_fail_count' : 0,
+                    'tm_skip_count' : 0,
+                    'module_time'   : 0.0,
+                }
+            else:
+                row_entry.append("")
+
+            if test.get('failure', None) or test.get('error', None):
+                module_statistics[module_name]['tm_fail_count'] = module_statistics[module_name]['tm_fail_count'] + 1
+                row_entry.extend([test['@name'], 'Failure', f"{test['@time']}s"])
+                final_status = "Failure"
+            elif test.get('skipped', None):
+                module_statistics[module_name]['tm_skip_count'] = module_statistics[module_name]['tm_skip_count'] + 1
+                row_entry.extend([test['@name'], 'Skipped', f"{test['@time']}s"])
+            else:
+                module_statistics[module_name]['tm_pass_count'] = module_statistics[module_name]['tm_pass_count'] + 1
+                row_entry.extend([test['@name'], 'Success', f"{test['@time']}s"])
+            result_table.add_row(row_entry)
+            module_statistics[module_name]['module_time'] = module_statistics[module_name]['module_time'] + float(test['@time'])
+
+        print("")
+        print(result_table)
+        print("")
+
+        summary_table = prettytable.PrettyTable()
+        summary_table.field_names = ["Test Module", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Total Time"]
+        summary_table.hrules = prettytable.prettytable.HRuleStyle.FRAME
+        summary_table.max_table_width = 140
+        summary_table.align['Test Module'] = 'l'
+
+        ts_testcases = 0
+        ts_failures = 0
+        ts_success = 0
+        ts_skips = 0
+        ts_time = 0
+        for module_name, stats in module_statistics.items():
+            total = stats['tm_pass_count'] + stats['tm_fail_count'] + stats['tm_skip_count']
+            success = float(stats['tm_pass_count'] * 100.0/total)
+            failure = float(stats['tm_fail_count'] * 100.0/total)
+            module_time = stats['module_time']
+            summary_table.add_row([module_name, stats['tm_pass_count'], stats['tm_skip_count'], stats['tm_fail_count'], total,
+                                   f"{success:.2f}", f"{failure:.2f}", f"{module_time/60:.2f}m"])
+            ts_testcases += total
+            ts_success += stats['tm_pass_count']
+            ts_failures += stats['tm_fail_count']
+            ts_skips += stats['tm_skip_count']
+            ts_time += module_time
+
+        print("")
+        print(summary_table)
+
+        ts_statistcs[ts_name] = (len(module_statistics), ts_success, ts_skips, ts_failures, ts_time)
+
+    summary_table = prettytable.PrettyTable()
+    summary_table.title = "Overall Status"
+    summary_table.field_names = ["Testsuite", "Modules", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Total Time"]
+
+    for ts_name, stats in ts_statistcs.items():
+        total_time = stats[4]
+        total = stats[1] + stats[2] + stats[3]
+        success = float(stats[1] * 100.0/total)
+        failure = float(stats[3] * 100.0/total)
+        summary_table.add_row([ts_name, stats[0], stats[1], stats[2], stats[3], total,
+                                f"{success:.2f}", f"{failure:.2f}", f"{total_time/60:.2f}m"])
+    print("")
+    print(summary_table)
+    print(f"Test Result: {final_status}")
+    print("")
+    return True
+
+def _run_report_commands(logger):
+    if GlobalOptions.show:
+        _generate_report(logger)
 
 def main():
     parser = _init_cmdline_args()
+    logger = _init_logger()
 
     if GlobalOptions.command == 'testbed':
-        _run_testbed_commands()
+        _run_testbed_commands(logger)
     elif GlobalOptions.command == 'image':
-        _run_image_commands()
+        _run_image_commands(logger)
+    elif GlobalOptions.command == "report":
+        _run_report_commands(logger)
     else:
         parser.print_help()
     return

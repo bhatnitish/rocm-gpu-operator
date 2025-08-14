@@ -539,7 +539,7 @@ def verify_events(gpu_cluster, namespace, pod_name="test-runner"):
     #cmd = f"kubectl get events -n {namespace}" + " -o=jsonpath='{.items[?(@.source.component==\"amd-test-runner\")]}' | jq -r .message | jq ."
     #Logger.debug(LogPrettyPrinter.pformat(gpu_cluster.k8_master.run_command(cmd)))
 
-    events = k8_util.k8_get_events(gpu_cluster, namespace, k8_util.k8_get_pod_name(gpu_cluster, pod_name))
+    events = k8_util.k8_get_events(gpu_cluster, namespace, k8_util.k8_get_pod_name(gpu_cluster, pod_name, namespace))
     for event in events[1].items:
         Logger.debug(LogPrettyPrinter.pformat(f"{event.involved_object.name}\n{event.metadata.labels}\n{event.message}"))
     #Logger.debug(LogPrettyPrinter.pformat(gpu_cluster.k8_master.run_command(f"kubectl get events -n {namespace}")))

@@ -6,19 +6,42 @@ function usage() {
     echo ""
     echo "Usage: $0 [options]"
     echo "          --help print help/usage information"
-    echo "          --registry <selection: local|master|global"
+    echo "          --type <selection: sanity|compat>"
+    echo "          --registry <selection: local|master|global>"
     echo "          --testbed /path/to/testbed.json, default /warmd.json"
-    echo "          --image-manifest /path/to/images.yaml, default /tmp/images.yaml"
+    echo "          --amdgpu-driver <selection: inbox|deviceconfig, default deviceconfig"
+    echo "          --image-manifest <path-to-image-manifest>"
     echo ""
 }
 
 LOCAL_REGISTRY_PORT="5000"
 REGISTRY_SELECTION="local"
 TESTBED_JSON="/warmd.json"
+AMDGPU_DRIVER="deviceconfig"
 IMAGE_MANIFEST="/tmp/images.yaml"
 GLOBAL_REGISTRY="registry.test.pensando.io:5000"
+TYPE="NA"
 
 REGISTRY=""
+
+function upload_reports() {
+    echo "JOB_ID=${JOB_ID}"
+    echo "TARGET_NAME=${TARGET_NAME}"
+    echo "TARGET_ID=${TARGET_ID}"
+    echo "JOB_PR=${JOB_PR}"
+    if [[ ! -z "${JOB_ID}" ]] ;
+    then
+        echo "Using JOBD Environment variables to evaluate PR/JOB/Target"
+        final_report="${TARGET_ID}.html"
+        sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "rm -rf /var/www/html/${TARGET_NAME}/${TARGET_ID}"
+        sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "mkdir -p /var/www/html/${TARGET_NAME}/${TARGET_ID}"
+        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/k8.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
+
+        echo "Links:"
+        echo "Consolidated report       : http://10.11.18.6/${TARGET_NAME}/${TARGET_ID}/${final_report}"
+        echo ""
+    fi
+}
 
 function start_registry() {
     # Maximum number of retries
@@ -38,7 +61,11 @@ function start_registry() {
         # start local docker registry for sanity ci test
         docker run -d -p $LOCAL_REGISTRY_PORT:$LOCAL_REGISTRY_PORT --name registry --restart always registry.test.pensando.io:5000/pensando/registry:2
         if [ $? -eq 0 ]; then
-            echo "Registry is ready."
+            echo "Registry is ready, mark it insecure for pushing images"
+            DOCKER_CONFIG_FILE="/etc/docker/daemon.json"
+            sudo jq --arg host_ip "$HOST_IP" --arg reg_port "$LOCAL_REGISTRY_PORT"   '.["insecure-registries"] += ["\($host_ip):\($reg_port)"]' "$DOCKER_CONFIG_FILE" > /tmp/daemon.json.tmp && sudo mv /tmp/daemon.json.tmp "$DOCKER_CONFIG_FILE"
+            sudo pkill -HUP dockerd
+            sleep 30
             return
         fi
 
@@ -52,6 +79,7 @@ function start_registry() {
 }
 
 function setup_registry() {
+    echo ""
     if [[ ${REGISTRY_SELECTION} == "local" ]];
     then
         echo "Setting up local registry"
@@ -68,6 +96,7 @@ function setup_registry() {
         echo "FATAL ERROR: Invalid registry-selection - ABORT"
         exit 1
     fi
+    echo ""
 }
 
 function load_images() {
@@ -75,6 +104,7 @@ function load_images() {
     echo "Run k8_jobd_ctl to "
     echo "    (1) load images into registry : ${REGISTRY}"
     echo "    (2) generate image-manifest-yaml for test"
+    echo ""
     /gpu-operator/ci-internal/k8_jobd_ctl.py image --load-images --registry $REGISTRY --image-manifest $IMAGE_MANIFEST --testbed $TESTBED_JSON --setup-insecure-registry
     RET=$?
     if [[ "$RET" != "0" ]]
@@ -87,6 +117,7 @@ function load_images() {
     echo ""
     echo "Run k8_jobd_ctl to "
     echo "    (1) update insecure-registry for each node in the cluster"
+    echo ""
     /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --setup-insecure-registry
     RET=$?
     if [[ "$RET" != "0" ]]
@@ -101,6 +132,7 @@ function prepare_cluster() {
     echo "Run k8_jobd_ctl to "
     echo "    (1) reboot worker-nodes"
     echo "    (2) fetch kube-config"
+    echo ""
     /gpu-operator/ci-internal/k8_jobd_ctl.py testbed --testbed $TESTBED_JSON --reboot-workers --fetch-kube-config
     RET=$?
     if [[ "$RET" != "0" ]]
@@ -111,14 +143,47 @@ function prepare_cluster() {
     echo ""
 }
 
+function launch_pytest() {
+    echo "Launching k8_test_launcher"
+    local SECRETS="/tmp/secrets.json"
+    curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
+    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS}"
+    if [[ "${AMDGPU_DRIVER}" == "inbox" ]];
+    then
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
+    elif [[ "${AMDGPU_DRIVER}" == "deviceconfig" ]];
+    then
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-driver-spec.json"
+    fi
+    echo "Running k8 pytests with CMD_OPTS: ${CMD_OPTS}"
+    /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
+    RET=$?
+    echo ""
+    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
+    echo ""
+    upload_reports
+    if [[ "$RET" != "0" ]]
+    then
+        exit $RET
+    fi
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --type)
+            TYPE="$2"
+            shift
+        ;;
         --registry)
             REGISTRY_SELECTION="$2"
             shift
         ;;
         --testbed)
             TESTBED_JSON="$2"
+            shift
+        ;;
+        --amdgpu-driver)
+            AMDGPU_DRIVER="$2"
             shift
         ;;
         --image-manifest)
@@ -138,11 +203,23 @@ while [[ $# -gt 0 ]]; do
 done
 
 function main() {
-    echo "Running sanity-setup"
-    setup_registry
-    load_images
+    if [[ "${TYPE}" == "sanity" ]];
+    then
+        echo "Running sanity-setup"
+        setup_registry
+        load_images
+        echo "Completed setting up registry and loading images"
+    elif [[ "${TYPE}" == "compat" ]];
+    then
+        echo "Running compat-setup"
+    else
+        echo "Invalid target type : ${TYPE} or is unspecified"
+        usage
+        exit 1
+    fi
     prepare_cluster
-    echo "Completed setting up environment for sanity-run"
+    echo "Completed setting up environment for ${TYPE}-run, launching pytest"
+    launch_pytest
 }
 
 main

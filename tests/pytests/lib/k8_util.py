@@ -28,6 +28,7 @@ import subprocess
 import base64
 import pprint
 import datetime
+from functools import wraps
 from collections import defaultdict
 from typing import List, Dict
 from kubernetes import client, config, stream
@@ -37,6 +38,17 @@ import lib.spec_util as spec_util
 
 Logger = logging.getLogger("lib.k8util")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
+
+def log_arguments(func):
+    global Logger
+    global LogPrettyPrinter
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        Logger.debug(f"Function::'{func.__name__}' with args: {args} kwargs: {kwargs}")
+        return func(*args, **kwargs)
+    return wrapper
+
 K8Items = List[dict]
 
 def k8_lib_init(k8_cluster : common.k8_cluster) -> None:
@@ -92,6 +104,7 @@ def k8_lib_init(k8_cluster : common.k8_cluster) -> None:
                 pytest.fail(f"failed to create secret type {entry.get('name')} - Abort")
     return
 
+@log_arguments
 def helm_list(k8_cluster : common.k8_cluster, namespace : str) -> (int, str, str):
     """
     API to list installed helm-charts in a given namespace
@@ -117,6 +130,7 @@ def helm_list(k8_cluster : common.k8_cluster, namespace : str) -> (int, str, str
     else:
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def helm_add_repo(k8_cluster : common.k8_cluster, repo_name : str, repo_url : str) -> None:
     """
     API to add helm repo
@@ -155,6 +169,7 @@ def helm_add_repo(k8_cluster : common.k8_cluster, repo_name : str, repo_url : st
     assert ret_code == 0, f"Failed to update helm repo {repo}, stdout : {ret_stdout} stderr: {ret_stderr}"
     return
 
+@log_arguments
 def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace : str, helm_chart_path : str, version : str, values_yaml : str, **kwargs) -> (int, str, str):
     """
     API to install helm-chart
@@ -215,6 +230,7 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
         Logger.debug(f"helm-install command: {' '.join(cmd)}")
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def helm_uninstall(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> (int, str, str):
     """
     API to uninstall helm-chart
@@ -242,6 +258,7 @@ def helm_uninstall(k8_cluster : common.k8_cluster, release_name : str, namespace
     else:
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def helm_cleanup(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> (int, str, str):
     """
     API to do forceful cleanup, if helm-uninstall resulted in failure
@@ -270,6 +287,7 @@ def helm_cleanup(k8_cluster : common.k8_cluster, release_name : str, namespace :
     else:
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def is_helm_chart_deployed(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> bool:
     """
     API to check if helm-chart is deployed. 
@@ -304,6 +322,7 @@ def is_helm_chart_deployed(k8_cluster : common.k8_cluster, release_name : str, n
             return True
     return False
 
+@log_arguments
 def is_helm_chart_healthy(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> bool:
     """
     API to check if installed helm-chart is healthy
@@ -396,6 +415,7 @@ def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = Tru
 
     return ret_code, k8_gpu_nodes
 
+@log_arguments
 def k8_get_node_gpu_capacity(k8_cluster : common.k8_cluster, node_name : str) -> (int, int):
     """
     API to get the node's status.capacity and status.allocatable values of gpu
@@ -416,6 +436,7 @@ def k8_get_node_gpu_capacity(k8_cluster : common.k8_cluster, node_name : str) ->
     gpu_allocatable = node['status']['allocatable'].get("amd.com/gpu", -1)
     return(gpu_capacity, gpu_allocatable)
 
+@log_arguments
 def k8_get_node_gpu_alloc_requests(k8_cluster, node_name):
     ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(f"kubectl describe node {node_name} | \
                                              awk '/Allocated resources/,/gpu/'")
@@ -431,6 +452,7 @@ def k8_get_node_gpu_alloc_requests(k8_cluster, node_name):
 
     return(requests, limit)
     
+@log_arguments
 def k8_get_pods(k8_cluster, namespace):
     """
     API to get all pods for a given namespace from a k8 cluster
@@ -460,6 +482,7 @@ def k8_get_pods(k8_cluster, namespace):
         k8_pod_info = json.loads(resp_stdout)
         return ret_code, k8_pod_info.get("items", None)
 
+@log_arguments
 def k8_get_endpoints(k8_cluster, namespace):
     """
     API to get endpoints from a k8 cluster for a given namespace and filtered by service-name
@@ -513,11 +536,13 @@ def k8_get_endpoints(k8_cluster, namespace):
                     ret_values[service_name].append((host, ip_address, port))
     return ret_code, ret_values
 
+@log_arguments
 def k8_create_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) -> (int, str, str):
     """
     API to create custom-resource on a K8 cluster.
     """
     global Logger
+
     if k8_cluster.k8_kube_config:
         custom_objects_api = client.CustomObjectsApi()
         # Read cr_file and derive: group, version, plural and name
@@ -546,11 +571,13 @@ def k8_create_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) ->
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_modify_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) -> (int, str, str):
     """
     API to modify custom-resource on a K8 cluster.
     """
     global Logger
+
     if k8_cluster.k8_kube_config:
         custom_objects_api = client.CustomObjectsApi()
         # Read cr_file and derive: group, version, plural and name
@@ -573,11 +600,13 @@ def k8_modify_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) ->
     else:
         return k8_create_deviceconfig_cr(k8_cluster, cr_spec)
 
+@log_arguments
 def k8_apply_cr(k8_cluster : common.k8_cluster, cr_spec : dict, cr_file : str) -> (int, str, str):
     """
     API to create custom-resource on a K8 cluster.
     """
     global Logger
+
     if k8_cluster.k8_kube_config:
         namespace = cr_spec.get('metadata').get('namespace')
         api = client.CoreV1Api()
@@ -602,6 +631,7 @@ def k8_apply_cr(k8_cluster : common.k8_cluster, cr_spec : dict, cr_file : str) -
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, namespace : str, name : str) -> (int, str, str):
     """
     API to delete deviceconfig CR with given name and namespace
@@ -657,11 +687,13 @@ def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, namespace : str, n
         cmd = ["kubectl", "delete", "deviceconfig", name, "-n", namespace]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_delete_cr(k8_cluster, cr_spec, cr_file):
     """
     API to delete CR with given spec (dict)
     """
     global Logger
+
     if k8_cluster.k8_kube_config:
         api = client.CoreV1Api()
         try:
@@ -684,6 +716,7 @@ def k8_delete_cr(k8_cluster, cr_spec, cr_file):
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : str,  endpoint_verbs : List) -> (int, str, str):
     """
     API to create a cluster-role with specific endpoint and corresponding verb
@@ -731,6 +764,7 @@ def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : s
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_create_role_binding(k8_cluster : common.k8_cluster, crb_name : str,  namespace : str, cluster_role_name : str, sa_name : str) -> (int, str, str):
     """
     API to create cluster-role-binding
@@ -784,6 +818,7 @@ def k8_create_role_binding(k8_cluster : common.k8_cluster, crb_name : str,  name
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_delete_pod(k8_cluster : common.k8_cluster, pod_name : str, namespace : str, force : bool = False):
     """
     API to delete a pod
@@ -803,6 +838,7 @@ def k8_delete_pod(k8_cluster : common.k8_cluster, pod_name : str, namespace : st
         cmd = f"kubectl delete pod {pod_name} -n {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
+@log_arguments
 def k8_delete_all_pods(k8_cluster : common.k8_cluster, namespace : str):
     """
     API to delete all pods in a given namespace
@@ -819,6 +855,7 @@ def k8_delete_all_pods(k8_cluster : common.k8_cluster, namespace : str):
         cmd = f"kubectl delete pods --all -n {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
+@log_arguments
 def k8_delete_all_pods_with_prefix(k8_cluster : common.k8_cluster, namespace : str, pod_name_prefix: str) -> int:
     """
     API to delete all pods with given name prefix
@@ -846,6 +883,7 @@ def k8_delete_all_pods_with_prefix(k8_cluster : common.k8_cluster, namespace : s
                 Logger.error(f"Failed to delete pod {pod_name}, error {ret_stderr}")
     return ret_code
 
+@log_arguments
 def k8_get_namespaces(k8_cluster : common.k8_cluster):
     """
     API to get all namespaces in a given k8 cluster
@@ -866,6 +904,7 @@ def k8_get_namespaces(k8_cluster : common.k8_cluster):
         k8_namespace_info = json.loads(resp_stdout)
     return 0, k8_namespace_info.get("items", list())
 
+@log_arguments
 def k8_delete_namespace(k8_cluster : common.k8_cluster, namespace : str):
     """
     API to delete namespace in a given k8 cluster
@@ -884,6 +923,7 @@ def k8_delete_namespace(k8_cluster : common.k8_cluster, namespace : str):
         cmd = f"kubectl delete namespace {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
+@log_arguments
 def k8_create_namespace(k8_cluster : common.k8_cluster, namespace : str):
     """
     API to create a namespace
@@ -903,6 +943,7 @@ def k8_create_namespace(k8_cluster : common.k8_cluster, namespace : str):
         cmd = f"kubectl create namespace {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
+@log_arguments
 def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_name: str, job_name : str, healthy : bool, schedule : bool, minute : str):
     global Logger
 
@@ -1057,8 +1098,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
         except client.ApiException as e:
             assert True, f"Error creating Job: {e}"
 
-
-
+@log_arguments
 def k8_get_job_status(k8_cluster : common.k8_cluster, namespace : str, job_name):
     global Logger
     if k8_cluster.k8_kube_config:
@@ -1098,6 +1138,7 @@ def k8_get_job_status(k8_cluster : common.k8_cluster, namespace : str, job_name)
         Logger.info(f"running job:\n{stdout}")
         return stdout.split('/')[0]
 
+@log_arguments
 def k8_delete_job(k8_cluster : common.k8_cluster, namespace : str, job_name : str):
     global Logger
     if k8_cluster.k8_kube_config:
@@ -1119,6 +1160,7 @@ def k8_delete_job(k8_cluster : common.k8_cluster, namespace : str, job_name : st
         Logger.info(f"Deleting job:\n{stdout}")
         return stdout.split('/')[0]
 
+@log_arguments
 def k8_get_cron_job_status(k8_cluster : common.k8_cluster, namespace : str, job_name):
     global Logger
     if k8_cluster.k8_kube_config:
@@ -1136,6 +1178,7 @@ def k8_get_cron_job_status(k8_cluster : common.k8_cluster, namespace : str, job_
         Logger.info(f"was scheduled :\n{stdout}")
         return "No resources found in" not in stderr
 
+@log_arguments
 def k8_delete_cron_job(k8_cluster : common.k8_cluster, namespace : str, job_name : str):
     global Logger
     if k8_cluster.k8_kube_config:
@@ -1152,6 +1195,7 @@ def k8_delete_cron_job(k8_cluster : common.k8_cluster, namespace : str, job_name
         return stdout.split('/')[0]
 
 
+@log_arguments
 def k8_check_pod_status(k8_cluster : common.k8_cluster, namespace : str, pod_list : List) -> Dict:
     pod_status = dict()
     ret_code, k8_pod_list = k8_get_pods(k8_cluster, namespace)
@@ -1164,6 +1208,7 @@ def k8_check_pod_status(k8_cluster : common.k8_cluster, namespace : str, pod_lis
     return pod_status
 
 
+@log_arguments
 def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
     """
     API to check if ALL of given list of PODs are running
@@ -1207,6 +1252,7 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
         Logger.debug(f"Status of the Pods {pod_list}\n{LogPrettyPrinter.pformat(k8_pod_list)}")
     return failed_pods
 
+@log_arguments
 def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
     """
     API to check if ALL of given list of PODs are terminated
@@ -1241,6 +1287,7 @@ def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod
         Logger.debug(f"Status of Pods {pod_list}\n{LogPrettyPrinter.pformat(k8_pod_list)}")
     return running_pods
 
+@log_arguments
 def k8_create_configmap(k8_cluster : common.k8_cluster, namespace : str, configmap_name : str, configmap_json_file : str):
     """
     API to create configmap in a k8-cluster
@@ -1278,6 +1325,7 @@ def k8_create_configmap(k8_cluster : common.k8_cluster, namespace : str, configm
             cmd.append(f"--from-file={remote_file}")
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configmap_name : str):
     """
     API to create configmap in a k8-cluster
@@ -1298,6 +1346,7 @@ def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configm
         cmd = ["kubectl", "delete", "configmap", "--namespace", namespace, configmap_name]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_crictl_run_command(cluster_node, container_name, command):
     """
     API to run/inspect a container using crictl tool
@@ -1334,6 +1383,7 @@ def k8_get_node_hostname(node_info, address_type = "Hostname"):
             return addr.get("address", None)
     assert f"Missing address-type : {address_type} in k8 node, {node_info}"
 
+@log_arguments
 def k8_delete_cluster_role(k8_cluster, cluster_role_name):
     """
     API to delete cluster-role
@@ -1352,7 +1402,8 @@ def k8_delete_cluster_role(k8_cluster, cluster_role_name):
         cmd = ["kubectl", "delete", "clusterrole", cluster_role_name]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
-def k8_get_events(k8_cluster, namespace="kube-amd-gpu", pod_name=None):
+@log_arguments
+def k8_get_events(k8_cluster, namespace : str, pod_name=None):
     """
     API to
 
@@ -1383,14 +1434,16 @@ def k8_get_events(k8_cluster, namespace="kube-amd-gpu", pod_name=None):
             Logger.error(f"Invalid JSON string:\n{resp_stdout}")
             assert True, f"got error {resp_stderr}"
 
-def k8_get_pod_name(k8_cluster, pod_str="test-runner", namespace="kube-amd-gpu"):
+@log_arguments
+def k8_get_pod_name(k8_cluster, pod_str : str, namespace : str):
     ret_code, pods = k8_get_pods(k8_cluster, namespace)
     assert ret_code == 0, f"Failed to get pod names in namespace {namespace}"
     for pod in pods:
         if pod.get('metadata') != None and pod_str in pod.get('metadata').get('name'):
             return pod['metadata']['name']
 
-def k8_get_pod_logs(k8_cluster, pod_str="test-runner", namespace="kube-amd-gpu", since="180s"):
+@log_arguments
+def k8_get_pod_logs(k8_cluster, pod_str : str, namespace : str, since="180s"):
     pod_name = k8_get_pod_name(k8_cluster, pod_str, namespace)
     if k8_cluster.k8_kube_config: 
         api = client.CoreV1Api()
@@ -1405,6 +1458,7 @@ def k8_get_pod_logs(k8_cluster, pod_str="test-runner", namespace="kube-amd-gpu",
         cmd = ["kubectl", "logs", pod_name, "--namespace", namespace, f"--since={since}"]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_get_test_runner_worker_logs(k8_cluster):
     cmd = ["ls", "-lart", "/var/log/amd-test-runner"]
 
@@ -1412,6 +1466,7 @@ def k8_get_test_runner_worker_logs(k8_cluster):
         ret_code, resp_stdout, resp_stderr = wn.run_command(" ".join(cmd), timeout = 60)
 
 
+@log_arguments
 def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str):
     """
     API to taint node
@@ -1422,6 +1477,7 @@ def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str):
     cmd = ["kubectl", "taint", "nodes", node_name, "gpu=unhealthy:NoSchedule"]
     return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
     """
     API to untaint node
@@ -1432,7 +1488,8 @@ def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
     cmd = ["kubectl", "taint", "nodes", node_name, "gpu=unhealthy:NoSchedule-"]
     return k8_cluster.k8_master.run_command(" ".join(cmd))
 
-def k8_metrics_error(k8_cluster, counts, error_list, namespace="kube-amd-gpu"):
+@log_arguments
+def k8_metrics_error(k8_cluster, counts, error_list, namespace : str):
     """
     API to artificially set health threshold
     kubectl exec -n kube-amd-gpu metrics-exporter -c metrics-exporter-container -- sh -c 'cat > /tmp/ecc.json <<EOF
@@ -1506,7 +1563,8 @@ def k8_metrics_error(k8_cluster, counts, error_list, namespace="kube-amd-gpu"):
         status = k8_cluster.k8_master.run_command(" ".join(cmd))
         Logger.info(f"Status of: {cmd}\nmetricsclient: {status}")
 
-def k8_get_node_health(k8_cluster, node_name="gpu-node", namespace="kube-amd-gpu"):
+@log_arguments
+def k8_get_node_health(k8_cluster, node_name : str, namespace : str):
     if k8_cluster.k8_kube_config:
         api = client.CoreV1Api()
         node: client.V1Node = api.read_node(name=node_name)
@@ -1539,6 +1597,7 @@ def k8_get_node_health(k8_cluster, node_name="gpu-node", namespace="kube-amd-gpu
         assert "metricsexporter.amd.com.gpu.0.state=" in resp_stdout, f"expected response with GPU state, instead got {ret_code, resp_stdout, resp_stderr}"
         return state
 
+@log_arguments
 def k8_delete_cluster_role_binding(k8_cluster, cluster_role_name):
     """
     API to delete cluster-role
@@ -1557,6 +1616,7 @@ def k8_delete_cluster_role_binding(k8_cluster, cluster_role_name):
         cmd = ["kubectl", "delete", "clusterrolebinding", cluster_role_name]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_create_service_account(k8_cluster : common.k8_cluster, sa_name : str, namespace : str) -> None:
     """
     API to create service-account
@@ -1591,6 +1651,7 @@ def k8_create_service_account(k8_cluster : common.k8_cluster, sa_name : str, nam
             cmd.append(remote_file)
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_delete_service_account(k8_cluster : common.k8_cluster, sa_name : str, namespace : str) -> (int, str, str):
     """
     API to delete service-account
@@ -1609,6 +1670,7 @@ def k8_delete_service_account(k8_cluster : common.k8_cluster, sa_name : str, nam
         cmd = ["kubectl", "delete", "serviceaccount", sa_name, "--namespace", namespace]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_create_token(k8_cluster : common.k8_cluster, namespace : str, sa_name : str, duration : str) -> (int, str, str):
     """
     API to create token
@@ -1649,6 +1711,7 @@ def k8_create_token(k8_cluster : common.k8_cluster, namespace : str, sa_name : s
         token_value = k8_token_info['status']['token']
         return token_value
 
+@log_arguments
 def k8_create_secret(k8_cluster : common.k8_cluster, secret_name : str,
                      secret_type : str, **kwargs) -> (int, str, str):
     """
@@ -1729,6 +1792,7 @@ def k8_create_secret(k8_cluster : common.k8_cluster, secret_name : str,
         ret_code, ret_stdout, ret_stderr = k8_cluster.k8_master.run_command(" ".join(create_cmd))
         return ret_code, ret_stdout, ret_stderr
 
+@log_arguments
 def k8_delete_secret(k8_cluster : common.k8_cluster, secret_name : str, secret_type : str, namespace : str = "default") -> (int, str, str):
     """
     API to delete a secret in kubernetes cluster
@@ -1758,6 +1822,7 @@ def k8_delete_secret(k8_cluster : common.k8_cluster, secret_name : str, secret_t
             Logger.error(f"secret delete failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
         return ret_code, ret_stdout, ret_stderr
 
+@log_arguments
 def crictl_cleanup_images(k8_cluster):
     """
     API to prune images on all nodes
@@ -1771,6 +1836,7 @@ def crictl_cleanup_images(k8_cluster):
         assert ret_code == 0, f"Failed prune images from worker node {wn.ip_address}, error: {resp_stderr}"
     return
 
+@log_arguments
 def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, deviceconfig_name : str = None) -> Dict:
     """
     API to get deviceconfig information
@@ -1914,6 +1980,7 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
                 ret_values[item.get('metadata').get('name')] = item
     return ret_values
 
+@log_arguments
 def k8_lookup_crd(k8_cluster : common.k8_cluster, crd_name : str) -> Dict:
     """
     API to retrieve DeviceConfig CRD information post gpu-operator installation
@@ -1954,6 +2021,7 @@ def k8_lookup_crd(k8_cluster : common.k8_cluster, crd_name : str) -> Dict:
     Logger.debug(f"CRDs from the cluster\n{LogPrettyPrinter.pformat(crd_list)}")
     return None
 
+@log_arguments
 def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> (int, int, str):
     """
     API to run a curl command in the kubernetes cluster to collect information
@@ -2025,6 +2093,7 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
             time.sleep(20)
     return -1, "", ""
 
+@log_arguments
 def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : List):
     """
     Runs a command on a specific Kubernetes worker node using an ephemeral debug pod.

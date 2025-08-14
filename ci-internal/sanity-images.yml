@@ -8,9 +8,14 @@ images:
                 enable: yes
                 url: registry.test.pensando.io:5000
     k8:
+        driver:
+          key           : driver.image
+          kind          : container
+
         gpu-operator:
             image       : /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.2.0.tgz
             kind        : helm-chart
+            version     : v1.2.0
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
@@ -41,25 +46,27 @@ images:
 
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
-            location    : container://<registry>/rocm/kernel-module-management-signimage
-            version     : latest
+            image       : /kernel-module-management/kernel-module-management-signimage.tar.gz
             kind        : container
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
-            location    : container://<registry>/rocm/kernel-module-management-worker
-            version     : latest
+            image       : /kernel-module-management/kernel-module-management-worker.tar.gz
             kind        : container
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
             image       : /kernel-module-management/kernel-module-management-operator.tar.gz
-            version     : latest
             kind        : container
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
-            location    : container://<registry>/rocm/kernel-module-management-webhook-server
-            version     : latest
+            image       : /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://<registry>/busybox
+            version     : 1.36
             kind        : container
 

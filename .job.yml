@@ -47,7 +47,7 @@ builds:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
        /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter \
        --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch ${JOB_BASE_BRANCH}"]
-    owners: ["email: srivatsa.sangli@amd.com"]
+    owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
      - /device-metrics-exporter/tools/techsupport_dump.sh
@@ -56,7 +56,7 @@ builds:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
        /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner \
        --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker --alien-branch ${JOB_BASE_BRANCH}"]
-    owners: ["email: srivatsa.sangli@amd.com"]
+    owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
 
@@ -64,9 +64,33 @@ builds:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
        /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-manager \
        --alien-repo pensando/kernel-module-management --alien-target build-kernel-module-management --alien-branch ${JOB_BASE_BRANCH}"]
-    owners: ["email: srivatsa.sangli@amd.com"]
+    owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /kernel-module-management/kernel-module-management-operator.tar.gz
+
+  build-external-kernel-module-signimage:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-signimage \
+       --alien-repo pensando/kernel-module-management --alien-target build-signer --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-signimage.tar.gz
+
+  build-external-kernel-module-webhook-server:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-webhook-server \
+       --alien-repo pensando/kernel-module-management --alien-target build-webhook-server --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+
+  build-external-kernel-module-worker:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-worker \
+       --alien-repo pensando/kernel-module-management --alien-target build-worker --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-worker.tar.gz
 
 targets:
   gpu-operator-sanity:
@@ -119,7 +143,7 @@ jobs:
   tests/jobs/compat/mi250:
     labels: ["CI-Pytest-Compat-MI250"]
   tests/jobs/sanity:
-    labels: ["CI-Sanity-Build"]
+    labels: ["CI-Sanity-Build", "CI-Pytest-Sanity"]
       # ci-internal:
     #    labels: [""]
 host_mounts:

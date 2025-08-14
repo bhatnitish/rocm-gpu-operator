@@ -41,9 +41,10 @@ run "curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/l
 run "wget -O/usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.25.0/kind-linux-amd64 && chmod +x /usr/local/bin/kind"
 
 # install python modules required for pytest-based test-automation
-run "apt update && apt install -y jq python3.10-venv python3-pytest python3-virtualenv"
+run "apt update && apt install -y jq python3.10-venv python3-pytest python3-virtualenv sshpass"
 run "pip install fabric pytest pytest-html jinja2 ruamel.yaml requests kubernetes PyYAML beautifulsoup4 pexpect networkx"
 run "pip install prettytable pyparsing coverage cerberus==1.3.3 paramiko psycopg2-binary"
+run "pip install xmltodict prometheus_client docker tomlkit"
 
 if getenv("FLATTEN") != ""
   flatten

@@ -22,6 +22,7 @@ import copy
 import logging
 import shutil
 import json
+import io
 from ruamel.yaml import YAML
 from ruamel.yaml import comments
 from ruamel.yaml import scalarstring
@@ -267,6 +268,12 @@ def dump_yaml(file_name, data):
     with open(file_name, 'w') as fp:
         yaml.dump(data, fp)
     return data
+
+def get_yaml(data):
+    str_stream = io.StringIO()
+    yaml.dump(data, str_stream)
+    yaml_data = str_stream.getvalue()
+    return yaml_data
 
 def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections = {}):
     global Logger
