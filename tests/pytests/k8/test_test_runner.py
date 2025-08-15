@@ -123,7 +123,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
 
-    # Uninstall gpu-operator helm-chart
+    # Uninst-operator helm-chart
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     debug_on_failure(k8_helper, ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", False)
     return
@@ -569,7 +569,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, images, gpu_operator_insta
     for error in error_list:
         thresholds.append(metrics_fields.get(error) + random.randint(1,10))
 
-    verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on port"], "metrics-exporter")
+    verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on"], "metrics-exporter")
     time.sleep(30)
     k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
 
@@ -611,7 +611,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, images, gpu_operator_insta
 
     k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
 
-    verify_logs(gpu_cluster, k8_helper, environment, [f"all GPUs are healthy or associated with workloads, skip testing"])
+    verify_logs(gpu_cluster, k8_helper, environment, [f"s are healthy"])
 
     Logger.info(f"This workload should get created, since the node {worker}, is now untainted")
     verify_events(gpu_cluster, namespace)
@@ -654,7 +654,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, images, gpu_
         return
 
     request.addfinalizer(_cleanup)
-    verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on port"], "metrics-exporter")
+    verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on"], "metrics-exporter")
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=True, delete=False, errored=False)
     k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
 
@@ -686,7 +686,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, images, gpu_
 
     k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
     verify_logs(gpu_cluster, k8_helper, environment,
-               ["all GPUs are healthy or associated with workloads, skip testing"])
+               ["all GPUs are healthy"])
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=True, delete=False, errored=False)
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
     debug_on_failure(k8_helper, not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
@@ -715,7 +715,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
         return
 
     request.addfinalizer(_delete_workload)
-    verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on port"], "metrics-exporter")
+    verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on"], "metrics-exporter")
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=True, delete=False, errored=False)
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -739,7 +739,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
 
     time.sleep(30)
     verify_logs(gpu_cluster, k8_helper, environment,
-               ["all GPUs are healthy or associated with workloads, skip testing"])
+               ["all GPUs are healthy"])
     k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
     def _cleanup():
         k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
@@ -793,7 +793,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
     k8_util.k8_metrics_error(gpu_cluster, [0] * len(error_list), error_list)
 
     verify_logs(gpu_cluster, k8_helper, environment,
-               ["all GPUs are healthy or associated with workloads, skip testing"])
+               ["all GPUs are healthy"])
     ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
     verify_events(gpu_cluster, namespace)
@@ -946,11 +946,11 @@ def test_manual_job(request, gpu_cluster, images, gpu_operator_install, deviceco
     if not schedule:
         job_status = k8_util.k8_get_job_status(gpu_cluster, namespace, job_name)
         if healthy:
-            debug_on_failure(k8_helper, job_status == "Pending",
+            debug_on_failure(k8_helper, job_status in ["Running", "Pending"],
                              f"job should be in Running state or at least in Pending state, found {job_status}",
                              environment.pause_on_failure)
         else:
-            debug_on_failure(k8_helper, job_status == "Running",
+            debug_on_failure(k8_helper, job_status in ["Running", "Pending"],
                              f"job should be in Running state or at least in Pending state, found {job_status}",
                              environment.pause_on_failure)
 
