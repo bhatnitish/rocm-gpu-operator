@@ -60,6 +60,14 @@ builds:
     artifacts:
      - /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
 
+  build-external-test-runner-agfhc:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner-agfhc \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker-agfhc --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+      - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+
   build-external-kernel-module-manager:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
        /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-manager \

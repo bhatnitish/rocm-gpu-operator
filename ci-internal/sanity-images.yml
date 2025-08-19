@@ -31,7 +31,12 @@ images:
             key         : testRunner.image
             image       : /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
             kind        : container
-        
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            image       : /device-metrics-exporter/docker/testrunner/test-runner-agfhc-latest.tar.gz
+            kind        : container
+
         device-plugin:
             key         : devicePlugin.devicePluginImage
             location    : container://<registry>/rocm/k8s-device-plugin
