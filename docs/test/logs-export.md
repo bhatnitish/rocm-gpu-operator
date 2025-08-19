@@ -158,7 +158,7 @@ Example:
     enable: True
 
     # testrunner image
-    image: docker.io/rocm/test-runner:v1.2.0-beta.0
+    image: docker.io/rocm/test-runner:v1.4.0
 
     # image pull policy for the testrunner
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
