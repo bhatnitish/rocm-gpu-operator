@@ -571,23 +571,23 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, images, gpu_operator_insta
 
     verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on"], "metrics-exporter")
     time.sleep(30)
-    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
+    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
 
-    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker) == "unhealthy",
+    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker, environment.gpu_operator_namespace) == "unhealthy",
 			      f"result of kubectl describe node $NODE_NAME | grep unhealthy",
 			      environment.pause_on_failure)
     Logger.info(f"This workload should not get created, state = Pending? or Running?")
 
     def _cleanup():
         create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=False, delete=True, errored=False)
-        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
         return
 
     request.addfinalizer(_cleanup)
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, errored=True)
 
     Logger.info(f"Test runner worker logs\n===================\n")
-    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster)
+    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster, "test-runner", environment.gpu_operator_namespace)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
 
     Logger.info(f"found {recipe} in test runner logs\n{LogPrettyPrinter.pformat(stdout)}\n")
@@ -597,7 +597,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, images, gpu_operator_insta
     verify_logs(gpu_cluster, k8_helper, environment, ["found GPU with unhealthy state"])
     verify_events(gpu_cluster, namespace)
 
-    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker) == "unhealthy",
+    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker, environment.gpu_operator_namespace) == "unhealthy",
 			      f"result of kubectl describe node $NODE_NAME | grep unhealthy",
 			      environment.pause_on_failure)
 
@@ -609,7 +609,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, images, gpu_operator_insta
     #TODO figure out later
     #k8_util.k8_untaint_node(gpu_cluster, worker)
 
-    k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+    k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
 
     verify_logs(gpu_cluster, k8_helper, environment, [f"s are healthy"])
 
@@ -650,24 +650,24 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, images, gpu_
     Logger.info(f"This workload should get created")
     def _cleanup():
         create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=False, delete=True, errored=False)
-        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
         return
 
     request.addfinalizer(_cleanup)
     verify_logs(gpu_cluster, k8_helper, environment, ["serving requests on"], "metrics-exporter")
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=True, delete=False, errored=False)
-    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
+    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
 
 
     Logger.info(f"Test runner worker logs\n===================\n")
-    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster)
+    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster, "test-runner", environment.gpu_operator_namespace)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
     time.sleep(30)
     verify_events(gpu_cluster, namespace)
 
     verify_logs(gpu_cluster, k8_helper, environment,
                [f'AssociatedWorkload:"pod : pytorch-gpu-pod-1, namespace : {environment.gpu_operator_namespace}'])
-    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker) == "unhealthy",
+    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker, environment.gpu_operator_namespace) == "unhealthy",
                               f"result of kubectl describe node $NODE_NAME | grep unhealthy",
                               environment.pause_on_failure)
 
@@ -684,7 +684,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, images, gpu_
     verify_logs(gpu_cluster, k8_helper, environment,
                [f"trigger AUTO_UNHEALTHY_GPU_WATCH is trying to run test {recipe} on device"])
 
-    k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+    k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
     verify_logs(gpu_cluster, k8_helper, environment,
                ["all GPUs are healthy"])
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=True, delete=False, errored=False)
@@ -740,15 +740,15 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
     time.sleep(30)
     verify_logs(gpu_cluster, k8_helper, environment,
                ["all GPUs are healthy"])
-    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
+    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
     def _cleanup():
-        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
         return
     request.addfinalizer(_cleanup)
 
 
     Logger.info(f"Test runner worker logs\n===================\n")
-    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster)
+    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster, "test-runner", environment.gpu_operator_namespace)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
     verify_events(gpu_cluster, namespace)
 
@@ -756,7 +756,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
     error = error_list[rand_i]
     thresholds[rand_i] = health_thresholds.get(error) + random.randint(1, 3)
     Logger.info(f"injecting {thresholds[rand_i]} errors for {error}, threshold is {health_thresholds.get(error)}")
-    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
+    k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
     time.sleep(30)
     #TODO - this check fails in jobd
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
@@ -782,7 +782,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
     verify_logs(gpu_cluster, k8_helper, environment,
                [f"associated with workload"])
 
-    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker) == "unhealthy",
+    debug_on_failure(k8_helper, k8_util.k8_get_node_health(gpu_cluster, worker, environment.gpu_operator_namespace) == "unhealthy",
                               f"result of kubectl describe node $NODE_NAME | grep unhealthy",
                               environment.pause_on_failure)
     create_delete_workload_with_gpu(request, gpu_cluster, environment, k8_helper, create=False, delete=True, errored=True)
@@ -790,11 +790,11 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, images, gp
     verify_logs(gpu_cluster, k8_helper, environment,
                [f"trigger AUTO_UNHEALTHY_GPU_WATCH is trying to run test {recipe}"])
 
-    k8_util.k8_metrics_error(gpu_cluster, [0] * len(error_list), error_list)
+    k8_util.k8_metrics_error(gpu_cluster, [0] * len(error_list), error_list, environment.gpu_operator_namespace)
 
     verify_logs(gpu_cluster, k8_helper, environment,
                ["all GPUs are healthy"])
-    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster)
+    ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster, "test-runner", environment.gpu_operator_namespace)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
     verify_events(gpu_cluster, namespace)
 
@@ -847,12 +847,12 @@ def test_manual_job(request, gpu_cluster, images, gpu_operator_install, deviceco
         error_list = random.sample(metrics_fields.keys(), sample_size)
         thresholds = []
         def _cleanup():
-            k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+            k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
             return
         request.addfinalizer(_cleanup)
         for error in error_list:
             thresholds.append(metrics_fields.get(error) + random.randint(1,10))
-        k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list)
+        k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
         time.sleep(30)
 
     if not gpu_cluster.k8_kube_config:
@@ -994,4 +994,4 @@ def test_manual_job(request, gpu_cluster, images, gpu_operator_install, deviceco
             k8_util.k8_delete_cron_job(gpu_cluster, namespace, job_name)
 
     if not healthy:
-        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list)
+        k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)

@@ -13,9 +13,9 @@ images:
           kind          : container
 
         gpu-operator:
-            image       : /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.2.0.tgz
+            image       : /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.4.0.tgz
             kind        : helm-chart
-            version     : v1.2.0
+            version     : v1.4.0
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
@@ -34,7 +34,7 @@ images:
 
         test-runner-agfhc:
             key         : testRunnerAgfhc.image
-            image       : /device-metrics-exporter/docker/testrunner/test-runner-agfhc-latest.tar.gz
+            image       : /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
             kind        : container
 
         device-plugin:

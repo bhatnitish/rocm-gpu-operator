@@ -1413,6 +1413,7 @@ def k8_get_events(k8_cluster, namespace : str, pod_name=None):
     global LogPrettyPrinter
     if k8_cluster.k8_kube_config:
         api = client.CoreV1Api()
+        field_selector = None
         if pod_name:
             field_selector = f"involvedObject.kind=Pod,involvedObject.name={pod_name}"
         try:
