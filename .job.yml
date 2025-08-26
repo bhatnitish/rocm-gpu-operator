@@ -19,7 +19,7 @@ builds:
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
-        reference: main
+        reference: 3c4df0af409cecd65e006e63908611703fb03748
 
   build-gpu-operator-k8s:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
@@ -30,7 +30,7 @@ builds:
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
-        reference: main
+        reference: 3c4df0af409cecd65e006e63908611703fb03748
 
   build-gpu-operator-openshift:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
@@ -41,7 +41,7 @@ builds:
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
-        reference: main
+        reference: 3c4df0af409cecd65e006e63908611703fb03748
 
   build-external-device-metrics-exporter:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
@@ -131,7 +131,7 @@ targets:
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
-        reference: main
+        reference: 3c4df0af409cecd65e006e63908611703fb03748
 image:
   bind_dir: "/gpu-operator"
   work_dir: "/gpu-operator"
