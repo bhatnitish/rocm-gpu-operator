@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
-    createdAt: "2025-08-18T21:57:16Z"
+    createdAt: "2025-08-21T00:26:20Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -483,6 +483,13 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Set the host path for pod-resource kubelet.socket, vanila kubernetes
+          path is /var/lib/kubelet/pod-resources microk8s path is /var/snap/microk8s/common/var/lib/kubelet/pod-resources/
+          path is an absolute unix path that allows a trailing slash
+        displayName: PodResourceAPISocketPath
+        path: metricsExporter.podResourceAPISocketPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:podResourceAPISocketPath
       - description: Port is the internal port used for in-cluster and node access
           to pull metrics from the metrics-exporter (default 5000).
         displayName: Port

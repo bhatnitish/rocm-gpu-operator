@@ -828,6 +828,7 @@ deviceConfig:
 					Config: v1alpha1.MetricsConfig{
 						Name: "metricsConfig",
 					},
+					PodResourceAPISocketPath: "/var/lib/kubelet/pod-resources",
 					Tolerations: []corev1.Toleration{
 						{
 							Key:      "example-key",
