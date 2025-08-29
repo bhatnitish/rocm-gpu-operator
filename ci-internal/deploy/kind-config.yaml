@@ -13,6 +13,8 @@ nodes:
     extraMounts:
       - hostPath: /sys/fs/cgroup
         containerPath: /sys/fs/cgroup
+      - hostPath: /run/dbus/system_bus_socket
+        containerPath: /run/dbus/system_bus_socket
     # Configure Kubelet to use cgroup v1
     kubeadmConfigPatches:
       - |

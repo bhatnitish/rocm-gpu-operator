@@ -9,6 +9,12 @@ hostname -i
 HOST_IP=$(hostname -i | awk '{print $2}')
 REGISTRY_PORT="5000"
 
+sudo apt install dbus
+sudo mkdir -p /run/dbus
+sudo dbus-daemon --system --fork
+ls -l /var/run/dbus
+ls -l /run/dbus
+
 sed -i "s/registry-replaceme/$HOST_IP/" deploy/kind-config-1c2w.yaml
 
 ./deploy_k8s_by_kind.sh;
