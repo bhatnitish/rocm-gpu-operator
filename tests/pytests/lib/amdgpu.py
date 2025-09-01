@@ -18,56 +18,47 @@
 
 import os
 import sys
+import pdb
 import logging
+import json
 import lib.common
 from datetime import datetime
 from collections import defaultdict
 
 Logger = logging.getLogger("lib.amdgpu")
 
-def is_amdgpu_driver_installed(worker_node):
-    # TODO:
-    # Scan /proc/moddules of this node to check if amdgpu is loaded or not.
-    global Logger
-    local_filename = f'{worker_node.ip_address}_proc_modules'
-    ret_code = worker_node.get('/proc/modules', local_filename)
-    assert ret_code == 0, f'Failed to download /proc/modules from ip: {worker_node.ip_address}'
-    with open(local_filename) as fp:
-        for line in fp.readlines():
-            if line.split(' ')[0] == 'amdgpu':
-                return True
-    return False
+def get_rocm_version(devcfg_driver_version):
+    with open("lib/files/gpu-operator-rocm-info.json", "r") as fp:
+        rocm_info = json.load(fp)
 
-def get_dmesg_lines(worker_node, pattern = None):
-    # Collect/Generate latest dmesg for given node
-    global Logger
+    for entry in rocm_info['deviceconfig-driver']:
+        if entry['deviceconfig-version'] == devcfg_driver_version:
+            return entry['rocm-version']
+    return None
 
-    dmesg_file = f'/tmp/dmesg_{int(datetime.now().timestamp())}'
-    ret_code, _, _ = worker_node.run_command(f'sudo dmesg > {dmesg_file}')
-    assert ret_code == 0, f'Failed to generate dmesg file'
+def extract_amdgpu_info(node, k8_node, amd_smi_info):
+    if not amd_smi_info:
+        Logger.error(f"amd_smi_info is invalid")
+        return False
+    smi_data = json.loads(amd_smi_info.replace("'", "\""))
+    if isinstance(smi_data, list):
+        gpu_data = smi_data
+    elif isinstance(smi_data, dict):
+        gpu_data = smi_data['gpu_data']
+    else:
+        Logger.error(f"Failed to parse amd-smi information, {amd_smi_info}")
+        return False
 
-    ret_code = worker_node.get(dmesg_file, os.path.basename(dmesg_file))
-    assert ret_code == 0, f'Failed to download {dmesg_file} from ip {worker_node.ip_address}'
+    if len(gpu_data) == 0:
+        Logger.error(f"Failed to parse amd-smi information, {amd_smi_info}")
+        return False
 
-    with open(os.path.basename(dmesg_file)) as fp:
-        contents = fp.readlines()
-        if pattern == None:
-            return contents
-
-        matching_lines = list()
-        for line in contents:
-            if pattern in line:
-                matching_lines.append(line)
-
-        return matching_lines
-
-def check_host_blacklist_file(worker_node, expected = True):
-    global Logger
-    
-    filename = "/etc/modprobe.d/blacklist-amdgpu.conf"
-    ret_code, resp_stdout, resp_stderr = worker_node.run_command(f"sudo ls -al {filename}")
-    Logger.info(f'{resp_stdout}')
-    present = filename in resp_stdout
-    Logger.info(f'blacklist file expected {expected}, present = {present}')
-    return expected == present 
+    num_gpus = len(gpu_data)
+    if num_gpus == 0:
+        Logger.error(f"No gpu information found")
+        return False
+    node.num_gpus = num_gpus
+    gpu_0 = gpu_data[0]
+    node.device_id = gpu_0['asic']['device_id']
+    return True
 

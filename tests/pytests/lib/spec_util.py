@@ -28,6 +28,7 @@ from ruamel.yaml import comments
 from ruamel.yaml import scalarstring
 from pathlib import Path
 from collections import defaultdict
+import lib.k8_util as k8_util
 
 Logger = logging.getLogger("lib.specutil")
 yaml = YAML()
@@ -93,6 +94,16 @@ device_config_template_v1_2_0 = {
                 'insecure'                  : True,
                 'insecureSkipTLSVerify'     : True,
             },
+            'upgradePolicy' : {
+                'enable' : False,
+                'maxParallelUpgrade' : 1,
+                'maxUnavailableNodes' : '25%',
+                'nodeDrainPolicy' : {
+                    'force' : False,
+                    'timeoutSeconds' : 300,
+                },
+            },
+            'rebootRequired' : False,
         },
         'devicePlugin' : {
             'devicePluginImage': '',
@@ -100,6 +111,10 @@ device_config_template_v1_2_0 = {
             'nodeLabellerImage': '',
             'enableNodeLabeller' : False,
             'nodeLabellerImagePullPolicy' : 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
         },
         'metricsExporter' : {
             'image'             : '',
@@ -112,12 +127,101 @@ device_config_template_v1_2_0 = {
                 'enable'        : False,
                 'disableHttps'  : True,
             },
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
         },
         'testRunner' : {
             'enable' : False,
             'config' : None,
             'image'  : '',
             'imagePullPolicy': 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'selector' : {
+            'feature.node.kubernetes.io/amd-gpu' : DQ('true'),
+        },
+    },
+}
+
+device_config_template_v1_3_0 = {
+    'apiVersion'    : 'amd.com/v1alpha1',
+    'kind'          : 'DeviceConfig',
+    'metadata'      : {
+        'name'      : 'test-deviceconfig',
+        'namespace' : 'kube-amd-gpu',
+    },
+    'spec'          : {
+        'commonConfig' : {
+            'initContainerImage': '',
+        },
+        'driver'    : {
+            'image' : '',
+            'enable': False,
+            'blacklist' : True,
+            'imageRegistryTLS' : {
+                'insecure'                  : True,
+                'insecureSkipTLSVerify'     : True,
+            },
+            'upgradePolicy' : {
+                'enable' : False,
+                'maxParallelUpgrade' : 1,
+                'maxUnavailableNodes' : '25%',
+                'nodeDrainPolicy' : {
+                    'force' : False,
+                    'timeoutSeconds' : 300,
+                },
+            },
+                'rebootRequired' : True,
+        },
+        'devicePlugin' : {
+            'devicePluginImage': '',
+            'devicePluginImagePullPolicy' : 'Always',
+            'nodeLabellerImage': '',
+            'enableNodeLabeller' : False,
+            'nodeLabellerImagePullPolicy' : 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'metricsExporter' : {
+            'image'             : '',
+            'imagePullPolicy'   : 'Always',
+            'enable'            : False,
+            'nodePort'          : 32500,
+            'port'              : 5000,
+            'serviceType'       : DQ('ClusterIP'),
+            'rbacConfig' : {
+                'enable'        : False,
+                'disableHttps'  : True,
+            },
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'testRunner' : {
+            'enable' : False,
+            'config' : None,
+            'image'  : '',
+            'imagePullPolicy': 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'configManager' : {
+            'enable' : False,
+            'imagePullPolicy' : 'IfNotPresent',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
         },
         'selector' : {
             'feature.node.kubernetes.io/amd-gpu' : DQ('true'),
@@ -131,10 +235,11 @@ device_config_templates = {
     'v1.2.0' : device_config_template_v1_2_0,
     'v1.2.1' : device_config_template_v1_2_0,
     'v1.2.2' : device_config_template_v1_2_0,
-    'v1.3.0' : device_config_template_v1_2_0,
+    'v1.3.0' : device_config_template_v1_3_0,
+    'v1.4.0' : device_config_template_v1_3_0,
 }
 
-device_config_template_default = device_config_template_v1_2_0
+device_config_template_default = device_config_template_v1_3_0
 
 
 wl_template = {
@@ -142,7 +247,7 @@ wl_template = {
     'kind': 'Pod', 
     'metadata': {
          'name': 'pytorch-gpu-pod-1', 
-         'namespace': 'kube-amd-gpu', 
+         'namespace': 'default',
          'labels': {
              'purpose': 'demo-wl'
          }
@@ -295,6 +400,16 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         device_config['spec']['driver']['version'] = DQ(spec.get('driver.version', '6.2.2'))
         device_config['spec']['driver']['enable'] = spec.get('driver.enable', False)
         device_config['spec']['driver']['blacklist'] = spec.get('driver.blacklist', True)
+        if gpu_operator_version >= 'v1.2.0':
+            rebootReqDefault = True
+            if gpu_operator_version == 'v1.2.0':
+                rebootReqDefault = False
+            device_config['spec']['driver']['upgradePolicy']['enable'] = spec.get('driver.upgradePolicy.enable', False)
+            device_config['spec']['driver']['upgradePolicy']['rebootRequired'] = spec.get('driver.upgradePolicy.rebootRequired', rebootReqDefault)
+            device_config['spec']['driver']['upgradePolicy']['maxParallelUpgrade'] = spec.get('driver.upgradePolicy.maxParallelUpgrade', 1)
+            device_config['spec']['driver']['upgradePolicy']['maxUnavailable'] = spec.get('driver.upgradePolicy.maxUnavailable', "25%")
+            device_config['spec']['driver']['upgradePolicy']['nodeDrainPolicy']['force'] = spec.get('driver.upgradePolicy.nodeDrainPolicy.force', False)
+            device_config['spec']['driver']['upgradePolicy']['nodeDrainPolicy']['timeoutSeconds'] = spec.get('driver.upgradePolicy.nodeDrainPolicy.timeoutSeconds', 300)
     else:
         del device_config['spec']['driver']
 
@@ -309,6 +424,9 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
             img = f"{spec.get('devicePlugin.nodeLabellerImage.repository')}:{spec.get('devicePlugin.nodeLabellerImage.version')}"
             device_config['spec']['devicePlugin']['nodeLabellerImage'] = img
         device_config['spec']['devicePlugin']['enableNodeLabeller'] = spec.get('devicePlugin.enableNodeLabeller', False)
+        if gpu_operator_version >= 'v1.2.0':
+            device_config['spec']['devicePlugin']['upgradePolicy']['maxUnavailable'] = spec.get('devicePlugin.upgradePolicy.maxUnavailable', 1)
+            device_config['spec']['devicePlugin']['upgradePolicy']['upgradeStrategy'] = spec.get('devicePlugin.upgradePolicy.upgradeStrategy', 'RollingUpdate')
     else:
         del device_config['spec']['devicePlugin']
 
@@ -336,6 +454,9 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
             device_config['spec']['metricsExporter']['imageRegistrySecret'] = {
                     'name' : spec.get('metricsExporter.image.secret')
             }
+        if gpu_operator_version >= 'v1.2.0':
+            device_config['spec']['metricsExporter']['upgradePolicy']['maxUnavailable'] = spec.get('metricsExporter.upgradePolicy.maxUnavailable', 1)
+            device_config['spec']['metricsExporter']['upgradePolicy']['upgradeStrategy'] = spec.get('metricsExporter.upgradePolicy.upgradeStrategy', 'RollingUpdate')
     else:
         del device_config['spec']['metricsExporter']
 
@@ -355,6 +476,9 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
                 device_config['spec']['testRunner']['imageRegistrySecret'] = {
                         'name' : spec.get('testRunner.image.secret')
                 }
+            if gpu_operator_version >= 'v1.2.0':
+                device_config['spec']['testRunner']['upgradePolicy']['maxUnavailable'] = spec.get('testRunner.upgradePolicy.maxUnavailable', 1)
+                device_config['spec']['testRunner']['upgradePolicy']['upgradeStrategy'] = spec.get('testRunner.upgradePolicy.upgradeStrategy', 'RollingUpdate')
         else:
             del device_config['spec']['testRunner']
 
@@ -437,7 +561,7 @@ def generate_k8_workload_template(file_name, spec = {}):
     """
     global Logger
     wl_config = copy.deepcopy(wl_template)
-    wl_config['metadata']['namespace'] = spec.get('namespace', 'kube-amd-gpu')
+    wl_config['metadata']['namespace'] = spec.get('namespace', 'default')
     wl_config['metadata']['name'] = spec.get('pod_name', 'pytorch-gpu-pod-1')
     wl_config['spec']['containers'][0]['resources']['limits']['amd.com/gpu'] = spec.get('num_gpu', 1)
     wl_config['spec']['nodeSelector']['kubernetes.io/hostname'] = spec.get('nodeSelector')
@@ -526,83 +650,22 @@ def generate_clusterrolebinding_yaml(file_name, crb_name, namespace, cluster_rol
     }
     return dump_yaml(file_name, crb_spec)
 
-def get_compatible_driver_versions(worker_node):
-    global Logger
-    with open('lib/files/amdgpu-driver-config.json') as fp:
-        gpuinfo = json.load(fp)
-        driver_data  = list(filter(lambda x: x['gpu'] == worker_node.gpu_series, gpuinfo['gpu-driver-info']))
-        if len(driver_data) == 1:
-            return driver_data[0]['versions']
-    return [ { "software-version" : "6.2.4", "display-version" : "6.8.5" } ]
-
-def group_gpu_nodes_by_dev_series(worker_nodes):
-    '''
-    Classify gpu-nodes based on gpu device-series
-    '''
-    global Logger
-    groups = defaultdict(list)
-    for node in worker_nodes:
-        groups[node.gpu_series].append(node)
-    return groups
-
-def get_common_amdgpu_driver(worker_nodes, gpu_nodes):
-    global Logger
-    driver_version_sets = []
-    for node in worker_nodes:
-        k8_node = get_k8_node_info(gpu_nodes, node.ip_address)
-        if k8_node == None:
-            Logger.error(f"No such k8 node for {node.ip_address}")
-            continue
-        driver_version_sets.append(set(map(lambda x:x['software-version'], get_compatible_driver_versions(node))))
-    common_driver = set.intersection(*driver_version_sets)
-    Logger.debug(f"Found common-driver version supported as {common_driver}")
-    return common_driver
-
-def get_k8_node_info(gpu_nodes, node_ip_address):
-    '''
-    Return K8 Node JSON Info for given ip-address
-    '''
-    global Logger
-    def k8_get_node_address(node_info, address_type = "InternalIP"):
-        assert 'status' in node_info, f"k8 node missing status section, {node_info}"
-        assert 'addresses' in node_info['status'], f"k8 node missing status.addresses, {node_info}"
-
-        for addr in node_info['status']['addresses']:
-            if addr.get("type", None) == address_type:
-                return addr.get("address", None)
-        assert f"Missing address-type : {address_type} in k8 node, {node_info}"
-
-    for k8_node in gpu_nodes:
-        if node_ip_address == k8_get_node_address(k8_node):
-            return k8_node
-    return None
-
-def build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, driver_version = None):
+def build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, amdgpu_driver_spec):
     global Logger
     test_configs = {}
-    groups = group_gpu_nodes_by_dev_series(gpu_cluster.worker_nodes)
-    for dev_series, nodes in groups.items():
-        for node in nodes:
-            k8_node = get_k8_node_info(gpu_nodes, node.ip_address)
-            if k8_node == None:
-                Logger.error(f"No such k8 node for {node.ip_address}")
-                continue
-            supported_driver_info = get_compatible_driver_versions(node)
-            assert supported_driver_info, f"No compatible gpu information available for worker-node {node.ip_address}"
-            if driver_version:
-                filtered_drivers = list(filter(lambda x:x['software-version'] == driver_version, get_compatible_driver_versions(node)))
-                if not filtered_drivers:
-                    Logger.warn(f"Specified driver {driver_version} not compatible for {node.ip_address}")
-                    continue
-                selected_driver_info = filtered_drivers[0]
-            else:
-                selected_driver_info = supported_driver_info[0]
-            local_test_config = copy.deepcopy(init_test_config)
-            local_test_config['metadata.name'] = f'deviceconfig-{dev_series.lower()}'
-            local_test_config['driver.version'] = selected_driver_info['software-version']
-            local_test_config['selector.field'] = 'kubernetes.io/hostname'
-            local_test_config['selector.value'] = k8_node['metadata']['labels'].get('kubernetes.io/hostname')
-            test_configs[f"{ctxt_name}_{dev_series}"] = local_test_config
+    for idx, node in enumerate(gpu_nodes):
+        local_test_config = copy.deepcopy(init_test_config)
+        if amdgpu_driver_spec["driver-deployment"] == "inbox":
+            local_test_config['driver.enable'] = False
+            local_test_config['driver.version'] = "0.0"
+            local_test_config['driver.blacklist'] = False
+        else:
+            local_test_config['driver.version'] = amdgpu_driver_spec["default-version"]
+            local_test_config['driver.blacklist'] = True
+        local_test_config['metadata.name'] = f'deviceconfig-{idx}'
+        local_test_config['selector.field'] = 'kubernetes.io/hostname'
+        local_test_config['selector.value'] = node['metadata']['labels'].get('kubernetes.io/hostname')
+        test_configs[f"{ctxt_name}_{idx}"] = local_test_config
     return test_configs
 
 def build_deviceconfig_cr_template(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, amdgpu_driver_spec):
@@ -616,21 +679,7 @@ def build_deviceconfig_cr_template(init_test_config, gpu_cluster, gpu_nodes, ctx
         local_test_config['driver.blacklist'] = False
     else:
         local_test_config['driver.version'] = amdgpu_driver_spec["default-version"]
+        local_test_config['driver.blacklist'] = True
     local_test_config['metadata.name'] = f'deviceconfig-clusterwide'
     test_configs[ctxt_name] = local_test_config
-
-    # TODO: Reimplement workflow where we can create multiple deviceconfig CRs
-    """
-        common_driver_options = get_common_amdgpu_driver(gpu_cluster.worker_nodes, gpu_nodes)
-        if len(common_driver_options) > 0:
-            # Chose one from the common-options
-            selected_driver_version = next(iter(common_driver_options))
-            local_test_config = copy.deepcopy(init_test_config)
-            local_test_config['driver.version'] = selected_driver_version
-            local_test_config['metadata.name'] = f'deviceconfig-clusterwide'
-            test_configs[ctxt_name] = local_test_config
-        else:
-            test_configs = build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, driver_version)
-    """
     return test_configs
-

@@ -277,6 +277,13 @@ def images(request, environment, gpu_cluster):
             if image_metadata['registry']['mirror'].get('enable', 'no') == 'yes':
                 registry = image_metadata['registry']['mirror']['url']
     setattr(environment, 'default_registry', registry)
+    if 'packaging' in image_metadata:
+        if image_metadata['packaging'].get('gpuctl', 'enabled') == 'disabled':
+            setattr(environment, "builtin_gpuctl_support", False)
+        else:
+            setattr(environment, "builtin_gpuctl_support", True)
+    else:
+        setattr(environment, "builtin_gpuctl_support", True)
     gpu_cluster.k8_registry = environment.default_registry
     assert environment.deployment_mode in image_manifest['images'], f"Missing images for {environment.deployment_mode}"
     if environment.deployment_mode == "standalone":
@@ -457,15 +464,19 @@ def cleanup_cluster(gpu_cluster, release_name, environment):
             k8_util.k8_delete_deviceconfig_cr(k8_cluster, namespace, devcfg_name)
         return
 
-    def _delete_debug_pods(k8_cluster : common.k8_cluster, namespace : str) -> None:
-        k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "node-debug-")
-        k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "curl-cmd-pod-")
+    def _delete_debug_pods(k8_cluster : common.k8_cluster, namespaces) -> None:
+        for namespace in namespaces:
+            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "node-debug-")
+            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "curl-cmd-pod-")
+            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "pytorch-")
+            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "techsupport-")
+            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "test-runner-manual-trigger-")
 
     # Init k8 config
     k8_util.k8_lib_init(gpu_cluster)
     # cleanup
     _delete_deviceconfigs(gpu_cluster, environment.gpu_operator_namespace)
-    _delete_debug_pods(gpu_cluster, "default")
+    _delete_debug_pods(gpu_cluster, ["default", environment.gpu_operator_namespace])
     if k8_util.is_helm_chart_deployed(gpu_cluster, release_name, environment.gpu_operator_namespace):
         Logger.warn(f"helm {release_name} is already deployed - cleanup")
         ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name,

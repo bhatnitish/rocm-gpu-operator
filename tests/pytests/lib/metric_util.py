@@ -19,44 +19,10 @@
 import pdb
 import logging
 import json
+from collections import defaultdict
 from prometheus_client.parser import text_string_to_metric_families
 
 Logger = logging.getLogger("lib.metricutil")
-
-METRICS = [
-    "gpu_average_package_power",
-    "pcie_max_speed",
-    "gpu_clock",
-    "gpu_used_gtt",
-    "gpu_used_vram",
-    "gpu_vcn_activity",
-    "gpu_umc_activity",
-    "gpu_ecc_correct_athub",
-    "gpu_edge_temperature",
-    "gpu_energy_consumed",
-    "gpu_free_gtt",
-    "gpu_free_visible_vram",
-    "gpu_free_vram",
-    "gpu_gfx_activity",
-    "gpu_gfx_voltage",
-    "gpu_hbm_temperature",
-    "gpu_jpeg_activity",
-    "gpu_junction_temperature",
-    "gpu_memory_temperature",
-    "gpu_memory_voltage",
-    "gpu_mma_activity",
-    "gpu_nodes_total",
-    "gpu_package_power",
-    "gpu_power_usage",
-    "gpu_total_gtt",
-    "gpu_total_visible_vram",
-    "gpu_total_vram",
-    "gpu_ecc_correct_bif",
-    "gpu_ecc_correct_gfx",
-    "gpu_ecc_correct_hdp",
-    "gpu_ecc_uncorrect_hdp",
-    "gpu_ecc_uncorrect_sdma",
-]
 
 def get_label_details(version_string):
     global Logger
@@ -87,18 +53,72 @@ def dump_metrics(http_response, out_file):
             fp.write("\n")
     return
 
+def dump_all_samples(all_metrics, file_prefix):
+    for idx, sample in enumerate(all_metrics):
+        out_file = f"{file_prefix}_{idx}.output"
+        dump_metrics(sample, out_file)
+    return
+
+def dump_json_samples(all_json_samples, file_prefix):
+    for idx, sample in enumerate(all_json_samples):
+        out_file = f"{file_prefix}_{idx}.json"
+        with open(out_file, "w") as fp:
+            json.dump(json.loads(sample.replace("'", "\"")), fp, indent=4)
+    return
+
 def parse_metric_data(http_response):
     global Logger
     metrics_content = http_response.decode('utf-8')
-    metrics = {}
+    metrics = defaultdict(list)
     for metrics_family in text_string_to_metric_families(metrics_content):
         for entry in metrics_family.samples:
-            metrics[entry.name] = {
+            metrics[entry.name].append({
                 'type' : metrics_family.type,
                 'value' : entry.value,
                 'labels' : entry.labels
-            }
+            })
     return metrics
+
+def get_supported_metrics(gpu_series = None):
+    global Logger
+    with open('lib/files/metrics-support.json', 'r') as fp:
+        metrics_data = json.load(fp)
+
+    if gpu_series:
+        supported_metrics = []
+        for entry in metrics_data['metrics']:
+            for support in entry['gpu-support']:
+                if support['gpu'] == gpu_series:
+                    supported_metrics.append(entry)
+        return supported_metrics
+    return metrics_data['metrics']
+
+def is_metric_supported(metric_to_test, gpu_series):
+    global Logger
+
+    supported_metrics = get_supported_metrics(gpu_series)
+
+    for entry in supported_metrics:
+        if entry['name'].lower() == metric_to_test.lower():
+            return True
+    return False
+
+def get_metric_metadata(metric_to_test):
+    global Logger
+
+    all_metrics = get_supported_metrics()
+    for entry in all_metrics:
+        if entry['name'].lower() == metric_to_test.lower():
+            return entry
+    return None
+
+def get_metric_support_info(metric_metadata, gpu_series):
+    global Logger
+
+    for support in metric_metadata['gpu-support']:
+        if support['gpu'] == gpu_series:
+            return support
+    return None
 
 def health(port, node):
     ret_code, _, _ = node.http_get(port, "metrics")

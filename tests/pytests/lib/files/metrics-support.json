@@ -1,0 +1,1693 @@
+{
+    "metrics": [
+        {
+            "name" : "GPU_PACKAGE_POWER",
+            "gpu-support" : [
+                {
+                    "gpu" : "MI300",
+                    "amd-smi" : "power.socket_power",
+                    "gpu-agent" : "stats.PackagePower"
+                }
+            ]
+        },
+        {
+            "name": "GPU_AVERAGE_PACKAGE_POWER",
+            "gpu-support" : [
+                {
+                    "gpu" : "MI210",
+                    "amd-smi" : "power.average_socket_power",
+                    "gpu-agent" : "stats.AvgPackagePower"
+                },
+                {
+                    "gpu" : "MI250",
+                    "amd-smi" : "power.average_socket_power",
+                    "gpu-agent" : "stats.AvgPackagePower"
+                },
+                {
+                    "gpu" : "MI300",
+                    "amd-smi" : "power.average_socket_power",
+                    "gpu-agent" : "stats.AvgPackagePower"
+                }
+            ]
+        },
+        {
+            "name": "GPU_EDGE_TEMPERATURE",
+            "gpu-support" : [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.temperature.edge_temperature",
+                    "amd-smi": "temperature.edge"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.temperature.edge_temperature",
+                    "amd-smi": "temperature.edge"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.temperature.edge_temperature",
+                    "amd-smi": "temperature.edge"
+                }
+            ]
+        },
+        {
+            "name": "GPU_JUNCTION_TEMPERATURE",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.temperature.junction_temperature",
+                    "amd-smi": "temperature.hotspot"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.temperature.junction_temperature",
+                    "amd-smi": "temperature.hotspot"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.temperature.junction_temperature",
+                    "amd-smi": "temperature.hotspot"
+                }
+            ]
+        },
+        {
+            "name": "GPU_MEMORY_TEMPERATURE",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.temperature.memory_temperature",
+                    "amd-smi": "temperature.mem"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.temperature.memory_temperature",
+                    "amd-smi": "temperature.mem"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.temperature.memory_temperature",
+                    "amd-smi": "temperature.mem"
+                }
+            ]
+        },
+        {
+            "name": "GPU_HBM_TEMPERATURE",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.temperature.hbm_temperature[i]",
+                    "amd-smi": "temp.hbm[i]"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.temperature.hbm_temperature[i]",
+                    "amd-smi": "temp.hbm[i]"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.temperature.hbm_temperature[i]",
+                    "amd-smi": "temp.hbm[i]"
+                }
+            ]
+        },
+        {
+            "name": "GPU_GFX_ACTIVITY",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.usage.gfx_activity",
+                    "amd-smi": "usage.gfx_activity"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.usage.gfx_activity",
+                    "amd-smi": "usage.gfx_activity"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.gfx_activity",
+                    "amd-smi": "usage.gfx_activity"
+                }
+            ]
+        },
+        {
+            "name": "GPU_UMC_ACTIVITY",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.usage.umc_activity",
+                    "amd-smi": "usage.umc_activity"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.usage.umc_activity",
+                    "amd-smi": "usage.umc_activity"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.umc_activity",
+                    "amd-smi": "usage.umc_activity"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VCN_ACTIVITY",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.usage.vcn_activity",
+                    "amd-smi": "usage.vcn_activity"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.usage.vcn_activity",
+                    "amd-smi": "usage.vcn_activity"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.vcn_activity",
+                    "amd-smi": "usage.vcn_activity"
+                }
+            ]
+        },
+        {
+            "name": "GPU_JPEG_ACTIVITY",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.usage.jpeg_activity[i]",
+                    "amd-smi": "usage.jpeg_activity"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.usage.jpeg_activity[i]",
+                    "amd-smi": "usage.jpeg_activity"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.jpeg_activity[i]",
+                    "amd-smi": "usage.jpeg_activity"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_SPEED",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.pcie_status->speed",
+                    "amd-smi": "pcie.speed"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.pcie_status->speed",
+                    "amd-smi": "pcie.speed"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.pcie_status->speed",
+                    "amd-smi": "pcie.speed"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_MAX_SPEED",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.pcie_status->max_speed",
+                    "amd-smi": "pcie.max_pcie_speed"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.pcie_status->max_speed",
+                    "amd-smi": "pcie.max_pcie_speed"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.pcie_status->max_speed",
+                    "amd-smi": "pcie.max_pcie_speed"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_BANDWIDTH",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.pcie_status->bandwidth",
+                    "amd-smi": "pcie.bandwidth"
+                }
+            ]
+        },
+        {
+            "name": "GPU_ENERGY_CONSUMED",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.energy_consumed",
+                    "amd-smi": "energy.total_energy_consumption"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.energy_consumed",
+                    "amd-smi": "energy.total_energy_consumption"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.energy_consumed",
+                    "amd-smi": "energy.total_energy_consumption"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_REPLAY_COUNT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->pcie_stats.replay_count",
+                    "amd-smi": "pcie.pcie_replay_count"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_RECOVERY_COUNT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->pcie_stats.recovery_count",
+                    "amd-smi": "pcie.l0_to_recovery_count"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_REPLAYROLLOVER_COUNT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->pcie_stats.replay_rollover_count",
+                    "amd-smi": "pcie.replay_roll_over_count"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_NACK_SENT_COUNT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->pcie_stats.nack_sent_count",
+                    "amd-smi": "pcie.nak_sent_count"
+                }
+            ]
+        },
+        {
+            "name": "PCIE_NAC_RECEIVED_COUNT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->pcie_stats.nack_received_count",
+                    "amd-smi": "pcie.nak_received_count"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CLOCK",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.clock_status",
+                    "amd-smi": "clock.gfx"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.clock_status",
+                    "amd-smi": "clock.gfx"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.clock_status",
+                    "amd-smi": "clock.gfx"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CLOCK",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.clock_status[i] MEMORY",
+                    "amd-smi": "metrics_info->current_uclk"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.clock_status[i] MEMORY",
+                    "amd-smi": "metrics_info->current_uclk"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.clock_status[i] MEMORY",
+                    "amd-smi": "metrics_info->current_uclk"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CLOCK",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.clock_status[i] VIDEO",
+                    "amd-smi": "metrics_info->current_vclk0s[i]"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.clock_status[i] VIDEO",
+                    "amd-smi": "metrics_info->current_vclk0s[i]"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.clock_status[i] VIDEO",
+                    "amd-smi": "metrics_info->current_vclk0s[i]"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CLOCK",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "metrics_info->current_dclk0s[i]"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "metrics_info->current_dclk0s[i]"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "metrics_info->current_dclk0s[i]"
+                }
+            ]
+        },
+        {
+            "name": "GPU_POWER_USAGE",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.power_usage",
+                    "amd-smi": "gpu_metrics.average_socket_power"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.power_usage",
+                    "amd-smi": "gpu_metrics.average_socket_power"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.power_usage",
+                    "amd-smi": "gpu_metrics.current_socket_power"
+                }
+            ]
+        },
+        {
+            "name": "GPU_POWER_USAGE",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.power_usage",
+                    "amd-smi": "gpu_metrics.average_socket_power"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.power_usage",
+                    "amd-smi": "gpu_metrics.average_socket_power"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.power_usage",
+                    "amd-smi": "gpu_metrics.average_socket_power"
+                }
+            ]
+        },
+        {
+            "name": "GPU_TOTAL_VRAM",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.vramstatus.size",
+                    "amd-smi": "mem_usage.total_vram"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.vramstatus.size",
+                    "amd-smi": "mem_usage.total_vram"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.vramstatus.size",
+                    "amd-smi": "mem_usage.total_vram"
+                }
+            ]
+        },
+        {
+            "name": "GPU_USED_VRAM",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.used_vram",
+                    "amd-smi": "mem_usage.used_vram"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.used_vram",
+                    "amd-smi": "mem_usage.used_vram"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.used_vram",
+                    "amd-smi": "mem_usage.used_vram"
+                }
+            ]
+        },
+        {
+            "name": "GPU_FREE_VRAM",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.free_vram",
+                    "amd-smi": "mem_usage.free_vram"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.free_vram",
+                    "amd-smi": "mem_usage.free_vram"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.free_vram",
+                    "amd-smi": "mem_usage.free_vram"
+                }
+            ]
+        },
+        {
+            "name": "GPU_TOTAL_VISIBLE_VRAM",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.total_visible_vram",
+                    "amd-smi": "mem_usage.total_visible_vram"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.total_visible_vram",
+                    "amd-smi": "mem_usage.total_visible_vram"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.total_visible_vram",
+                    "amd-smi": "mem_usage.total_visible_vram"
+                }
+            ]
+        },
+        {
+            "name": "GPU_USED_VISIBLE_VRAM",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.used_visible_vram",
+                    "amd-smi": "mem_usage.used_visible_vram"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.used_visible_vram",
+                    "amd-smi": "mem_usage.used_visible_vram"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.used_visible_vram",
+                    "amd-smi": "mem_usage.used_visible_vram"
+                }
+            ]
+        },
+        {
+            "name": "GPU_FREE_VISIBLE_VRAM",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.free_visible_vram",
+                    "amd-smi": "mem_usage.free_visible_vram"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.free_visible_vram",
+                    "amd-smi": "mem_usage.free_visible_vram"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.free_visible_vram",
+                    "amd-smi": "mem_usage.free_visible_vram"
+                }
+            ]
+        },
+        {
+            "name": "GPU_TOTAL_GTT",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.total_gtt",
+                    "amd-smi": "mem_usage.total_gtt"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.total_gtt",
+                    "amd-smi": "mem_usage.total_gtt"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.total_gtt",
+                    "amd-smi": "mem_usage.total_gtt"
+                }
+            ]
+        },
+        {
+            "name": "GPU_USED_GTT",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.used_gtt",
+                    "amd-smi": "mem_usage.used_gtt"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.used_gtt",
+                    "amd-smi": "mem_usage.used_gtt"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.used_gtt",
+                    "amd-smi": "mem_usage.used_gtt"
+                }
+            ]
+        },
+        {
+            "name": "GPU_FREE_GTT",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "stats.vram_usage.free_gtt",
+                    "amd-smi": "mem_usage.free_gtt"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "stats.vram_usage.free_gtt",
+                    "amd-smi": "mem_usage.free_gtt"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.vram_usage.free_gtt",
+                    "amd-smi": "mem_usage.free_gtt"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CURRENT_ACCUMULATED_COUNTER",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->violation_stats.current_accumulated_counter",
+                    "amd-smi": "metrics_info.accumulation_counter"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VIOLATION_PROCESSOR_HOT_RESIDENCY_ACCUMULATE",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->violation_stats.processor_hot_residency_accumulated",
+                    "amd-smi": "metrics_info.prochot_residency_acc"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VIOLATION_PPT_RESIDENCY_ACCUMULATED",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->violation_stats.ppt_residency_accumulated",
+                    "amd-smi": "metrics_info.ppt_residency_acc"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VIOLATION_SOCKET_THERMAL_RESIDENCY_ACCUMULAT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->violation_stats.socket_thermal_residency_accumulated",
+                    "amd-smi": "metrics_info.socket_thm_residency_acc"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VIOLATION_VR_THERMAL_RESIDENCY_ACCUMULATED",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->violation_stats.vr_thermal_residency_accumulated",
+                    "amd-smi": "metrics_info.vr_thm_residency_acc"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VIOLATION_HBM_THERMAL_RESIDENCY_ACCUMULATED",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats->violation_stats.hbm_thermal_residency_accumulated",
+                    "amd-smi": "throttle.hbm_thermal_accumulated"
+                }
+            ]
+        },
+        {
+            "name": "GPU_GFX_BUSY_INSTANTANEOUS",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.gfx_busy_inst",
+                    "amd-smi": "usage.gfx_busy_inst"
+                }
+            ]
+        },
+        {
+            "name": "GPU_VCN_BUSY_INSTANTANEOUS",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.vcn_busy_inst",
+                    "amd-smi": "usage.vcn_busy_inst"
+                }
+            ]
+        },
+        {
+            "name": "GPU_JPEG_BUSY_INSTANTANEOUS",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "stats.usage.jpeg_busy_inst",
+                    "amd-smi": "usage.jpeg_busy_inst.xcp_[partition_id]"
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_TOTAL",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_TOTAL",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_SDMA",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_SDMA",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_GFX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_GFX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_MMHUB",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_MMHUB",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_ATHUB",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_ATHUB",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_BIF",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_BIF",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_HDP",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_HDP",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_XGMI_WAFL",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_XGMI_WAFL",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_DF",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_DF",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_SMN",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_SMN",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_SEM",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_SEM",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_MP0",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_MP0",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_MP1",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_MP1",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_FUSE",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_FUSE",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_CORRECT_UMC",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_ECC_UNCORRECT_UMC",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_0_NOP_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_0_REQ_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_0_RESP_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_0_BEATS_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_1_NOP_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_1_REQ_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_1_RESP_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_1_BEATS_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_0_TX_THRPUT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_1_TX_THRPUT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_2_TX_THRPUT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_3_TX_THRPUT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_4_TX_THRPUT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_NBR_5_TX_THRPUT",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_LINK_RX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        },
+        {
+            "name" : "GPU_XGMI_LINK_TX",
+            "skip-validation" : "yes",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent" : "",
+                    "amd-smi" : ""
+                }
+            ]
+        }
+    ]
+}

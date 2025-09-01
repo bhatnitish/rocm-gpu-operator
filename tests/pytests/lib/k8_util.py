@@ -434,7 +434,7 @@ def k8_get_node_gpu_capacity(k8_cluster : common.k8_cluster, node_name : str) ->
     node = filtered_list[0]
     gpu_capacity = node['status']['capacity'].get("amd.com/gpu", -1)
     gpu_allocatable = node['status']['allocatable'].get("amd.com/gpu", -1)
-    return(gpu_capacity, gpu_allocatable)
+    return(int(gpu_capacity), int(gpu_allocatable))
 
 @log_arguments
 def k8_get_node_gpu_alloc_requests(k8_cluster, node_name):
@@ -453,7 +453,7 @@ def k8_get_node_gpu_alloc_requests(k8_cluster, node_name):
     return(requests, limit)
     
 @log_arguments
-def k8_get_pods(k8_cluster, namespace):
+def k8_get_pods(k8_cluster, namespace, node_name = None):
     """
     API to get all pods for a given namespace from a k8 cluster
     """
@@ -461,10 +461,13 @@ def k8_get_pods(k8_cluster, namespace):
     if k8_cluster.k8_kube_config:
         try:
             api = client.CoreV1Api()
-            pods = api.list_pod_for_all_namespaces().to_dict()
             if namespace:
-                return 0, list(filter(lambda x: x['metadata']['namespace'] == namespace, pods.get("items", list())))
-            return 0, pods
+                pod_info = api.list_namespaced_pod(namespace = namespace).to_dict()
+            else:
+                pod_info = api.list_pod_for_all_namespaces().to_dict()
+            if node_name:
+                return 0, list(filter(lambda x: x['spec']['node_name'] == node_name, pod_info['items']))
+            return 0, pod_info['items']
         except ApiException as e:
             Logger.error(f"Failed to list all pods for give namespace {namespace} error : {e}")
             return -1, None
@@ -550,8 +553,9 @@ def k8_create_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) ->
         plural = cr_spec['kind'].lower() + 's'
         namespace = cr_spec['metadata']['namespace']
         try:
-            custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
+            _ = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
         except ApiException as e:
+            Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
             return -1, "", str(e)
         return 0, "", ""
     else:
@@ -593,8 +597,7 @@ def k8_modify_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) ->
             custom_objects_api.replace_namespaced_custom_object(group = group, version = version, namespace = namespace, 
                                                                 plural = plural, name = devcfg_name, body=devcfg_obj)
         except ApiException as e:
-            Logger.error(f"Failed to create deviceconfig {devcfg_name}\n{devcfg_obj}\n")
-            assert True, f"Failed to create deviceconfig {devcfg_name}\n{devcfg_obj}\n"
+            Logger.error(f"Failed to modify deviceconfig {devcfg_name}\n{devcfg_obj}\n Exception: {e}")
             return -1, "", str(e)
         return 0, "", ""
     else:
@@ -1436,8 +1439,8 @@ def k8_get_events(k8_cluster, namespace : str, pod_name=None):
             assert True, f"got error {resp_stderr}"
 
 @log_arguments
-def k8_get_pod_name(k8_cluster, pod_str : str, namespace : str):
-    ret_code, pods = k8_get_pods(k8_cluster, namespace)
+def k8_get_pod_name(k8_cluster, pod_str : str, namespace : str, node_name : str = None):
+    ret_code, pods = k8_get_pods(k8_cluster, namespace, node_name = node_name)
     assert ret_code == 0, f"Failed to get pod names in namespace {namespace}"
     for pod in pods:
         if pod.get('metadata') != None and pod_str in pod.get('metadata').get('name'):
@@ -2095,27 +2098,33 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
     return -1, "", ""
 
 @log_arguments
-def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : List):
+def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : List, skip_chroot : bool = False, retry : int = 10):
     """
     Runs a command on a specific Kubernetes worker node using an ephemeral debug pod.
 
     Args:
         k8_cluster (common.k8_cluster): k8_cluster object.
         node_name (str): The name of the worker node.
-        command_to_run (list): The shell command to execute on the node.
+        cmd (list): The shell command to execute on the node.
+        skip_chroot : Flag to skip/include chrooot /host
+        retry : Number of retries, default 10
 
     Returns:
-        tuple: A tuple containing (pod_name, exit_code, logs)
+        tuple: A tuple containing (exit_code, logs)
     """
     global Logger
     global LogPrettyPrinter
     if k8_cluster.k8_kube_config:
         v1 = client.CoreV1Api()
-        pod_name = f"node-debug-{node-name}-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
+        pod_name = f"node-debug-{node_name}-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
         namespace = "default"
 
-        chroot_cmd = ["chroot", "/host", "sh", "-c"]
-        full_cmd = chroot_cmd.extend(command_to_run)
+        full_cmd = []
+        if not skip_chroot:
+            chroot_cmd = ["chroot", "/host"]
+            full_cmd.extend(chroot_cmd)
+        full_cmd.extend(cmd)
+
         # Define the debug pod
         debug_pod_manifest = {
             "apiVersion": "v1",
@@ -2145,7 +2154,8 @@ def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : L
                         "volumeMounts": [
                             {
                                 "name": "host-root",
-                                "mountPath": "/host"
+                                "mountPath": "/host",
+                                "mountPropagation": "Bidirectional"
                             }
                         ]
                     }
@@ -2162,57 +2172,102 @@ def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : L
             }
         }
 
-        try:
-            Logger.debug(f"Creating debug pod {pod_name} on node '{node_name}'...")
-            v1.create_namespaced_pod(body=debug_pod_manifest, namespace=namespace)
+        for _ in range(retry):
+            try:
+                v1.create_namespaced_pod(body=debug_pod_manifest, namespace=namespace)
+                Logger.debug(f"Creating debug pod {pod_name} on node '{node_name}'...")
 
-            # Wait for the pod to complete
-            timeout_seconds = 300 # 5 minutes timeout
-            start_time = time.time()
-            while True:
-                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
-                if pod_status.status.phase in ["Succeeded", "Failed"]:
-                    Logger.info(f"Pod {pod_name} finished with status: {pod_status.status.phase}")
-                    break
-                if time.time() - start_time > timeout_seconds:
-                    Logger.error(f"Pod {pod_name} timed out after {timeout_seconds} seconds.")
-                    return None, -1, f"Pod {pod_name} timed out after {timeout_seconds} seconds."
-                time.sleep(5)
-
-            # Get container status to check exit code
-            exit_code = -1
-            if pod_status.status.container_statuses:
-                for container_status in pod_status.status.container_statuses:
-                    if container_status.name == "debugger" and container_status.state.terminated:
-                        exit_code = container_status.state.terminated.exit_code
+                # Wait for the pod to complete
+                timeout_seconds = 300 # 5 minutes timeout
+                start_time = time.time()
+                while True:
+                    pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+                    if pod_status.status.phase in ["Succeeded", "Failed"]:
+                        Logger.info(f"Pod {pod_name} finished with status: {pod_status.status.phase}")
                         break
-            else:
-                Logger.debug("No container statuses found in the pod.")
+                    if time.time() - start_time > timeout_seconds:
+                        Logger.error(f"Pod {pod_name} timed out after {timeout_seconds} seconds.")
+                        return -1, f"Pod {pod_name} timed out after {timeout_seconds} seconds."
+                    time.sleep(5)
 
-            # Get logs
-            logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
-            Logger.debug(f"Logs from {pod_name}:\n{LogPrettyPrinter.pformat(logs)}")
+                # Get container status to check exit code
+                exit_code = -1
+                if pod_status.status.container_statuses:
+                    for container_status in pod_status.status.container_statuses:
+                        if container_status.name == "debugger" and container_status.state.terminated:
+                            exit_code = container_status.state.terminated.exit_code
+                            break
+                else:
+                    Logger.debug("No container statuses found in the pod.")
 
-            # Delete the pod
-            Logger.debug(f"Deleting pod {pod_name}...")
-            v1.delete_namespaced_pod(name=pod_name, namespace=namespace, body=client.V1DeleteOptions(
-                propagation_policy='Foreground',
-                grace_period_seconds=0
-            ))
-
-            return pod_name, exit_code, logs
-
-        except client.ApiException as e:
-            Logger.error(f"Kubernetes API Error: {e}")
-            # Attempt to get logs if pod was created but failed
-            if 'pod_name' in locals():
+                # Get logs
+                logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+                Logger.debug(f"Logs from {pod_name}:\n{LogPrettyPrinter.pformat(logs)}")
+                return exit_code, logs
+            except client.ApiException as e:
+                Logger.error(f"Kubernetes API Error: {e}")
+                # Attempt to get logs if pod was created but failed
                 try:
                     logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
                     Logger.info(f"Logs (before error): {logs}")
                 except Exception as log_e:
                     Logger.error(f"Could not retrieve logs after API error: {log_e}")
-            return None, -1, f"Kubernetes API Error: {e}"
-        except Exception as e:
-            Logger.error(f"An unexpected error occurred: {e}")
-            return None, -1, f"An unexpected error occurred: {e}"
+                return -1, f"Kubernetes API Error: {e}"
+            except Exception as e:
+                Logger.error(f"An unexpected error occurred: {e}")
+                return -1, f"An unexpected error occurred: {e}"
+            finally:
+                # Delete the pod
+                Logger.debug(f"Deleting pod {pod_name}...")
+                v1.delete_namespaced_pod(name=pod_name, namespace=namespace,
+                                         body=client.V1DeleteOptions(propagation_policy='Foreground',
+                                                                     grace_period_seconds=0))
+    return
+
+@log_arguments
+def exec_command_in_pod(k8_cluster : common.k8_cluster, namespace : str, cmds : List, pod_name : str, container_name : str = None):
+    """
+    Exec a command inside a specific container within a Kubernetes pod.
+
+    Args:
+        k8_cluster (common.k8_cluster): k8 Cluster
+        namespace (str): The namespace of the pod.
+        cmds (list): A list of strings representing the command and its arguments.
+                        For example: ["ls", "-l", "/tmp"]
+        pod_name (str): The name of the pod.
+        container_name (str, optional): The name of the container within the pod
+                                        to execute the command in. If None, it
+                                        defaults to the first container if only one
+                                        exists.
+    Returns:
+        tuple: A tuple containing (stdout, stderr) of the executed command.
+    """
+    try:
+        # Create a CoreV1Api client
+        v1 = client.CoreV1Api()
+
+        # Execute the command
+        # _preload_content=False is crucial for interactive sessions or streaming output
+        # For simple command execution, you might set it to True to get all output at once.
+        resp = stream.stream(
+                v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                command=cmds,
+                container=container_name,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _preload_content=True)  # Set to True to get all content at once
+
+        # The 'resp' object contains the combined stdout and stderr if _preload_content is True
+        # Otherwise, you would read from the stream interactively.
+        return 0, resp, None
+    except client.ApiException as e:
+        print(f"Error executing command: {e}")
+        return -1, None, f"Error: {e}"
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return -1, None, f"Unexpected error: {e}"
 

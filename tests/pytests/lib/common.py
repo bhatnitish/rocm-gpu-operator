@@ -52,6 +52,8 @@ class cluster_node(object):
         self._identity = identity
         self._node_type = None
         self._gpu_series = None
+        self._device_id = None
+        self._num_gpus = 0
         self._connect_kwargs = {}
         if self._password:
             self._connect_kwargs['password'] = self._password 
@@ -89,6 +91,30 @@ class cluster_node(object):
     @gpu_series.setter
     def gpu_series(self, gpu_series):
         self._gpu_series = gpu_series
+
+    @property
+    def num_gpus(self):
+        return self._num_gpus
+
+    @num_gpus.setter
+    def num_gpus(self, gpu_count):
+        self._num_gpus = gpu_count
+
+    @property
+    def device_id(self):
+        return self._device_id
+
+    @device_id.setter
+    def device_id(self, device_id):
+        self._device_id = device_id
+        if device_id == '0x74b9':
+            self._gpu_series = 'MI300'
+        elif device_id == '0x740f':
+            self._gpu_series = 'MI210'
+        elif device_id == '0x740c':
+            self._gpu_series = 'MI250'
+        else:
+            self._gpu_series = 'UNKNOWN'
 
     def is_local(self):
         return self._ip_address == "localhost"

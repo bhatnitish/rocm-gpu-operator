@@ -17,6 +17,7 @@
 '''
 
 import pytest
+import pdb
 import sys
 import os
 import time
@@ -25,6 +26,7 @@ import logging
 import lib.k8_util as k8_util
 import lib.spec_util as spec_util
 import lib.common as common
+from k8.util import K8Helper
 
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_node_labeller")
@@ -41,10 +43,11 @@ EXPECTED_LABELS = {
 }
 
 @pytest.fixture(scope="module")
-def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_helper):
+def gpu_operator_install(gpu_cluster, release_name, images, environment):
     global Logger
     if k8_util.is_helm_chart_healthy(gpu_cluster, release_name, environment.gpu_operator_namespace):
         Logger.info(f"{release_name} helm-chart is already installed/running - skip rest of setup/fixture")
+        yield
         return
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -77,7 +80,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
         Logger.error(f"Failed to install helm chart for {release_name}")
         Logger.error(f"Stdout: {ret_stdout}")
         Logger.error(f"Stderr: {ret_stderr}")
-    k8_helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
+    K8Helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
     time.sleep(30)
     yield
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -90,10 +93,10 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
 
     # Uninstall gpu-operator helm-chart
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    k8_helper.assert_or_debug(ret_code == 0, f"Failed to install {release_name} helm-chart error: {ret_stderr}", False)
+    K8Helper.assert_or_debug(ret_code == 0, f"Failed to install {release_name} helm-chart error: {ret_stderr}", False)
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -108,10 +111,10 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
         pass
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0,
+    K8Helper.assert_or_debug(ret_code == 0,
                               "Error while getting gpu-nodes from k8-cluster",
                               environment.pause_on_failure)
-    k8_helper.assert_or_debug(len(gpu_nodes) > 0,
+    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
                               "No nodes with AMD/GPU found in the cluster",
                               environment.pause_on_failure)
 
@@ -141,13 +144,13 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        k8_helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
-    k8_helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
+    K8Helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
     for devcfg in devicecfg_list:
-        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
+        K8Helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -160,11 +163,11 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment,
         k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
     return
 
-def test_node_labeller_enable_flag(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+def test_node_labeller_enable_flag(gpu_cluster, deviceconfig_install, environment):
     global Logger
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
     # Watch for all pod creation
     '''
     test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
@@ -176,23 +179,23 @@ def test_node_labeller_enable_flag(gpu_cluster, images, gpu_operator_install, de
         common.PodInfo('node-labeller', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0,
+    K8Helper.assert_or_debug(ret_code == 0,
                               "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    k8_helper.assert_or_debug(len(gpu_nodes) > 0,
+    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
                               "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
 
     # Check each worker node for annotations applied by node-labeller
     for node_info in gpu_nodes:
         node_name = node_info["metadata"]["name"]
-        k8_helper.assert_or_debug('metadata' in node_info,
+        K8Helper.assert_or_debug('metadata' in node_info,
                                   f"Metadata missing in node_info for {node_info}", environment.pause_on_failure)
-        k8_helper.assert_or_debug('labels' in node_info['metadata'],
+        K8Helper.assert_or_debug('labels' in node_info['metadata'],
                                   f'Labels not found for node: {node_name}', environment.pause_on_failure)
         assigned_labels = set(filter(lambda x: 'amd.com' in x, node_info['metadata']['labels'].keys()))
-        k8_helper.assert_or_debug(EXPECTED_LABELS.issubset(assigned_labels),
+        K8Helper.assert_or_debug(EXPECTED_LABELS.issubset(assigned_labels),
                                   f"Missing {EXPECTED_LABELS - assigned_labels} for node {node_name}", environment.pause_on_failure)
 
     # Now disable labeller
@@ -200,24 +203,24 @@ def test_node_labeller_enable_flag(gpu_cluster, images, gpu_operator_install, de
         tcfg['devicePlugin.enableNodeLabeller'] = False
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        k8_helper.assert_or_debug(ret_code == 0,
+        K8Helper.assert_or_debug(ret_code == 0,
                                   "Failed apply CR with devicePlugin.enableNodeLabeller disabled", environment.pause_on_failure)
 
     labeller_pods = [
         common.PodInfo('node-labeller', 1, 1),
     ]
     running_pods = k8_util.k8_check_pod_terminated(gpu_cluster, environment.gpu_operator_namespace, labeller_pods)
-    k8_helper.assert_or_debug(not running_pods,
+    K8Helper.assert_or_debug(not running_pods,
                               f"Some of the pods are still running - {running_pods}", environment.pause_on_failure)
 
     # Check absense of annotations for each worker node after removal of node-labeller
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
     for node_info in gpu_nodes:
         node_name = node_info["metadata"]["name"]
-        k8_helper.assert_or_debug('metadata' in node_info,
+        K8Helper.assert_or_debug('metadata' in node_info,
                                   f"Metadata missing in node_info for {node_info}", environment.pause_on_failure)
-        k8_helper.assert_or_debug('labels' in node_info['metadata'],
+        K8Helper.assert_or_debug('labels' in node_info['metadata'],
                                   f'Labels not found for node: {node_info["metadata"]["name"]}', environment.pause_on_failure)
         assigned_labels = list(filter(lambda x: 'amd.com' in x, node_info['metadata']['labels'].keys()))
         for exp_label in EXPECTED_LABELS:
@@ -226,62 +229,62 @@ def test_node_labeller_enable_flag(gpu_cluster, images, gpu_operator_install, de
                 if exp_label in node_label:
                     found = True
                     break
-            k8_helper.assert_or_debug(not found,
+            K8Helper.assert_or_debug(not found,
                                       f"Unexpected label {exp_label} assigned to node {node_name}", environment.pause_on_failure)
 
 @pytest.mark.skip()
-def test_node_labeller_check_labels(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+def test_node_labeller_check_labels(gpu_cluster, deviceconfig_install, environment):
     global Logger
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
     for node in gpu_nodes:
         node_name = k8_util.k8_get_node_hostname(node)
         # expected labels list
         exp_label_list = ["amd.com/gpu.family", "amd.com/gpu.device-id", "amd.com/gpu.vram", "amd.com/gpu.simd-count"]
         # get node labels
         ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl get node {node_name} -o json | jq .metadata.labels")
-        k8_helper.assert_or_debug(ret_code == 0, "Failed to get labels for node {node_name}: err: {resp_stderr}", environment.pause_on_failure)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to get labels for node {node_name}: err: {resp_stderr}", environment.pause_on_failure)
         labels_dict = json.loads(resp_stdout)
         Logger.info(f'labels: {labels_dict}') 
         for label in exp_label_list:
             Logger.info(f'Check label: {label}')
-            k8_helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
-            k8_helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
         
-        k8_helper.assert_or_debug(labels_dict["amd.com/gpu.family"] == "AI", "", environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(labels_dict["amd.com/gpu.simd-count"]) > 0, "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(labels_dict["amd.com/gpu.family"] == "AI", "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(labels_dict["amd.com/gpu.simd-count"]) > 0, "", environment.pause_on_failure)
 
         # check the device id and count
         Logger.info("Check device-id label is present with a count")
         device_id = labels_dict["amd.com/gpu.device-id"]
         device_id_count = labels_dict.get(f'beta.amd.com/gpu.device-id.{device_id}', False)
         Logger.info(f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}')
-        k8_helper.assert_or_debug(device_id_count != False, "", environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(device_id_count != False, "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
 
         # check beta labels
         beta_label_list = ['beta.amd.com/gpu.device-id', 
                            'beta.amd.com/gpu.family', 'beta.amd.com/gpu.simd-count', 'beta.amd.com/gpu.vram' ]
         for label in beta_label_list:
             Logger.info(f'Check label: {label}')
-            k8_helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
-            k8_helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(labels_dict['beta.amd.com/gpu.simd-count']) > 0, "", environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(labels_dict['beta.amd.com/gpu.simd-count']) > 0, "", environment.pause_on_failure)
 
         gpu_family = labels_dict['beta.amd.com/gpu.family']
-        k8_helper.assert_or_debug(gpu_family == "AI", "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(gpu_family == "AI", "", environment.pause_on_failure)
         gpu_family_count = labels_dict.get(f'beta.amd.com/gpu.family.{gpu_family}', False)
         Logger.info(f'beta.amd.com/gpu.family: {gpu_family}, beta.amd.com/gpu.family.{gpu_family}: {gpu_family_count}')
-        k8_helper.assert_or_debug(gpu_family_count != False, "", environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(gpu_family_count) > 0, f'beta.amd.com/gpu.family: {gpu_family}, beta.amd.com/gpu.family.{gpu_family}: {gpu_family_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(gpu_family_count != False, "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(gpu_family_count) > 0, f'beta.amd.com/gpu.family: {gpu_family}, beta.amd.com/gpu.family.{gpu_family}: {gpu_family_count}', environment.pause_on_failure)
 
         # check the device id and count
         Logger.info("Check device-id label is present with a count")
         device_id = labels_dict["beta.amd.com/gpu.device-id"]
         device_id_count = labels_dict.get(f'beta.amd.com/gpu.device-id.{device_id}', False)
         Logger.info(f'beta.amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}')
-        k8_helper.assert_or_debug(device_id_count != False and int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(device_id_count != False and int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
 
         # check vram
         # eg: 'beta.amd.com/gpu.vram': '64G', 'beta.amd.com/gpu.vram.64G': '1'
@@ -289,61 +292,61 @@ def test_node_labeller_check_labels(gpu_cluster, images, gpu_operator_install, d
         vram = labels_dict['beta.amd.com/gpu.vram']
         vram_count = labels_dict.get(f'beta.amd.com/gpu.vram.{vram}', False)
         Logger.info(f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}')
-        k8_helper.assert_or_debug(vram_count != False and  int(vram_count) > 0, f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(vram_count != False and  int(vram_count) > 0, f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}', environment.pause_on_failure)
 
 @pytest.mark.skip()
-def test_gpu_operator_labels_check(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+def test_gpu_operator_labels_check(gpu_cluster, deviceconfig_install, environment):
     global Logger
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
     for node in gpu_nodes:
         node_name = k8_util.k8_get_node_hostname(node)
         # expected labels list
         exp_label_list = ["amd.com/gpu.family", "amd.com/gpu.device-id", "amd.com/gpu.vram", "amd.com/gpu.simd-count"]
         # get node labels
         ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl get node {node_name} -o json | jq .metadata.labels")
-        k8_helper.assert_or_debug(ret_code == 0, "Failed to get labels for node {node_name}: err: {resp_stderr}", environment.pause_on_failure)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to get labels for node {node_name}: err: {resp_stderr}", environment.pause_on_failure)
         labels_dict = json.loads(resp_stdout)
         Logger.info(f'labels: {labels_dict}') 
         for label in exp_label_list:
             Logger.info(f'Check label: {label}')
-            k8_helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
-            k8_helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
         
-        k8_helper.assert_or_debug(labels_dict["amd.com/gpu.family"] == "AI", "", environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(labels_dict["amd.com/gpu.simd-count"]) > 0, "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(labels_dict["amd.com/gpu.family"] == "AI", "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(labels_dict["amd.com/gpu.simd-count"]) > 0, "", environment.pause_on_failure)
 
         # check the device id and count
         Logger.info("Check device-id label is present with a count")
         device_id = labels_dict["amd.com/gpu.device-id"]
         device_id_count = labels_dict.get(f'beta.amd.com/gpu.device-id.{device_id}', False)
         Logger.info(f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}')
-        k8_helper.assert_or_debug(device_id_count != False, "", environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(device_id_count != False, "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
 
         # check beta labels
         beta_label_list = ['beta.amd.com/gpu.device-id', 
                            'beta.amd.com/gpu.family', 'beta.amd.com/gpu.simd-count', 'beta.amd.com/gpu.vram' ]
         for label in beta_label_list:
             Logger.info(f'Check label: {label}')
-            k8_helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
-            k8_helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(labels_dict['beta.amd.com/gpu.simd-count']) > 0, "", environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict.get(label, False) != False, "", environment.pause_on_failure)
+            K8Helper.assert_or_debug(labels_dict[label] != "", f'labels.{label}: labels_dict[label]', environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(labels_dict['beta.amd.com/gpu.simd-count']) > 0, "", environment.pause_on_failure)
 
         gpu_family = labels_dict['beta.amd.com/gpu.family']
-        k8_helper.assert_or_debug(gpu_family == "AI", "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(gpu_family == "AI", "", environment.pause_on_failure)
         gpu_family_count = labels_dict.get(f'beta.amd.com/gpu.family.{gpu_family}', False)
         Logger.info(f'beta.amd.com/gpu.family: {gpu_family}, beta.amd.com/gpu.family.{gpu_family}: {gpu_family_count}')
-        k8_helper.assert_or_debug(gpu_family_count != False, "", environment.pause_on_failure)
-        k8_helper.assert_or_debug(int(gpu_family_count) > 0, f'beta.amd.com/gpu.family: {gpu_family}, beta.amd.com/gpu.family.{gpu_family}: {gpu_family_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(gpu_family_count != False, "", environment.pause_on_failure)
+        K8Helper.assert_or_debug(int(gpu_family_count) > 0, f'beta.amd.com/gpu.family: {gpu_family}, beta.amd.com/gpu.family.{gpu_family}: {gpu_family_count}', environment.pause_on_failure)
 
         # check the device id and count
         Logger.info("Check device-id label is present with a count")
         device_id = labels_dict["beta.amd.com/gpu.device-id"]
         device_id_count = labels_dict.get(f'beta.amd.com/gpu.device-id.{device_id}', False)
         Logger.info(f'beta.amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}')
-        k8_helper.assert_or_debug(device_id_count != False and int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(device_id_count != False and int(device_id_count) > 0, f'amd.com/gpu.device-id: {device_id}, beta.amd.com/gpu.device-id.{device_id}: {device_id_count}', environment.pause_on_failure)
 
         # check vram
         # eg: 'beta.amd.com/gpu.vram': '64G', 'beta.amd.com/gpu.vram.64G': '1'
@@ -351,4 +354,4 @@ def test_gpu_operator_labels_check(gpu_cluster, images, gpu_operator_install, de
         vram = labels_dict['beta.amd.com/gpu.vram']
         vram_count = labels_dict.get(f'beta.amd.com/gpu.vram.{vram}', False)
         Logger.info(f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}')
-        k8_helper.assert_or_debug(vram_count != False and  int(vram_count) > 0, f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}', environment.pause_on_failure)
+        K8Helper.assert_or_debug(vram_count != False and  int(vram_count) > 0, f'beta.amd.com/gpu.vram: {vram}, beta.amd.com/gpu.vram.{vram}: {vram_count}', environment.pause_on_failure)

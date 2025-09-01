@@ -6,6 +6,8 @@ images:
             default: docker.io
             mirror:
                 enable: no
+        packaging:
+          gpuctl : disabled
     k8:
         driver:
             key         : driver.image

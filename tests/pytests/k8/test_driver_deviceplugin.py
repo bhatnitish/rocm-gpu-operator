@@ -28,11 +28,12 @@ import lib.k8_util as k8_util
 import lib.amdgpu as amdgpu
 import lib.common as common
 import lib.spec_util as spec_util
+from k8.util import K8Helper
 
 Logger = logging.getLogger("k8.test_driver_deviceplugin")
 
 @pytest.fixture(scope="module")
-def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_helper):
+def gpu_operator_install(gpu_cluster, release_name, images, environment):
     global Logger
     if k8_util.is_helm_chart_healthy(gpu_cluster,
                                      release_name,
@@ -71,7 +72,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
         Logger.error(f"Failed to install helm chart for {release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
         Logger.error(f"Stderr: {ret_stderr.strip()}")
-    k8_helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
+    K8Helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
     time.sleep(30)
     yield
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -83,10 +84,11 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment, k8_help
     time.sleep(10)
 
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    k8_helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", False)
+    K8Helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", False)
     return
 
-def install_deviceconfig(gpu_cluster, images, environment, k8_helper):
+@pytest.fixture(scope="module")
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -101,12 +103,13 @@ def install_deviceconfig(gpu_cluster, images, environment, k8_helper):
         pass
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    k8_helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
 
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
             'driver.enable' : True,
+            'driver.blacklist' : True,
             'devicePlugin.enableNodeLabeller' : False,
             'metricsExporter.enable' : False,
             'testRunner.enable' : False,
@@ -131,44 +134,36 @@ def install_deviceconfig(gpu_cluster, images, environment, k8_helper):
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        k8_helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
-    k8_helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
+    K8Helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
     for devcfg in devicecfg_list:
-        k8_helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
+        K8Helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
     setattr(devcfg_info, "exporter_port_map", exporter_port_map)
     setattr(devcfg_info, "devicecfg_list", devicecfg_list)
-    return devcfg_info
-
-@pytest.fixture(scope="module")
-def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment, k8_helper):
-    global Logger
-
-    # cleanup
-    device_cfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, None)
-    for devcfg_name, _ in device_cfg_info.items():
-        k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
-
-    devcfg_info = install_deviceconfig(gpu_cluster, images, environment, k8_helper)
     yield devcfg_info
 
-    device_cfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, None)
-    for devcfg_name, _ in device_cfg_info.items():
-        k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
     return
 
-def test_driver_deviceplugin_gpu_capacity_status(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+def test_gpu_capacity_status(gpu_cluster, deviceconfig_install, environment):
     global Logger
 
     failed_nodes = {}
     for _ in range(3):
         ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-        k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+        K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
         for node in gpu_nodes:
             node_name = k8_util.k8_get_node_hostname(node)
             capacity = node['status']['capacity']
@@ -192,22 +187,20 @@ def test_driver_deviceplugin_gpu_capacity_status(gpu_cluster, images, gpu_operat
             else:
                 break
 
-    k8_helper.assert_or_debug(len(failed_nodes) == 0,
+    K8Helper.assert_or_debug(len(failed_nodes) == 0,
                               f"Some of the node(s) have incorrect capacity/allocatable info {failed_nodes}", 
                               environment.pause_on_failure)
 
-def test_driver_deviceplugin_label(gpu_cluster, images, gpu_operator_install, deviceconfig_install, environment, k8_helper):
+def test_deviceplugin_label(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', 1, 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
-        pytest.skip("Using inbox amdgpu driver - skip kmm label verification")
+    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
 
     '''
     Check for following label:
@@ -218,8 +211,8 @@ def test_driver_deviceplugin_label(gpu_cluster, images, gpu_operator_install, de
     for _ in range(4):
         label_missing.clear()
         ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-        k8_helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-        k8_helper.assert_or_debug(len(gpu_nodes), "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+        K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
+        K8Helper.assert_or_debug(len(gpu_nodes), "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
         for node in gpu_nodes:
             label_found = False
             for label, _ in node['metadata']['labels'].items():
@@ -232,208 +225,275 @@ def test_driver_deviceplugin_label(gpu_cluster, images, gpu_operator_install, de
             Logger.warn(f"Still waiting for device-plugin label for nodes : {label_missing}")
             time.sleep(30)
 
-    k8_helper.assert_or_debug(len(label_missing) == 0,
+    K8Helper.assert_or_debug(len(label_missing) == 0,
                               f"One or more nodes missing kmm.version-device-plugin label : {label_missing}",
                               environment.pause_on_failure)
 
-"""
-def test_driver_deviceplugin_check_driver_version(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version):
+def test_node_driver_version(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
 
-    test_config = {
-            'metadata.namespace' : environment.gpu_operator_namespace,
-            'driver.enable' : True,
-            'driver.blacklist' : True,
-            'driver.version' : driver_version,
-            'devicePlugin.enableNodeLabeller' : True,
-        }
-    test_config.update(images)
-
-    devcfg = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, test_config)
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, devcfg)
-
-    def _cleanup_deviceconfigs():
-        ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-        if ret_code != 0:
-            Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
-        return
-    request.addfinalizer(_cleanup_deviceconfigs)
+    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+        pytest.skip("Using inbox amdgpu driver - skip version verification")
 
     # check the version in the deviceconfig
-    devcfg_name = devcfg['metadata']['name']
-    devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
-    device_config_version = devcfg_info[devcfg_name].get('spec').get('driver').get('version')
-    Logger.info(f'Configured Version: {device_config_version}') 
-    k8_helper.assert_or_debug(driver_version in device_config_version[1], f"Expected config_version: {config_version}, device_config: {device_config_version}", environment.pause_on_failure)
-    
-    # check the worker node driver version
+    config_version = environment.amdgpu_driver_spec["default-version"]
+    rocm_version = amdgpu.get_rocm_version(config_version)
+    K8Helper.check_node_driver_version(gpu_cluster, config_version, rocm_version, environment)
+
+def test_driver_blacklist_file_present(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
+    global Logger
+    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+        pytest.skip("Using inbox amdgpu driver - skip version verification")
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    # check the worker node blacklist
+    filename = "blacklist-amdgpu.conf"
     for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        version_module_label = f"kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.{devcfg_name}"
-        node_driver_version = node['metadata']['labels'][version_module_label]
         node_name = k8_util.k8_get_node_hostname(node)
-        k8_helper.assert_or_debug(driver_version == node_driver_version, f"module version check failed for node {node_name}: {node_driver_version}", environment.pause_on_failure)
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        ret_code, resp_stdout, resp_stderr = worker_node.run_command("sudo dmesg -T | grep 'amdgpu version' | tail -1")
-        Logger.info(f'{resp_stdout}')
-        k8_helper.assert_or_debug(ret_code == 0, f"error getting dmesg from {node_name} {node_ip} {worker_node}", environment.pause_on_failure)
-        k8_helper.assert_or_debug(resp_stdout and version_map[driver_version] in resp_stdout, f"can't find the right amdgpu version {resp_stdout}" , environment.pause_on_failure)
+        cmd = ["ls", "-1", "/etc/modprobe.d/"]
+        ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd)
+        K8Helper.assert_or_debug(ret_code == 0, f"error getting dir listings from {node_name} {node_name}", environment.pause_on_failure)
+        K8Helper.assert_or_debug(resp_stdout != None, f"Error: Command output is None", environment.pause_on_failure)
+        Logger.debug(f"Cmd:{cmd}, Response:\n{resp_stdout}")
+        amdgpu_blacklist_file = list(filter(lambda line: filename in line, resp_stdout.split("\n")))
 
-def test_driver_deviceplugin_blacklist_file_present(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version = version1, blacklist = True):
+        K8Helper.assert_or_debug(len(amdgpu_blacklist_file) == 1,
+                                 f"blacklist file not found {node_name} when blacklist is enabled", environment.pause_on_failure)
+
+def test_driver_blacklist_file_absent(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
-
     # check the worker node blacklist
-    filename = "/etc/modprobe.d/blacklist-amdgpu.conf"
+    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+        pytest.skip("Using inbox amdgpu driver - skip version verification")
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+
+    # Create an empty file 
+    filename = "blacklist-amdgpu.conf"
     for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        k8_helper.assert_or_debug(amdgpu.check_host_blacklist_file(worker_node, expected = blacklist), f"blacklist file check failed on {node}:{worker_node}: {node_ip}", environment.pause_on_failure)
+        node_name = k8_util.k8_get_node_hostname(node)
+        cmd = ["touch", os.path.join("/etc/modprobe.d/", filename)]
+        ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd)
+        K8Helper.assert_or_debug(ret_code == 0, f"error getting dir listings from {node_name} {node_name}", environment.pause_on_failure)
 
-def test_driver_deviceplugin_apply_blacklist_false(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version = version1, blacklist = False):
-    global Logger
-    # check the worker node blacklist
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
-    test_config = {
-            'metadata.namespace' : environment.gpu_operator_namespace,
-            'driver.enable' : True,
-            'driver.blacklist' : blacklist,
-            'driver.version' : driver_version,
-            'devicePlugin.enableNodeLabeller' : True,
-        }
-    test_config.update(images)
-
-    devcfg = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, test_config)
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, devcfg)
-
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', 1, 1),
-        common.PodInfo('node-labeller', 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-def test_driver_deviceplugin_blacklist_file_absent(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version = version1, blacklist = False):
-    global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
 
     # check the worker node blacklist
-    filename = "/etc/modprobe.d/blacklist-amdgpu.conf"
     for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        k8_helper.assert_or_debug(amdgpu.check_host_blacklist_file(worker_node, expected = blacklist), f"blacklist file check failed on {node}:{worker_node}: {node_ip}", environment.pause_on_failure)
+        node_name = k8_util.k8_get_node_hostname(node)
+        cmd = ["ls", "-1", "/etc/modprobe.d/"]
+        ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd)
+        K8Helper.assert_or_debug(ret_code == 0, f"error getting dir listings from {node_name} {node_name}", environment.pause_on_failure)
+        K8Helper.assert_or_debug(resp_stdout != None, f"Error: Command output is None", environment.pause_on_failure)
+        Logger.debug(f"Cmd:{cmd}, Response:\n{resp_stdout}")
+        amdgpu_blacklist_file = list(filter(lambda line: filename in line, resp_stdout.split("\n")))
 
-def test_driver_deviceplugin_revert_blacklist_true(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version = version1, blacklist = True):
+        K8Helper.assert_or_debug(len(amdgpu_blacklist_file) == 0,
+                                 f"blacklist file is found {node_name} when blacklist is disabled", environment.pause_on_failure)
+    # Restore
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+def test_driver_upgrade_cycle(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
     global Logger
-    # check the worker node blacklist
+    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+        pytest.skip("Using inbox amdgpu driver - skip version verification")
+    if environment.gpu_operator_version in ["v1.0.0", "v1.1.0"]:
+        pytest.skip(f"Skipping driver-upgrade testcase for current version {environment.gpu_operator_version}")
+
+    current_version = environment.amdgpu_driver_spec["default-version"]
+    upgrade_version = None
+    for ver in environment.amdgpu_driver_spec['alternative-versions']:
+        if ver > current_version:
+            upgrade_version = ver
+            break
+    if upgrade_version == None:
+        pytest.skip("No suitable driver-version found for upgrade validation - skipping testcase")
+
+    Logger.info(f"Upgrading cluster/gpu-nodes from {current_version} => {upgrade_version}")
+
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
-    test_config = {
-            'metadata.namespace' : environment.gpu_operator_namespace,
-            'driver.enable' : True,
-            'driver.blacklist' : blacklist,
-            'driver.version' : driver_version,
-            'devicePlugin.enableNodeLabeller' : True,
-        }
-    test_config.update(images)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = True
+        tcfg['driver.version'] = upgrade_version
+        tcfg['driver.upgradePolicy.enable'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
 
-    devcfg = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, test_config)
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, devcfg)
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    for devcfg_name, devcfg_info in devcfg_map.items():
+        devcfg_driver_version = devcfg_info.get('spec').get('driver').get('version')
+        Logger.info(f'Configured Version: {devcfg_driver_version}') 
+        K8Helper.assert_or_debug(upgrade_version == devcfg_driver_version,
+                                 f"Expected {upgrade_version}, found {devcfg_driver_version}", environment.pause_on_failure)
 
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', 1, 1),
-        common.PodInfo('node-labeller', 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    # Enable upgradePolicy
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.upgradePolicy.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR to enable upgradePolicy", environment.pause_on_failure)
 
-def test_driver_deviceplugin_blacklist_file_present(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version = version1, blacklist = True):
+    # Check for reboot operation
+    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+
+    rocm_version = amdgpu.get_rocm_version(upgrade_version)
+    K8Helper.check_node_driver_version(gpu_cluster, upgrade_version, rocm_version, environment)
+
+    # Restore
+    Logger.info(f"Restoring cluster/gpu-nodes from {upgrade_version} => {current_version}")
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = True
+        tcfg['driver.version'] = current_version
+        tcfg['driver.upgradePolicy.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    # Check for reboot operation
+    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+
+    # Check for corresponding deviceconfig updated
+    K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
+
+    rocm_version = amdgpu.get_rocm_version(current_version)
+    K8Helper.check_node_driver_version(gpu_cluster, current_version, rocm_version, environment)
+
+def test_driver_downgrade_cycle(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
     global Logger
+    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+        pytest.skip("Using inbox amdgpu driver - skip version verification")
+    if environment.gpu_operator_version in ["v1.0.0", "v1.1.0"]:
+        pytest.skip(f"Skipping driver-downgrade testcases for current version {environment.gpu_operator_version}")
+    current_version = environment.amdgpu_driver_spec["default-version"]
+    downgrade_version = None
+    for ver in environment.amdgpu_driver_spec['alternative-versions']:
+        if ver < current_version:
+            downgrade_version = ver
+            break
+    if downgrade_version == None:
+        pytest.skip("No suitable driver-version found for upgrade validation - skipping testcase")
+
+    Logger.info(f"Downgrading cluster/gpu-nodes from {current_version} => {downgrade_version}")
+
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = True
+        tcfg['driver.version'] = downgrade_version
+        tcfg['driver.upgradePolicy.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
 
-    # check the worker node blacklist
-    filename = "/etc/modprobe.d/blacklist-amdgpu.conf"
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        k8_helper.assert_or_debug(amdgpu.check_host_blacklist_file(worker_node, expected = blacklist), f"blacklist file check failed on {node}:{worker_node}: {node_ip}", environment.pause_on_failure)
+    # Check for reboot operation
+    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
 
-def test_driver_deviceplugin_create_delete_workload_with_gpu(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+    # Check for corresponding deviceconfig created
+    K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
+
+    rocm_version = amdgpu.get_rocm_version(downgrade_version)
+    K8Helper.check_node_driver_version(gpu_cluster, downgrade_version, rocm_version, environment)
+
+    # Restore
+    Logger.info(f"Restoring cluster/gpu-nodes from {downgrade_version} => {current_version}")
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['driver.blacklist'] = True
+        tcfg['driver.version'] = current_version
+        tcfg['driver.upgradePolicy.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+
+    # Check for reboot operation
+    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+
+    # Check for corresponding deviceconfig created
+    K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
+
+    rocm_version = amdgpu.get_rocm_version(current_version)
+    K8Helper.check_node_driver_version(gpu_cluster, current_version, rocm_version, environment)
+
+def test_deviceplugin_create_delete_gpu_workload(request, gpu_cluster, deviceconfig_install, environment):
     global Logger
     '''
     create the first workload pod requesting one gpu
     Assumption: no other workload pod with gpu has been instantiated
     '''
+
+    local_workload_ctxts = []
+    def _cleanup_local_workloads():
+        for ctxt in local_workload_ctxts:
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+    request.addfinalizer(_cleanup_local_workloads)
+
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
     
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
     node_name = k8_util.k8_get_node_hostname(gpu_node)
 
     # check gpu capacity
-    initial_capacity, initial_allocatable = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(int(initial_capacity) != -1 or int(initial_allocatable) != -1, \
-                      f'Err getting gpu capacity and allocatable values: initial_capacity: {initial_capacity} initial_allocatable: {initial_allocatable}', environment.pause_on_failure)
+    init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(init_cap >= 0 or init_alloc >= 0,
+                              f'Error getting gpu capacity & allocatable values', environment.pause_on_failure)
 
     # check if the node has allocatable gpus; if not fail
-    k8_helper.assert_or_debug(initial_capacity != 0 or initial_allocatable != 0, f'no gpu available', environment.pause_on_failure)
+    K8Helper.assert_or_debug(int(init_cap) > 0 or int(init_alloc) > 0,
+                             f'no gpu available for workload based testcases', environment.pause_on_failure)
 
-    # create a workload requesting one gpu
-    num_gpu_reqd = 1
-    pod_name = "pytorch-gpu-pod-1"
+    # Create a workload
+    workload_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, node_name=node_name)
+    K8Helper.assert_or_debug(workload_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING, 
+                             f"Workload failed to start {workload_ctxt}", environment.pause_on_failure)
+    local_workload_ctxts.append(workload_ctxt)
 
-    # launch 
-    test_config = {
-            'pod_name' : pod_name,
-            'num_gpu' : num_gpu_reqd,
-            'nodeSelector' : node_name,
-        }
-    wl_file = os.path.join(environment.sandbox_dir, f"{pod_name}.yaml")
-    spec_util.generate_k8_workload_template(wl_file, test_config)
-    Logger.info(f"Create the first workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, test_config, wl_file)
-
-    devicecfg_pods = [
-        common.PodInfo(pod_name, 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 10, total_attempts = 30)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-    capacity, allocatable = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(int(capacity) != -1 or int(allocatable) != -1, \
-                      f'Err getting gpu capacity and allocatable values: capacity: {capacity} allocatable: {allocatable}', environment.pause_on_failure)
-    k8_helper.assert_or_debug(capacity == initial_capacity and allocatable == initial_allocatable, f'gpu status error: capacity, status initial/final :\
-                                                                {initial_capacity},{initial_allocatable}/{capacity},{allocatable}', environment.pause_on_failure)
-
-    # get allocated gpu status
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == num_gpu_reqd, f"requests {requests} is not requal to number of gpu requested: {num_gpu_reqd}", environment.pause_on_failure)
-    Logger.info(f"gpu requested: {num_gpu_reqd}; alloc requests {requests}")
+    new_cap, new_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(new_cap != -1 or new_alloc != -1,
+                             f'Err getting gpu capacity and allocatable values: capacity: {new_cap} allocatable: {new_alloc}',
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(new_cap == init_cap and new_alloc == init_alloc,
+                             f'gpu status error: capacity, status initial/final: {init_cap},{init_alloc}/{new_cap},{new_alloc}',
+                             environment.pause_on_failure)
 
     # delete the workload
     Logger.info(f"Delete the first workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(gpu_cluster, test_config, wl_file)
-    num_gpu_reqd -= 1
+    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=workload_ctxt)
 
-    # get allocated gpu status
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == num_gpu_reqd, f"requests {requests} is not requal to number of gpu requested: {num_gpu_reqd}", environment.pause_on_failure)
-    Logger.info(f"gpu requested: {num_gpu_reqd}; alloc requests {requests}")
-    
-def test_driver_deviceplugin_create_workload_with_max_gpu(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+    new_cap, new_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(new_cap != -1 or new_alloc != -1,
+                             f'Err getting gpu capacity and allocatable values: capacity: {new_cap} allocatable: {new_alloc}',
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(new_cap == init_cap and new_alloc == init_alloc,
+                             f'gpu status error: capacity, status initial/final: {init_cap},{init_alloc}/{new_cap},{new_alloc}',
+                             environment.pause_on_failure)
+
+def test_deviceplugin_create_workload_with_max_gpu(request, gpu_cluster, deviceconfig_install, environment):
     global Logger
     '''
     Creates and deletes a workload with max number of gpus available on the node
@@ -442,66 +502,56 @@ def test_driver_deviceplugin_create_workload_with_max_gpu(request, gpu_cluster, 
     Delete the workload
     Check the gpu allow status again
     '''
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    local_workload_ctxts = []
+    def _cleanup_local_workloads():
+        for ctxt in local_workload_ctxts:
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+    request.addfinalizer(_cleanup_local_workloads)
 
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
     node_name = k8_util.k8_get_node_hostname(gpu_node)
 
     # check gpu capacity
-    initial_capacity, initial_allocatable = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(int(initial_capacity) != -1 or int(initial_allocatable) != -1, \
-                      f'Err getting gpu capacity and allocatable values: initial_capacity: {initial_capacity} initial_allocatable: {initial_allocatable}', environment.pause_on_failure)
+    init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(init_cap >= 0 or init_alloc >= 0,
+                             f'Error getting gpu capacity & allocatable values', environment.pause_on_failure)
 
     # check if the node has allocatable gpus; if not fail
-    k8_helper.assert_or_debug(initial_capacity != 0 or initial_allocatable != 0, f'no gpu available', environment.pause_on_failure)
+    K8Helper.assert_or_debug(int(init_cap) > 0 or int(init_alloc) > 0,
+                             f'no gpu available for workload based testcases', environment.pause_on_failure)
 
-    # create a workload requesting all gpus
-    num_gpu_reqd = int(initial_capacity)
-    pod_name = "pytorch-gpu-pod-max"
+    # Create a workload requesting max-capacity
+    workload_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD,
+                                                node_name=node_name, num_gpu_reqd=init_cap)
+    local_workload_ctxts.append(workload_ctxt)
+    K8Helper.assert_or_debug(workload_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING, 
+                             f"Workload failed to start {workload_ctxt}", environment.pause_on_failure)
 
-    # launch 
-    test_config = {
-            'pod_name' : pod_name,
-            'num_gpu' : num_gpu_reqd,
-            'nodeSelector' : node_name,
-        }
-    wl_file = os.path.join(environment.sandbox_dir, f"{pod_name}.yaml")
-    spec_util.generate_k8_workload_template(wl_file, test_config)
-    Logger.info(f"Create the first workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, test_config, wl_file)
-
-    devicecfg_pods = [
-        common.PodInfo(pod_name, 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 10, total_attempts = 30)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-    capacity, allocatable = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(int(capacity) != -1 or int(allocatable) != -1, \
-                      f'Err getting gpu capacity and allocatable values: capacity: {capacity} allocatable: {allocatable}', environment.pause_on_failure)
-    k8_helper.assert_or_debug(capacity == initial_capacity and allocatable == initial_allocatable, f'gpu status error: capacity, status initial/final :\
-                                                                {initial_capacity},{initial_allocatable}/{capacity},{allocatable}', environment.pause_on_failure)
-
-    # get allocated gpu status
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == num_gpu_reqd, f"requests {requests} is not requal to number of gpu requested: {num_gpu_reqd}", environment.pause_on_failure)
-    Logger.info(f"gpu requested: {num_gpu_reqd}; alloc requests {requests}")
+    new_cap, new_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(new_cap != -1 or new_alloc != -1,
+                             f'Err getting gpu capacity and allocatable values: capacity: {new_cap} allocatable: {new_alloc}',
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(new_cap == init_cap and new_alloc == init_alloc,
+                             f'gpu status error: capacity, status initial/final: {init_cap},{init_alloc}/{new_cap},{new_alloc}',
+                             environment.pause_on_failure)
 
     # delete the workload
     Logger.info(f"Delete the first workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(gpu_cluster, test_config, wl_file)
-    num_gpu_reqd -= num_gpu_reqd
+    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=workload_ctxt)
 
-    # get allocated gpu status
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == num_gpu_reqd, f"requests {requests} is not requal to number of gpu requested: {num_gpu_reqd}", environment.pause_on_failure)
-    Logger.info(f"gpu requested: {num_gpu_reqd}; alloc requests {requests}")
+    new_cap, new_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(new_cap != -1 or new_alloc != -1,
+                             f'Err getting gpu capacity and allocatable values: capacity: {new_cap} allocatable: {new_alloc}',
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(new_cap == init_cap and new_alloc == init_alloc,
+                             f'gpu status error: capacity, status initial/final: {init_cap},{init_alloc}/{new_cap},{new_alloc}',
+                             environment.pause_on_failure)
 
-def test_driver_deviceplugin_create_workload_with_exceed_gpu_capacity(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+def test_deviceplugin_create_workload_exceed_gpu_capacity(request, gpu_cluster, deviceconfig_install, environment):
     global Logger
     '''
     Create a workload requesting gpus > capacity
@@ -509,66 +559,56 @@ def test_driver_deviceplugin_create_workload_with_exceed_gpu_capacity(request, g
     Check gpu alloc status
     Delete the workload
     '''
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    local_workload_ctxts = []
+    def _cleanup_local_workloads():
+        for ctxt in local_workload_ctxts:
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+    request.addfinalizer(_cleanup_local_workloads)
 
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
     node_name = k8_util.k8_get_node_hostname(gpu_node)
 
     # check gpu capacity
-    initial_capacity, initial_allocatable = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(int(initial_capacity) != -1 or int(initial_allocatable) != -1, \
-                      f'Err getting gpu capacity and allocatable values: initial_capacity: {initial_capacity} initial_allocatable: {initial_allocatable}', environment.pause_on_failure)
+    init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(init_cap >= 0 or init_alloc >= 0,
+                              f'Error getting gpu capacity & allocatable values', environment.pause_on_failure)
 
     # check if the node has allocatable gpus; if not fail
-    k8_helper.assert_or_debug(initial_capacity != 0 or initial_allocatable != 0, f'no gpu available', environment.pause_on_failure)
+    K8Helper.assert_or_debug(int(init_cap) > 0 or int(init_alloc) > 0,
+                             f'no gpu available for workload based testcases', environment.pause_on_failure)
 
-    # create a workload requesting max capacity + 1  gpus
-    num_gpu_reqd = int(initial_capacity) + 1
-    pod_name = "pytorch-gpu-pod-exceed"
+    # Create a workload
+    workload_ctxt = K8Helper.workload_operation(gpu_cluster, environment, 
+                                                K8Helper.WorkloadOp.START_WORKLOAD, node_name=node_name, num_gpu_reqd=init_cap + 1)
+    local_workload_ctxts.append(workload_ctxt)
+    K8Helper.assert_or_debug(workload_ctxt['podStatus'] == K8Helper.PodStatus.PENDING, 
+                             f"Workload started with more resources!!! {workload_ctxt}", environment.pause_on_failure)
 
-    # launch 
-    test_config = {
-            'pod_name' : pod_name,
-            'num_gpu' : num_gpu_reqd,
-            'nodeSelector' : node_name,
-        }
-    wl_file = os.path.join(environment.sandbox_dir, f"{pod_name}.yaml")
-    spec_util.generate_k8_workload_template(wl_file, test_config)
-    Logger.info(f"Create a workload requesting gpus exceeding the capacity")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, test_config, wl_file)
-
-    # the pod must be in unscheduble state
-    # kubectl get pods pytorch-gpu-pod-exceed -n kube-amd-gpu -o json | jq .status 
-    ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl get pods {pod_name} \
-                                                                            -n {environment.gpu_operator_namespace} -o json | jq .status")
-    k8_helper.assert_or_debug(ret_code == 0, "Failed to get labels for node {node_name}: err: {resp_stderr}", environment.pause_on_failure)
-    status_dict = json.loads(resp_stdout)
-    Logger.info(f"Pod status: {status_dict}")
-    k8_helper.assert_or_debug(status_dict["conditions"][0]["reason"] == "Unschedulable", f"Pod is not in Unschedulable state", environment.pause_on_failure)
-    k8_helper.assert_or_debug("Insufficient amd.com/gpu" in status_dict["conditions"][0]["message"], f"reason doesn't reflect resource limit", environment.pause_on_failure)
-
-    # get allocated gpu status
-    Logger.info(f"Get gpu request status")
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == 0, f"after pod not schedulable, requests {requests} is not 0", environment.pause_on_failure)
-    Logger.info(f"gpu requested: {num_gpu_reqd}; alloc requests {requests}")
+    new_cap, new_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(new_cap != -1 or new_alloc != -1,
+                             f'Err getting gpu capacity and allocatable values: capacity: {new_cap} allocatable: {new_alloc}',
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(new_cap == init_cap and new_alloc == init_alloc,
+                             f'gpu status error: capacity, status initial/final: {init_cap},{init_alloc}/{new_cap},{new_alloc}',
+                             environment.pause_on_failure)
 
     # delete the workload
-    Logger.info(f"Delete the workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(gpu_cluster, test_config, wl_file)
-    num_gpu_reqd -= num_gpu_reqd
+    Logger.info(f"Delete the first workload with gpu")
+    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=workload_ctxt)
 
-    # get allocated gpu status
-    Logger.info(f"Get gpu request status")
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == num_gpu_reqd, f"after pod deletion, requests {requests} is not requal to number of gpu requested: {num_gpu_reqd}", environment.pause_on_failure)
-    Logger.info(f"gpu requested: {num_gpu_reqd}; alloc requests {requests}")
+    new_cap, new_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(new_cap != -1 or new_alloc != -1, 
+                             f'Err getting gpu capacity and allocatable values: capacity: {new_cap} allocatable: {new_alloc}',
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(new_cap == init_cap and new_alloc == init_alloc,
+                             f'gpu status error: capacity, status initial/final: {init_cap},{init_alloc}/{new_cap},{new_alloc}',
+                             environment.pause_on_failure)
 
-def test_driver_deviceplugin_multiple_workloads_with_gpu(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
+def test_driver_deviceplugin_multiple_workloads_with_gpu(request, gpu_cluster, deviceconfig_install, environment):
     global Logger
     '''
     Create a workload wl1 with max gpu available
@@ -579,191 +619,91 @@ def test_driver_deviceplugin_multiple_workloads_with_gpu(request, gpu_cluster, i
     Second workload wl1 must be up and running now
     check pod status and alloc status
     '''
+    local_workload_ctxts = []
+    def _cleanup_local_workloads():
+        for ctxt in local_workload_ctxts:
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+    request.addfinalizer(_cleanup_local_workloads)
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
     
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
     node_name = k8_util.k8_get_node_hostname(gpu_node)
 
     # check gpu capacity
-    initial_capacity, initial_allocatable = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(int(initial_capacity) != -1 or (initial_allocatable) != -1, \
-                      f'Err getting gpu capacity and allocatable values: initial_capacity: {initial_capacity} initial_allocatable: {initial_allocatable}', environment.pause_on_failure)
+    init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+    K8Helper.assert_or_debug(init_cap != -1 or init_alloc != -1,
+                             f'Err getting gpu capacity and allocatable values: init_cap: {init_cap} init_alloc: {init_alloc}',
+                             environment.pause_on_failure)
     # check if the node has allocatable gpus; if not fail
-    k8_helper.assert_or_debug(int(initial_capacity) != 0 or int(initial_allocatable) != 0, f'no gpu available', environment.pause_on_failure)
+    K8Helper.assert_or_debug(int(init_cap) != 0 or int(init_alloc) != 0, f'no gpu available', environment.pause_on_failure)
 
-    # launch a workload wl1 with all available gpus
-    wl1_num_gpu_reqd = int(initial_capacity)
-    pod_name = "pytorch-gpu-pod-max"
+    # Create a workload requesting max-capacity
+    first_workload = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD,
+                                                 node_name=node_name, num_gpu_reqd=init_cap)
+    local_workload_ctxts.append(first_workload)
+    K8Helper.assert_or_debug(first_workload['podStatus'] == K8Helper.PodStatus.RUNNING, 
+                             f"Workload failed to start {first_workload}", environment.pause_on_failure)
 
-    # launch 
-    test_config = {
-            'pod_name' : pod_name,
-            'num_gpu' : wl1_num_gpu_reqd,
-            'nodeSelector' : node_name,
-        }
-    wl1_file = os.path.join(environment.sandbox_dir, f"{pod_name}.yaml")
-    spec_util.generate_k8_workload_template(wl1_file, test_config)
-    Logger.info(f"Create the first workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, test_config, wl1_file)
-
-    devicecfg_pods = [
-        common.PodInfo(pod_name, 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 10, total_attempts = 30)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
+    """
     # get allocated gpu status
     requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == wl1_num_gpu_reqd, f"requests {requests} is not requal to number of gpu requested: {wl1_num_gpu_reqd}", environment.pause_on_failure)
+    K8Helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
+    K8Helper.assert_or_debug(int(requests) == wl1_num_gpu_reqd, f"requests {requests} is not requal to number of gpu requested: {wl1_num_gpu_reqd}", environment.pause_on_failure)
     Logger.info(f"gpu requested: {wl1_num_gpu_reqd}; alloc requests {requests}")
+    """
 
     # launch another workload wl2 requesting one gpu; should be in unschedulable state
-    wl2_num_gpu_reqd = 1
-    pod_name = "pytorch-gpu-pod-new"
-
-    # launch 
-    test_config = {
-            'pod_name' : pod_name,
-            'num_gpu' : wl2_num_gpu_reqd,
-            'nodeSelector' : node_name,
-        }
-    wl2_file = os.path.join(environment.sandbox_dir, f"{pod_name}.yaml")
-    spec_util.generate_k8_workload_template(wl2_file, test_config)
-    Logger.info(f"Create the second workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, test_config, wl2_file)
-
-    ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl get pods {pod_name} \
-                                                                            -n {environment.gpu_operator_namespace} -o json | jq .status")
-    k8_helper.assert_or_debug(ret_code == 0, "Failed to get labels for node {node_name}: err: {resp_stderr}", environment.pause_on_failure)
-    status_dict = json.loads(resp_stdout)
-    Logger.info(f"Pod status: {status_dict}")
-    k8_helper.assert_or_debug(status_dict["conditions"][0]["reason"] == "Unschedulable", f"Pod is not in Unschedulable state", environment.pause_on_failure)
-    k8_helper.assert_or_debug("Insufficient amd.com/gpu" in status_dict["conditions"][0]["message"], f"reason doesn't reflect resource limit", environment.pause_on_failure)
+    # Create a workload requesting max-capacity
+    second_workload = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD,
+                                                  node_name=node_name, num_gpu_reqd=1)
+    local_workload_ctxts.append(second_workload)
+    K8Helper.assert_or_debug(second_workload['podStatus'] == K8Helper.PodStatus.PENDING, 
+                             f"Workload is running when it is expected to be pending", environment.pause_on_failure)
 
     # delete workload wl1
     Logger.info(f"Delete the first workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(gpu_cluster, test_config, wl1_file)
+    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=first_workload)
+    time.sleep(30)
 
     # check workload wl2 status
     Logger.info(f"Check the status of the second workload with gpu")
-    devicecfg_pods = [
-        common.PodInfo(pod_name, 1, 1),
+    workload_pods = [
+        common.PodInfo(second_workload['pod_name'], 1, 1),
     ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    workload_status = None
+    for _ in range(5):
+        status_info = k8_util.k8_check_pod_status(gpu_cluster, "default", workload_pods)
+        workload_status = status_info[second_workload['pod_name']]
+        if workload_status == 'Pending':
+            time.sleep(30)
+        elif workload_status in ['Running', 'Failed']:
+            break
+    K8Helper.assert_or_debug(workload_status == "Running", f"Invalid workload-status: {status_info}", environment.pause_on_failure)
 
+    """
     # get allocated gpu status
     Logger.info(f"Get gpu request status after second wl is running")
     requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == wl2_num_gpu_reqd, f"after pod deletion, requests {requests} is not requal to number of gpu requested: {wl2_num_gpu_reqd}", environment.pause_on_failure)
+    K8Helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
+    K8Helper.assert_or_debug(int(requests) == wl2_num_gpu_reqd, f"after pod deletion, requests {requests} is not requal to number of gpu requested: {wl2_num_gpu_reqd}", environment.pause_on_failure)
     Logger.info(f"gpu requested: {wl2_num_gpu_reqd}; alloc requests {requests}")
+    """
 
     # delete wl2
     Logger.info(f"Delete the second workload with gpu")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(gpu_cluster, test_config, wl2_file)
+    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=second_workload)
 
-    # get allocated gpu status
-    Logger.info(f"Get gpu request status after second workload is also deleted")
-    requests, limit = k8_util.k8_get_node_gpu_alloc_requests(gpu_cluster, node_name)
-    k8_helper.assert_or_debug(requests != -1 or limit != -1, f"error getting allocate requests", environment.pause_on_failure)
-    k8_helper.assert_or_debug(int(requests) == 0, f"after second pod deletion, requests {requests} is not 0 after deleting the second workload", environment.pause_on_failure)
-    Logger.info(f"gpu requested: 0; alloc requests {requests}")
-
-def test_driver_upgrade(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version=version2):
-    global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
-    test_config = {
-            'metadata.namespace' : environment.gpu_operator_namespace,
-            'driver.enable' : True,
-            'driver.blacklist' : True,
-            'driver.version' : driver_version,
-            'devicePlugin.enableNodeLabeller' : True,
-        }
-    test_config.update(images)
-
-    devcfg = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, test_config)
-    # delete current deployment and add
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, devcfg)
-
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', 1, 1),
-        common.PodInfo('node-labeller', 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-def test_driver_version_post_upgrade(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version = version2):
-    global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
-
-    device_config = "test-deviceconfig"
-
-    # check the version in the deviceconfig
-    device_config_version = gpu_cluster.k8_master.run_command(f"kubectl get deviceconfigs {device_config} -n kube-amd-gpu -o yaml  | grep version:")
-    Logger.info(f'Configured Version: {device_config_version}')
-    k8_helper.assert_or_debug(driver_version in device_config_version[1], f"Expected config_version: {driver_version}, device_config: {device_config_version}", environment.pause_on_failure)
-
-    # check the worker node driver version
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        node_name = k8_util.k8_get_node_hostname(node)
-        ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl get node {node_name} -o yaml | \
-                                             grep version-module.{environment.gpu_operator_namespace}")
-        Logger.info(f"err: {resp_stderr}")
-        Logger.info(f"output: {resp_stdout}")
-        k8_helper.assert_or_debug(driver_version in resp_stdout, f"module version check failed for node {node_name}: {resp_stdout}", environment.pause_on_failure)
-        node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
-        ret_code, resp_stdout, resp_stderr = worker_node.run_command("sudo dmesg -T | grep 'amdgpu version' | tail -1")
-        Logger.info(f'{resp_stdout}')
-        k8_helper.assert_or_debug(ret_code == 0, f"error getting dmesg from {node_name} {node_ip} {worker_node}", environment.pause_on_failure)
-        k8_helper.assert_or_debug(resp_stdout and version_map[driver_version] in resp_stdout, f"can't find the right amdgpu version {resp_stdout}", environment.pause_on_failure)
-
-def test_driver_downgrade(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version=version1):
-    global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
-    test_config = {
-            'metadata.namespace' : environment.gpu_operator_namespace,
-            'driver.enable' : True,
-            'driver.blacklist' : True,
-            'driver.version' : driver_version,
-            'devicePlugin.enableNodeLabeller' : True,
-        }
-    test_config.update(images)
-
-    devcfg = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, test_config)
-    # delete current deployment and add
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, devcfg)
-
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', 1, 1),
-        common.PodInfo('node-labeller', 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-def test_re_run_gpu_operator_driver_version_post_downgrade(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version=version1):
-    global Logger
-    test_gpu_operator_driver_version_post_upgrade(request, gpu_cluster, images, gpu_operator_install, environment, driver_version=version1)
-
-def test_upgrade_driver_using_label(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version=version2):
+"""
+def test_upgrade_driver_using_label(request, gpu_cluster, environment, driver_version=version2):
     global Logger
     '''
     Upgrade driver using label update method
     '''
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
         worker_node = gpu_cluster.get_worker_node(node_ip)
@@ -778,83 +718,6 @@ def test_upgrade_driver_using_label(request, gpu_cluster, images, gpu_operator_i
         common.PodInfo('node-labeller', 1, 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-def test_re_run_gpu_operator_driver_version_post_upgrade(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper, driver_version=version2):
-    global Logger
-    test_gpu_operator_driver_version_post_upgrade(request, gpu_cluster, images, gpu_operator_install, environment, driver_version=version2)
-
-def test_multi_deviceconfig_deploy(request, gpu_cluster, images, gpu_operator_install, environment, k8_helper):
-    global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    k8_helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    k8_helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
-
-    test_config = {
-            'metadata.namespace' : environment.gpu_operator_namespace,
-            'driver.enable' : True,
-            'devicePlugin.enableNodeLabeller' : True,
-            'metricsExporter.enable' : True,
-            'testRunner.enable' : True,
-        }
-    test_config.update(images)
-
-    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, request.node.name, environment.amdgpu_driver_spec)
-    def _cleanup_deviceconfigs():
-        for spec_name, tcfg in test_cfg_map.items():
-            ret_code, ret_stderr, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, spec_name)
-            if ret_code != 0:
-                Logger.warn(f"Failed to delete/cleanup deviceconfig, stderr: {ret_stderr}")
-        return
-    request.addfinalizer(_cleanup_deviceconfigs)
-
-    if len(test_cfg_map) > 1:
-        skip_sections = {'devicePlugin' : True, 'metricsExporter' : True, 'testRunner' : True}
-    else:
-        skip_sections = {}
-
-    for spec_name, tcfg in test_cfg_map.items():
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections = skip_sections)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        k8_helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
-
-    if len(test_cfg_map) > 1:
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, test_config, skip_sections = {'driver' : True})
-        test_cfg_map[request.node.name] = testcfg # for finalizer to do cleanup
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        k8_helper.assert_or_debug(ret_code == 0, f"Failed create deviceconfig", environment.pause_on_failure)
-
-    k8_helper.wait_kmm_worker_completion(gpu_cluster, environment)
-
-    # Watch for all pod creation
-    '''
-    test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
-    test-deviceconfig-metrics-exporter-27gq9                     2/2     Running       0                 12d
-    test-deviceconfig-node-labeller-54vpd                        1/1     Running       0                 12d
-    '''
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', 1, 1),
-        common.PodInfo('metrics-exporter', 1, 1),
-        common.PodInfo('node-labeller', 1, 1),
-        common.PodInfo('test-runner', 1, 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, gpu_nodes, environment.gpu_operator_namespace, devicecfg_pods)
-    k8_helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
-
-    time.sleep(30) # Wait for exporter to start working
-
-    failed_endpoints = set()
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        ret_code, ret_stdout, ret_stderr = cluster_node.http_get(32500, "metrics")
-        if ret_code != 0:
-            failed_endpoints.add(node_ip)
-            Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
-
-    k8_helper.assert_or_debug(len(failed_endpoints) == 0,
-                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}", environment.pause_on_failure)
+    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
 
 """

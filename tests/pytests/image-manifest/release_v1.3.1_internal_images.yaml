@@ -7,6 +7,8 @@ images:
             mirror:
                 enable: yes
                 url: registry.test.pensando.io:5000
+        packaging:
+          gpuctl : disabled
     k8:
         driver:
             key         : driver.image
