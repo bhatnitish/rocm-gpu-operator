@@ -36,9 +36,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 
@@ -180,6 +181,7 @@ func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1al
 	wfList, err := n.helper.getWorkflowList(ctx, deviceConfig.Namespace)
 	if err != nil {
 		log.FromContext(ctx).Error(err, "Failed to list workflows during delete")
+		return ctrl.Result{}, err
 	}
 
 	for _, wf := range wfList.Items {
