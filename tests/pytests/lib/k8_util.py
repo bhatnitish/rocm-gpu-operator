@@ -832,7 +832,7 @@ def k8_delete_pod(k8_cluster : common.k8_cluster, pod_name : str, namespace : st
         api = client.CoreV1Api()
         try:
             resp = api.delete_namespaced_pod(pod_name, namespace)
-            Logger.debug(f"Successfully delete pod, resp:\n{LogPrettyPrinter.pformat(resp)}")
+            Logger.debug(f"Successfully delete pod, {pod_name}")
             return 0, "", ""
         except ApiException as e:
             Logger.error(f"Failed to delete pod, error: {e}")
@@ -1251,7 +1251,7 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
             time.sleep(sleep_time)
         else:
             break
-    if k8_pod_list:
+    if failed_pods:
         Logger.debug(f"Status of the Pods {pod_list}\n{LogPrettyPrinter.pformat(k8_pod_list)}")
     return failed_pods
 
@@ -1286,7 +1286,7 @@ def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod
             time.sleep(sleep_time)
         else:
             break
-    if k8_pod_list:
+    if running_pods:
         Logger.debug(f"Status of Pods {pod_list}\n{LogPrettyPrinter.pformat(k8_pod_list)}")
     return running_pods
 
@@ -1349,7 +1349,6 @@ def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configm
         cmd = ["kubectl", "delete", "configmap", "--namespace", namespace, configmap_name]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
-@log_arguments
 def k8_crictl_run_command(cluster_node, container_name, command):
     """
     API to run/inspect a container using crictl tool
@@ -1385,6 +1384,40 @@ def k8_get_node_hostname(node_info, address_type = "Hostname"):
         if addr.get("type", None) == address_type:
             return addr.get("address", None)
     assert f"Missing address-type : {address_type} in k8 node, {node_info}"
+
+@log_arguments
+def k8_cordon_node(k8_cluster, node_name : str):
+    """
+    API to cordon node
+    """
+    global Logger
+    if k8_cluster.k8_kube_config:
+        try:
+            v1 = client.CoreV1Api()
+            patch_body = {"spec": {"unschedulable": True}}
+            api_response = v1.patch_node(name=node_name, body=patch_body)
+            return 0, api_response
+        except ApiException as e:
+            Logger.error(f"Failed cordon node {node_name}: {e}")
+            return -1, None
+    return -1, None
+
+@log_arguments
+def k8_uncordon_node(k8_cluster, node_name):
+    """
+    API to uncodon node
+    """
+    global Logger
+    if k8_cluster.k8_kube_config:
+        try:
+            v1 = client.CoreV1Api()
+            patch_body = {"spec": {"unschedulable": False}}
+            api_response = v1.patch_node(name=node_name, body=patch_body)
+            return 0, api_response
+        except ApiException as e:
+            Logger.error(f"Failed cordon node {node_name}: {e}")
+            return -1, None
+    return -1, None
 
 @log_arguments
 def k8_delete_cluster_role(k8_cluster, cluster_role_name):
@@ -2098,7 +2131,7 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
     return -1, "", ""
 
 @log_arguments
-def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : List, skip_chroot : bool = False, retry : int = 10):
+def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : List, skip_chroot : bool = False, retry : int = 10, timeout_seconds = 300):
     """
     Runs a command on a specific Kubernetes worker node using an ephemeral debug pod.
 
@@ -2178,7 +2211,6 @@ def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : L
                 Logger.debug(f"Creating debug pod {pod_name} on node '{node_name}'...")
 
                 # Wait for the pod to complete
-                timeout_seconds = 300 # 5 minutes timeout
                 start_time = time.time()
                 while True:
                     pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
@@ -2270,4 +2302,82 @@ def exec_command_in_pod(k8_cluster : common.k8_cluster, namespace : str, cmds : 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         return -1, None, f"Unexpected error: {e}"
+
+
+@log_arguments
+def reboot_node(k8_cluster : common.k8_cluster, node_name : str):
+    """
+    Reboot node using run_command_on_node API and check for node status.conditions to declare as ready
+    Args:
+        k8_cluster (common.k8_cluster): k8 Cluster
+        node_name (str): name of the node.
+    """
+    ret_code, _ = k8_cordon_node(k8_cluster, node_name)
+    if ret_code != 0:
+        return ret_code
+    ret_code, _ = run_command_on_node(k8_cluster, node_name, ["systemctl", "reboot"], timeout_seconds = 30)
+    # For now ignore ret_code
+    # Check for status to be declared as NotReady
+    for _ in range(10):
+        ret_code, k8_nodes = k8_get_nodes(k8_cluster)
+        if ret_code != 0:
+            return ret_code
+
+        reboot_success = False
+        for node in k8_nodes:
+            if node['metadata']['labels'].get('feature.node.kubernetes.io/amd-gpu', 'false') != 'true':
+                continue
+
+            if node['metadata']['name'] != node_name:
+                continue
+
+            for entry in node['status']['conditions']:
+                if entry.get('type', 'NotReady') == 'Ready':
+                    if entry['status'] != 'True':
+                        reboot_success = True
+                    break
+            break
+        if reboot_success:
+            break
+        time.sleep(20)
+
+    if not reboot_success:
+        Logger.error(f"Failed to reboot node {node_name}")
+        return -1
+    Logger.info(f"Node {node_name} successfully rebooted, sleep for 240s")
+    time.sleep(240)
+
+    # Check for status to be declared as Ready
+    for _ in range(10):
+        ret_code, k8_nodes = k8_get_nodes(k8_cluster)
+        if ret_code != 0:
+            return ret_code
+
+        node_online = False
+        for node in k8_nodes:
+            if node['metadata']['labels'].get('feature.node.kubernetes.io/amd-gpu', 'false') != 'true':
+                continue
+
+            if node['metadata']['name'] != node_name:
+                continue
+
+            for entry in node['status']['conditions']:
+                if entry.get('type', 'NotReady') == 'Ready':
+                    if entry['status'] == 'True':
+                        node_online = True
+                    break
+            break
+
+        if node_online:
+            break
+        time.sleep(20)
+    if not node_online:
+        Logger.error(f"Node {node_name} failed to come online - fatal error")
+        return -1
+    Logger.info(f"Node {node_name} is up")
+    ret_code, _ = k8_uncordon_node(k8_cluster, node_name)
+    if ret_code != 0:
+        Logger.error(f"Failed to uncordon node - {node_name}")
+        return ret_code
+    return 0
 

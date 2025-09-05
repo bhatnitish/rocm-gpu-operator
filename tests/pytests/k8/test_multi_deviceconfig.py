@@ -110,9 +110,10 @@ def install_deviceconfig(gpu_cluster, images, environment):
             'driver.enable' : True,
             'devicePlugin.enableNodeLabeller' : True,
             'metricsExporter.enable' : True,
-            'testRunner.enable' : True,
         }
 
+    if environment.gpu_operator_version not in ["v1.0.0", "v1.1.0"]:
+        test_config['testRunner.enable'] = True
     test_config.update(images)
 
     test_cfg_map = spec_util.build_deviceconfigs_by_hostname(test_config, gpu_cluster, gpu_nodes, 'multi-devcfg', environment.amdgpu_driver_spec)
@@ -181,8 +182,10 @@ def test_multi_deviceconfig_deploy(gpu_cluster, deviceconfig_install, environmen
         common.PodInfo('device-plugin', 1, 1),
         common.PodInfo('metrics-exporter', 1, 1),
         common.PodInfo('node-labeller', 1, 1),
-        common.PodInfo('test-runner', 1, 1),
     ]
+    if environment.gpu_operator_version not in ["v1.0.0", "v1.1.0"]:
+        devicecfg_pods.append(common.PodInfo('test-runner', 1, 1))
+
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
     K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
 

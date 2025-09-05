@@ -352,8 +352,14 @@ def test_driver_upgrade_cycle(gpu_cluster, deviceconfig_install, environment, in
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
         K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR to enable upgradePolicy", environment.pause_on_failure)
 
-    # Check for reboot operation
-    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+    K8Helper.wait_for_upgrade_completion_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+    if environment.gpu_operator_version in ["v1.2.0", "v1.2.1", "v1.2.2"]:
+        # For v1.2.0 and v1.2.1, manual reboot is required
+        Logger.info(f"For {environment.gpu_operator_version}, manual reboot of nodes required post driver upgrade")
+        for node in gpu_nodes:
+            node_name = k8_util.k8_get_node_hostname(node)
+            ret_code = k8_util.reboot_node(gpu_cluster, node_name)
+            K8Helper.assert_or_debug(ret_code == 0, f"Failed to reboot node {node_name}", environment.pause_on_failure)
 
     rocm_version = amdgpu.get_rocm_version(upgrade_version)
     K8Helper.check_node_driver_version(gpu_cluster, upgrade_version, rocm_version, environment)
@@ -369,7 +375,7 @@ def test_driver_upgrade_cycle(gpu_cluster, deviceconfig_install, environment, in
         K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
 
     # Check for reboot operation
-    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+    K8Helper.wait_for_upgrade_completion_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
 
     # Check for corresponding deviceconfig updated
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -407,7 +413,7 @@ def test_driver_downgrade_cycle(gpu_cluster, deviceconfig_install, environment, 
         K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
 
     # Check for reboot operation
-    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+    K8Helper.wait_for_upgrade_completion_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -428,7 +434,7 @@ def test_driver_downgrade_cycle(gpu_cluster, deviceconfig_install, environment, 
         K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
 
     # Check for reboot operation
-    K8Helper.wait_for_upgrade_completion(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
+    K8Helper.wait_for_upgrade_completion_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list, gpu_nodes)
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)

@@ -20,20 +20,16 @@ function usage() {
     echo ""
     echo "Usage: $0 [options]"
     echo "          --help print help/usage information"
-    echo "          --skip-kube-config"
     echo "          --secrets secrets.json file"
     echo "          --amdgpu-driver-spec <driver-version-spec>"
     echo "          --image-manifest <path-to-image-manifest>"
     echo "          --module <module-name>. Eq: test_<module_name>.py"
     echo "          --testcase <testcase-name> Eq: def test_<tc_name>"
-    echo "          --testbed <path-to-testbed-yaml>"
     echo "          --debug"
     echo ""
 }
 
 IMAGE_MANIFEST="NA"
-TB_YAML="NA"
-SKIP_KUBE_CONFIG="NO"
 SECRETS="NA"
 DEPLOYMENT="k8"
 TC_MODULE="ALL"
@@ -76,8 +72,9 @@ function install_helm_tool() {
 }
 
 function launch_pytest() {
-    setup_pyenv
     mkdir -p logs
+    setup_pyenv
+    install_helm_tool
     local test_sel=${DEPLOYMENT}
     local html_file=logs/${test_sel}.html
     local xml_file=logs/${test_sel}.xml
@@ -98,12 +95,6 @@ function launch_pytest() {
     if [[ "${ENABLE_DEBUGGING}" == "YES" ]];
     then
         CMD_OPT+=" --pause-on-failure"
-    fi
-    if [[ "${SKIP_KUBE_CONFIG}" == "NO" ]];
-    then
-        install_helm_tool
-    else
-        CMD_OPT+=" --skip-kube-config --testbed ${TB_YAML}"
     fi
     if [[ "${SECRETS}" != "NA" ]];
     then
@@ -131,10 +122,6 @@ function launch_pytest() {
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --testbed)
-            TB_YAML="$2"
-            shift
-        ;;
         --image-manifest)
             IMAGE_MANIFEST="$2"
             shift
@@ -147,9 +134,6 @@ while [[ $# -gt 0 ]]; do
 	    TC_NAME="$2"
 	    shift
 	;;
-        --skip-kube-config)
-            SKIP_KUBE_CONFIG="YES"
-        ;;
         --secrets)
             SECRETS="$2"
             shift
@@ -172,16 +156,6 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-
-if [[ "${SKIP_KUBE_CONFIG}" == "1" ]];
-then
-    if [[ "${TB_YAML}" == "NA" ]];
-    then
-        echo "ERROR: Missing argument --testbed"
-        usage
-        exit 1
-    fi
-fi
 
 if [[ "${IMAGE_MANIFEST}" == "NA" ]];
 then

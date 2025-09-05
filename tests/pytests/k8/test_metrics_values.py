@@ -196,7 +196,7 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         node_name = k8_util.k8_get_node_hostname(node)
         exporter_pod_name = k8_util.k8_get_pod_name(gpu_cluster, "metrics-exporter", environment.gpu_operator_namespace, node_name)
         # Collect gpu information from the node
-        cmd = ["amd-smi", "static", "--json"]
+        cmd = [K8Helper.get_amd_smi_path(environment), "static", "--json"]
         ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
                                                                           environment.gpu_operator_namespace,
                                                                           cmd, exporter_pod_name, "metrics-exporter-container")
@@ -414,12 +414,12 @@ def metrics_samples(gpu_cluster, deviceconfig_install, amd_smi_collect, environm
             K8Helper.assert_or_debug(len(gpuctl_metrics) == num_samples,
                                      f"Failed to collect all required number of gpucltl-metrics samples for node {node_name}",
                                      environment.pause_on_failure)
-    yield (idle_metrics, workload_metrics)
     for ctxt in local_workload_ctxts:
         K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+    yield (idle_metrics, workload_metrics)
     return
 
-# Generate testcases for each metrics supported in 
+# Generate testcases for each metrics supported for value 
 def pytest_generate_tests(metafunc):
     global Logger
     if 'metric_to_test' in metafunc.fixturenames:
@@ -430,7 +430,77 @@ def pytest_generate_tests(metafunc):
             metrics_to_test.append(entry['name'])
         metafunc.parametrize('metric_to_test', metrics_to_test)
 
-def test_exporter_metrics(gpu_cluster, metrics_samples, metric_to_test, environment):
+def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environment):
+    """
+    Testcase to check if all metrics supported for each of gpu-series is observed in the curl output of exporter endpoint
+    """
+    global Logger
+
+    def _test_if_metrics_exported(metric_to_test, gpu_id, exporter_metrics):
+        metric_metadata = metric_util.get_metric_metadata(metric_to_test)
+        if ':' in metric_to_test:
+            label_name = metric_metadata['label']
+            metric_name, label_value = metric_to_test.split(":")
+            m_info_list = []
+            for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
+                if entry['labels']['gpu_id'] != str(gpu_id):
+                    continue
+                K8Helper.assert_or_debug(label_name in entry['labels'],
+                                         f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}",
+                                         environment.pause_on_failure)
+                lval = entry['labels'][label_name]
+                if lval != label_value:
+                    continue
+                m_info_list.append(entry)
+
+            Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
+            if len(m_info_list) > 0:
+                Logger.info(f"Found {len(m_info_list)} entries of {metric_to_test}")
+                return True
+        else:
+            if metric_to_test.lower() in exporter_metrics:
+                Logger.info(f"Found {metric_to_test}")
+                return True
+        Logger.error(f"Missing {metric_to_test}")
+        return False
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster",
+                             environment.pause_on_failure)
+    K8Helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster",
+                             environment.pause_on_failure)
+    failed_metrics = set()
+    all_idle_metrics, all_workload_metrics = metrics_samples
+    for node in gpu_nodes:
+        node_ip = k8_util.k8_get_node_address(node)
+        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        if not cluster_node:
+            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
+        node_name = k8_util.k8_get_node_hostname(node)
+        K8Helper.assert_or_debug(cluster_node.num_gpus > 0,
+                                 f"Node {node_name} has no GPUs present", environment.pause_on_failure)
+
+        # Pick up first sample of exporter metrics for given node
+        idle_metrics = metric_util.parse_metric_data(all_idle_metrics[node_name]['exporter'][0])
+        workload_metrics = metric_util.parse_metric_data(all_workload_metrics[node_name]['exporter'][0])
+
+        supported_metrics = metric_util.get_supported_metrics(cluster_node.gpu_series)
+        Logger.info(f"Node: {node_name} having {cluster_node.gpu_series} has {len(supported_metrics)} metrics")
+        Logger.debug(f"Node: {node_name} having {cluster_node.gpu_series} has {supported_metrics} metrics")
+        for entry in supported_metrics:
+            metric_to_test = entry['name']
+            Logger.info(f"Checking {metric_to_test} among exported metrics for node {node_name}")
+            for gpu_id in range(cluster_node.num_gpus):
+                if _test_if_metrics_exported(metric_to_test, gpu_id, idle_metrics) == False:
+                    failed_metrics.add(metric_to_test)
+                if _test_if_metrics_exported(metric_to_test, gpu_id, workload_metrics) == False:
+                    failed_metrics.add(metric_to_test)
+    K8Helper.assert_or_debug(len(failed_metrics) == 0,
+                             f"Failed to validate {len(failed_metrics)} metrics from exported-metrics",
+                             environment.pause_on_failure)
+
+
+def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to_test, environment):
     """
     Parameterized testcase to test metric_to_test metric as set by pytest_generate_tests
     """
@@ -455,14 +525,6 @@ def test_exporter_metrics(gpu_cluster, metrics_samples, metric_to_test, environm
         for sample_id in range(num_samples):
             # Extract exporter metrics for current sample_id
             exporter_metrics = metric_util.parse_metric_data(all_exporter_metrics[sample_id])
-            K8Helper.assert_or_debug(metric_to_test.lower() in exporter_metrics,
-                                     f"Missing {metric_to_test} in collected metrics from exporter endpoint, {metric_metadata}",
-                                     environment.pause_on_failure)
-            m_info_list = list(filter(lambda x: x['labels']['gpu_id'] == str(gpu_id), exporter_metrics[metric_to_test.lower()]))
-            K8Helper.assert_or_debug(len(m_info_list) == 1,
-                                     f"Unable to get {metric_to_test} from exporter-metrics for gpu:{gpu_id}",
-                                     environment.pause_on_failure)
-            metric_info = m_info_list[0]
 
             # Extract amd-smi metrics for current sample_id
             amd_smi_metrics = json.loads(all_amd_smi_metrics[sample_id])
@@ -474,22 +536,79 @@ def test_exporter_metrics(gpu_cluster, metrics_samples, metric_to_test, environm
             K8Helper.assert_or_debug(amd_smi_source != None,
                                      f"Missing amd-smi source information for {metric_to_test}, {gpu_support_info}",
                                      environment.pause_on_failure)
-            path_to_metric = amd_smi_source.split(".")
-            if isinstance(amd_smi_metrics, list):
-                amd_smi_val = _extract_amd_smi_value(amd_smi_metrics[gpu_id], path_to_metric)
-            elif isinstance(amd_smi_metrics, dict) and 'gpu_data' in amd_smi_metrics.keys():
-                amd_smi_val = _extract_amd_smi_value(amd_smi_metrics['gpu_data'][gpu_id], path_to_metric)
-            K8Helper.assert_or_debug(amd_smi_val != None,
-                                     f"Failed to extract amd-smi metric value for {metric_to_test}, {gpu_support_info}",
-                                     environment.pause_on_failure)
-            if amd_smi_val == 'N/A':
-                pytest.skip(f"No amd-smi metric information for {metric_to_test}, got {amd_smi_val}")
 
-            Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
-            if str(amd_smi_val["value"]) == str(metric_info["value"]):
-                hit_count = hit_count + 1
+            if ':' in metric_to_test:
+                label_name = metric_metadata['label']
+                metric_name, label_value = metric_to_test.split(":")
+                m_info_list = []
+                for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
+                    if entry['labels']['gpu_id'] != str(gpu_id):
+                        continue
+                    K8Helper.assert_or_debug(label_name in entry['labels'],
+                                             f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}",
+                                             environment.pause_on_failure)
+                    lval = entry['labels'][label_name]
+                    if lval != label_value:
+                        continue
+                    m_info_list.append(entry)
+
+                Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
+                K8Helper.assert_or_debug(len(m_info_list) > 0,
+                                         f"Unable to get {metric_to_test} from exporter-metrics for gpu:{gpu_id}",
+                                         environment.pause_on_failure)
+                idx = 0
+                amd_smi_values = []
+                while True:
+                    path_to_metric = amd_smi_source.format(idx = idx).split(".")
+                    if isinstance(amd_smi_metrics, list):
+                        amd_smi_val = _extract_amd_smi_value(amd_smi_metrics[gpu_id], path_to_metric)
+                    elif isinstance(amd_smi_metrics, dict) and 'gpu_data' in amd_smi_metrics.keys():
+                        amd_smi_val = _extract_amd_smi_value(amd_smi_metrics['gpu_data'][gpu_id], path_to_metric)
+                    if amd_smi_val != None:
+                        amd_smi_values.append(amd_smi_val)
+                    else:
+                        break
+                    idx = idx + 1
+                Logger.debug(f"Found total {len(amd_smi_values)} from amd-smi output for {metric_to_test}")
+                for idx, entry in enumerate(list(zip(m_info_list, amd_smi_values))):
+                    metric_info, amd_smi_val = entry
+                    if amd_smi_val["value"] == "N/A":
+                        Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
+                        continue
+                    lower_limit = int(0.95 * float(amd_smi_val["value"]))
+                    upper_limit = int(1.05 * float(amd_smi_val["value"]))
+                    Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
+                    if lower_limit <= int(metric_info["value"]) <= upper_limit:
+                        hit_count = hit_count + 1
+                    else:
+                        miss_count = miss_count + 1
             else:
-                miss_count = miss_count + 1
+                path_to_metric = amd_smi_source.split(".")
+                K8Helper.assert_or_debug(metric_to_test.lower() in exporter_metrics,
+                                         f"Missing {metric_to_test} in collected metrics from exporter endpoint, {metric_metadata}",
+                                         environment.pause_on_failure)
+                m_info_list = list(filter(lambda x: x['labels']['gpu_id'] == str(gpu_id), exporter_metrics[metric_to_test.lower()]))
+                Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
+
+                metric_info = m_info_list[0]
+                if isinstance(amd_smi_metrics, list):
+                    amd_smi_val = _extract_amd_smi_value(amd_smi_metrics[gpu_id], path_to_metric)
+                elif isinstance(amd_smi_metrics, dict) and 'gpu_data' in amd_smi_metrics.keys():
+                    amd_smi_val = _extract_amd_smi_value(amd_smi_metrics['gpu_data'][gpu_id], path_to_metric)
+                K8Helper.assert_or_debug(amd_smi_val != None,
+                                         f"Failed to extract amd-smi metric value for {metric_to_test}, {gpu_support_info}",
+                                         environment.pause_on_failure)
+                if amd_smi_val["value"] == 'N/A':
+                    pytest.skip(f"No amd-smi metric information for {metric_to_test}, got {amd_smi_val}")
+
+                Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
+                lower_limit = int(0.95 * float(amd_smi_val["value"]))
+                upper_limit = int(1.05 * float(amd_smi_val["value"]))
+                Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
+                if lower_limit <= int(metric_info["value"]) <= upper_limit:
+                    hit_count = hit_count + 1
+                else:
+                    miss_count = miss_count + 1
         return hit_count, miss_count
 
     metric_validated = False
@@ -498,6 +617,7 @@ def test_exporter_metrics(gpu_cluster, metrics_samples, metric_to_test, environm
                              environment.pause_on_failure)
     K8Helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster",
                              environment.pause_on_failure)
+    all_idle_metrics, all_workload_metrics = metrics_samples
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
         cluster_node = gpu_cluster.get_worker_node(node_ip)
@@ -508,8 +628,6 @@ def test_exporter_metrics(gpu_cluster, metrics_samples, metric_to_test, environm
         if not metric_util.is_metric_supported(metric_to_test, cluster_node.gpu_series):
             continue
         metric_validated = True
-
-        all_idle_metrics, all_workload_metrics = metrics_samples
 
         """
         for idle-state metrics, access metrics values as below:
@@ -526,11 +644,20 @@ def test_exporter_metrics(gpu_cluster, metrics_samples, metric_to_test, environm
         workload_metrics = all_workload_metrics[node_name]
 
         for gpu_id in range(cluster_node.num_gpus):
+            num_samples = idle_metrics['num-samples']
             idle_hit_count, idle_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, idle_metrics)
             Logger.info(f"Worker: {node_name} GPU: {gpu_id} - Idle Hit/Miss: {idle_hit_count}/{idle_miss_count}")
 
             load_hit_count, load_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, workload_metrics)
             Logger.info(f"Worker: {node_name} GPU: {gpu_id} - Loaded Hit/Miss: {load_hit_count}/{load_miss_count}")
+
+            K8Helper.assert_or_debug(idle_hit_count > int(0.65 * num_samples),
+                                     f"IDLE Metric: {metric_to_test} GPU: {gpu_id} not in sync, hit: {idle_hit_count}, miss {idle_miss_count}",
+                                     environment.pause_on_failure)
+
+            K8Helper.assert_or_debug(load_hit_count > int(0.65 * num_samples),
+                                     f"LOAD Metric: {metric_to_test} GPU: {gpu_id} not in sync, hit: {load_hit_count}, miss {load_miss_count}",
+                                     environment.pause_on_failure)
 
     if not metric_validated:
         pytest.skip(f"Metric {metric_to_test} cannot be validated in this setup - skip")

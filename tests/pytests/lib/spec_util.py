@@ -176,7 +176,7 @@ device_config_template_v1_3_0 = {
                     'timeoutSeconds' : 300,
                 },
             },
-                'rebootRequired' : True,
+            'rebootRequired' : True,
         },
         'devicePlugin' : {
             'devicePluginImage': '',

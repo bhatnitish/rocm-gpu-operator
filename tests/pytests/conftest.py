@@ -139,14 +139,11 @@ def environment(request):
             driver_spec = json.load(fp)
             setattr(tenv, 'amdgpu_driver_spec', driver_spec)
     setattr(tenv, 'pause_on_failure', request.config.option.pause_on_failure)
-    if request.config.option.skip_kube_config:
-        setattr(tenv, 'kube_config_file', None)
+    kube_config_file = kube_config = os.path.join(Path.home(), ".kube", "config")
+    if os.path.exists(kube_config_file):
+        setattr(tenv, 'kube_config_file', kube_config_file)
     else:
-        kube_config_file = kube_config = os.path.join(Path.home(), ".kube", "config")
-        if os.path.exists(kube_config_file):
-            setattr(tenv, 'kube_config_file', kube_config_file)
-        else:
-            pytest.fail("Failed to find kube_config_file for cluster operator - Aborting")
+        pytest.fail("Failed to find kube_config_file for cluster operator - Aborting")
 
     secrets_json_file = os.path.join(Path.home(), ".kube", "secrets.json")
     if request.config.option.secrets_json:
@@ -164,62 +161,14 @@ def environment(request):
 def gpu_cluster(request, release_name, environment):
     global Logger
     if environment.deployment_mode in ["k8", "openshift"]:
-        if hasattr(environment, "kube_config_file"):
-            localhost = common.Node("localhost", None, None, None, "master", None)
-            k8_cluster_inst = common.k8_cluster(master_node = localhost)
-            k8_cluster_inst.k8_kube_config = environment.kube_config_file
-            if hasattr(environment, "k8_secrets_file"):
-                with open(environment.k8_secrets_file) as fp:
-                    k8_cluster_inst.k8_secrets = json.load(fp)
-            cleanup_cluster(k8_cluster_inst, release_name, environment)
-            return k8_cluster_inst
-        elif request.config.option.testbed and os.path.exists(request.config.option.testbed):
-            # Build testbed_info from testbed-yaml file
-            from ruamel.yaml import YAML
-            from ruamel.yaml import comments
-            from ruamel.yaml import scalarstring
-            import shutil
-
-            yaml = YAML()
-            yaml.preserve_quotes = True
-
-            file_obj = Path(request.config.option.testbed)
-            testbed_info = yaml.load(file_obj)
-            gpu_node_list = list()
-            k8_master_node_list = list()
-            k8_master_docker_regsitry = False
-            for inst in testbed_info["instances"]:
-                node_types = inst.get("type", "worker").split(",")
-                if 'master' in node_types:
-                    node = common.Node(inst["ip"], inst.get("username"),
-                                       inst.get("password", None), inst.get("identity", None),
-                                       "master", None)
-                    k8_master_node_list.append(node)
-                    k8_master_docker_regsitry = inst.get("registry", "no") == "yes"
-                if 'worker' in node_types:
-                    node = common.Node(inst["ip"], inst.get("username"),
-                                       inst.get("password", None), inst.get("identity", None),
-                                       "worker", inst.get("gpu_series", "MI210"))
-                    gpu_node_list.append(node)
-
-            assert len(k8_master_node_list) > 0
-            assert len(gpu_node_list) > 0
-            request.config._metadata['Testbed'] = request.config.option.testbed
-
-            k8_cluster_inst = common.k8_cluster(master_node = k8_master_node_list[0], nodes = gpu_node_list)
-            k8_cluster_inst.k8_master.set_local_registry_status(k8_master_docker_regsitry)
-            request.config._metadata['Master'] = k8_cluster_inst.k8_master.ip_address
-            worker_info = ""
-            for wn in k8_cluster_inst.worker_nodes:
-                worker_info += f"{wn.ip_address}:{wn.gpu_series}"
-            request.config._metadata['Worker(s)'] = worker_info
-            if hasattr(environment, "k8_secrets_file"):
-                with open(environment.k8_secrets_file) as fp:
-                    k8_cluster_inst.k8_secrets = json.load(fp)
-            cleanup_cluster(k8_cluster_inst, release_name, environment)
-            return k8_cluster_inst
-        else:
-            assert 0, "Missing kube.config and testbed information"
+        localhost = common.Node("localhost", None, None, None, "master", None)
+        k8_cluster_inst = common.k8_cluster(master_node = localhost)
+        k8_cluster_inst.k8_kube_config = environment.kube_config_file
+        if hasattr(environment, "k8_secrets_file"):
+            with open(environment.k8_secrets_file) as fp:
+                k8_cluster_inst.k8_secrets = json.load(fp)
+        cleanup_cluster(k8_cluster_inst, release_name, environment)
+        return k8_cluster_inst
     else:
         # Build testbed_info from testbed-yaml file
         from ruamel.yaml import YAML

@@ -49,7 +49,11 @@ class K8Helper:
         STOP_WORKLOAD   = 2
 
     @staticmethod
-    def wait_for_upgrade_completion(gpu_cluster, environment, devicecfg_list, gpu_nodes):
+    def get_amd_smi_path(environment):
+        return "/opt/rocm/bin/amd-smi"
+
+    @staticmethod
+    def wait_for_upgrade_completion_status(gpu_cluster, environment, devicecfg_list, gpu_nodes):
         # Check for kmm-worker-{gpu-node-name}-test-deviceconfig PODs to be started and completed
         global Logger
         if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
@@ -69,16 +73,47 @@ class K8Helper:
                 for node in gpu_nodes:
                     node_name = node['metadata']['name']
                     if node_name in nodeStatusMap:
-                        if nodeStatusMap[node_name]['status'] == 'Upgrade-Complete':
-                            if node_name in pending_nodes:
-                                pending_nodes.remove(node_name)
+                        if 'status' in nodeStatusMap[node_name]:
+                            if nodeStatusMap[node_name]['status'] == 'Upgrade-Complete':
+                                if node_name in pending_nodes:
+                                    pending_nodes.remove(node_name)
+                            else:
+                                Logger.info(f"Node: {node_name} upgrade status pending : {nodeStatusMap[node_name]}")
                         else:
-                            Logger.info(f"Node: {node_name} upgrade status pending : {nodeStatusMap[node_name]}")
+                            Logger.warn(f"DeviceConfig nodeModuleStatus does not have status information")
             if len(pending_nodes) > 0:
                 Logger.info(f"Waiting for {pending_nodes} to complete upgrade process")
                 time.sleep(120)
             else:
                 upgrade_complete = True
+
+        if not upgrade_complete:
+            Logger.error("Failed to complete upgrade-process for all nodes")
+            for devcfg in devicecfg_list:
+                devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
+                K8Helper.assert_or_debug(devcfg_info != None and devcfg in devcfg_info,
+                                          f"Failed to collect status of deviceconfig {devcfg}", environment.pause_on_failure)
+
+                nodeStatus = devcfg_info[devcfg]['status']['nodeModuleStatus']
+                Logger.debug(nodeStatus)
+            K8Helper.assert_or_debug(upgrade_complete == True, "upgrade failed", environment.pause_on_failure)
+            return
+        Logger.info("Upgrade complete for all nodes")
+
+    @staticmethod
+    def wait_for_upgrade_completion_label(gpu_cluster, environment, devicecfg_list):
+        # Check for kmm-worker-{gpu-node-name}-test-deviceconfig PODs to be started and completed
+        global Logger
+        if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+            Logger.info("Using inbox amdgpu driver - skip kmm verification")
+            return
+
+        time.sleep(20)
+        upgrade_complete = False
+        for _ in range(10):
+            # TODO: Check for label change for each node
+            # ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+            pass
 
         if not upgrade_complete:
             Logger.error("Failed to complete upgrade-process for all nodes")
@@ -237,7 +272,10 @@ class K8Helper:
             Logger.debug(f"Cmd:{cmd}, Response:\n{LogPrettyPrinter.pformat(resp_stdout)}")
             amdgpu_lines = list(filter(lambda line: 'amdgpu version' in line, resp_stdout.split("\n")))
             K8Helper.assert_or_debug(len(amdgpu_lines) > 0, "No dmesg-lines with 'amdgpu version' information", environment.pause_on_failure)
-            K8Helper.assert_or_debug(rocm_version in amdgpu_lines[0], f"can't find the right amdgpu version {resp_stdout}", environment.pause_on_failure)
+            matching_lines = [line for line in amdgpu_lines if rocm_version in line]
+            K8Helper.assert_or_debug(len(matching_lines) > 0, f"can't find {rocm_version} in {amdgpu_lines}", environment.pause_on_failure)
+
+        # TODO: Enhance to check amd-smi output
 
     @staticmethod
     def assert_or_debug(condition, message, pause_on_failure = False, expected_to_fail = False):

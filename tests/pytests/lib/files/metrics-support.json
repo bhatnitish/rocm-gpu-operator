@@ -15,7 +15,7 @@
             "gpu-support" : [
                 {
                     "gpu" : "MI210",
-                    "amd-smi" : "power.average_socket_power",
+                    "amd-smi" : "power.socket_power",
                     "gpu-agent" : "stats.AvgPackagePower"
                 },
                 {
@@ -153,6 +153,7 @@
         },
         {
             "name": "GPU_VCN_ACTIVITY",
+            "skip-validation" : "yes",
             "gpu-support": [
                 {
                     "gpu" : "MI210",
@@ -322,86 +323,128 @@
             ]
         },
         {
-            "name": "GPU_CLOCK",
-            "skip-validation" : "yes",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_SYSTEM",
+            "label" : "clock_type",
             "gpu-support": [
                 {
                     "gpu" : "MI210",
                     "gpu-agent": "status.clock_status",
-                    "amd-smi": "clock.gfx"
+                    "amd-smi": "clock.gfx_{idx}.clk"
                 },
                 {
                     "gpu" : "MI250",
                     "gpu-agent": "status.clock_status",
-                    "amd-smi": "clock.gfx"
+                    "amd-smi": "clock.gfx_{idx}.clk"
                 },
                 {
                     "gpu" : "MI300",
                     "gpu-agent": "status.clock_status",
-                    "amd-smi": "clock.gfx"
+                    "amd-smi": "clock.gfx_{idx}.clk"
                 }
             ]
         },
         {
-            "name": "GPU_CLOCK",
-            "skip-validation" : "yes",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_DATA",
+            "label" : "clock_type",
             "gpu-support": [
                 {
                     "gpu" : "MI210",
                     "gpu-agent": "status.clock_status[i] MEMORY",
-                    "amd-smi": "metrics_info->current_uclk"
+                    "amd-smi": "clock.dclk_{idx}.clk"
                 },
                 {
                     "gpu" : "MI250",
                     "gpu-agent": "status.clock_status[i] MEMORY",
-                    "amd-smi": "metrics_info->current_uclk"
+                    "amd-smi": "clock.dclk_{idx}.clk"
                 },
                 {
                     "gpu" : "MI300",
                     "gpu-agent": "status.clock_status[i] MEMORY",
-                    "amd-smi": "metrics_info->current_uclk"
+                    "amd-smi": "clock.dclk_{idx}.clk"
                 }
             ]
         },
         {
-            "name": "GPU_CLOCK",
-            "skip-validation" : "yes",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_SOC",
+            "label" : "clock_type",
             "gpu-support": [
                 {
                     "gpu" : "MI210",
                     "gpu-agent": "status.clock_status[i] VIDEO",
-                    "amd-smi": "metrics_info->current_vclk0s[i]"
+                    "amd-smi": "clock.socclk_{idx}.clk"
                 },
                 {
                     "gpu" : "MI250",
                     "gpu-agent": "status.clock_status[i] VIDEO",
-                    "amd-smi": "metrics_info->current_vclk0s[i]"
+                    "amd-smi": "clock.socclk_{idx}.clk"
                 },
                 {
                     "gpu" : "MI300",
                     "gpu-agent": "status.clock_status[i] VIDEO",
-                    "amd-smi": "metrics_info->current_vclk0s[i]"
+                    "amd-smi": "clock.socclk_{idx}.clk"
                 }
             ]
         },
         {
-            "name": "GPU_CLOCK",
-            "skip-validation" : "yes",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_FABRIC",
+            "label" : "clock_type",
             "gpu-support": [
                 {
                     "gpu" : "MI210",
                     "gpu-agent": "status.clock_status[i] DATA",
-                    "amd-smi": "metrics_info->current_dclk0s[i]"
+                    "amd-smi": "clock.fclk_{idx}.clk"
                 },
                 {
                     "gpu" : "MI250",
                     "gpu-agent": "status.clock_status[i] DATA",
-                    "amd-smi": "metrics_info->current_dclk0s[i]"
+                    "amd-smi": "clock.fclk_{idx}.clk"
                 },
                 {
                     "gpu" : "MI300",
                     "gpu-agent": "status.clock_status[i] DATA",
-                    "amd-smi": "metrics_info->current_dclk0s[i]"
+                    "amd-smi": "clock.fclk_{idx}.clk"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_MEMORY",
+            "label" : "clock_type",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.mclk_{idx}.clk"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.mclk_{idx}.clk"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.mclk_{idx}.clk"
+                }
+            ]
+        },
+        {
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_VIDEO",
+            "label" : "clock_type",
+            "gpu-support": [
+                {
+                    "gpu" : "MI210",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.vclk_{idx}.clk"
+                },
+                {
+                    "gpu" : "MI250",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.vclk_{idx}.clk"
+                },
+                {
+                    "gpu" : "MI300",
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.vclk_{idx}.clk"
                 }
             ]
         },

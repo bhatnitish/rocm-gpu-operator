@@ -192,7 +192,7 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         node_name = k8_util.k8_get_node_hostname(node)
         exporter_pod_name = k8_util.k8_get_pod_name(gpu_cluster, "metrics-exporter", environment.gpu_operator_namespace, node_name)
         # Collect gpu information from the node
-        cmd = ["amd-smi", "static", "--json"]
+        cmd = [K8Helper.get_amd_smi_path(environment), "static", "--json"]
         ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
                                                                           environment.gpu_operator_namespace,
                                                                           cmd, exporter_pod_name, "metrics-exporter-container")
@@ -683,7 +683,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         metrics_data = metric_util.get_supported_metrics(cluster_node.gpu_series)
-        list_of_metrics_set.append(set(map(lambda x: x['name'].lower(), metrics_data)))
+        list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
     common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
     Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")
 
