@@ -153,10 +153,10 @@ function launch_pytest() {
         CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
     elif [[ "${AMDGPU_DRIVER}" == "deviceconfig" ]];
     then
-        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-driver-spec.json"
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
     fi
     echo "Running k8 pytests with CMD_OPTS: ${CMD_OPTS}"
-    /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
+    TECH_SUPPORT_TOOL=/gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
     RET=$?
     echo ""
     /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON

@@ -113,6 +113,8 @@ class cluster_node(object):
             self._gpu_series = 'MI210'
         elif device_id == '0x740c':
             self._gpu_series = 'MI250'
+        elif device_id == '0x74a1':
+            self._gpu_series = 'MI300X'
         else:
             self._gpu_series = 'UNKNOWN'
 

@@ -46,6 +46,9 @@ run "pip install fabric pytest pytest-html jinja2 ruamel.yaml requests kubernete
 run "pip install prettytable pyparsing coverage cerberus==1.3.3 paramiko psycopg2-binary"
 run "pip install xmltodict prometheus_client docker tomlkit"
 
+run "apt update && apt install uuid-runtime"
+run "pip install pytest-metadata"
+
 if getenv("FLATTEN") != ""
   flatten
 end

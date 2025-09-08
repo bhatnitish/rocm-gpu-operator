@@ -18,6 +18,7 @@
 
 import pdb
 import pytest
+import pprint
 import sys
 import os
 import re
@@ -31,6 +32,12 @@ import lib.spec_util as spec_util
 from k8.util import K8Helper
 
 Logger = logging.getLogger("k8.test_driver_deviceplugin")
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_testcase_info(request, environment):
+    setattr(environment, 'current_tc_name', request.node.name)
+    yield
+    delattr(environment, 'current_tc_name')
 
 @pytest.fixture(scope="module")
 def gpu_operator_install(gpu_cluster, release_name, images, environment):
@@ -58,7 +65,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     if images.get("gpu-operator.repo", None):
         k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
 
-    values_yaml = os.path.join(environment.sandbox_dir, f"values_{environment.gpu_operator_version}.yaml")
+    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
     if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
         Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
     else:
@@ -72,7 +79,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
         Logger.error(f"Failed to install helm chart for {release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
         Logger.error(f"Stderr: {ret_stderr.strip()}")
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {release_name}")
     time.sleep(30)
     yield
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -84,7 +91,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     time.sleep(10)
 
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", False)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}")
     return
 
 def install_deviceconfig(gpu_cluster, images, environment):
@@ -102,8 +109,8 @@ def install_deviceconfig(gpu_cluster, images, environment):
         pass
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
@@ -133,7 +140,7 @@ def install_deviceconfig(gpu_cluster, images, environment):
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
@@ -167,10 +174,8 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
 def test_multi_deviceconfig_deploy(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Watch for all pod creation
     '''
@@ -187,22 +192,21 @@ def test_multi_deviceconfig_deploy(gpu_cluster, deviceconfig_install, environmen
         devicecfg_pods.append(common.PodInfo('test-runner', 1, 1))
 
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
 
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values),
+                        f"No endpoint address found for {service_name}")
+        K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                        f"No endpoint address found for {service_name}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster, ["-s", f"http://{ip}:{port}/metrics"])
@@ -210,6 +214,5 @@ def test_multi_deviceconfig_deploy(gpu_cluster, deviceconfig_install, environmen
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")

@@ -18,6 +18,7 @@
 
 import pdb
 import pytest
+import pprint
 import sys
 import os
 import time
@@ -35,6 +36,11 @@ from k8.util import K8Helper
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_metrics_exporter")
 
+@pytest.fixture(scope="module", autouse=True)
+def setup_testcase_info(request, environment):
+    setattr(environment, 'current_tc_name', request.node.name)
+    yield
+    delattr(environment, 'current_tc_name')
 
 @pytest.fixture(scope="module")
 def gpu_operator_install(gpu_cluster, release_name, images, environment):
@@ -62,7 +68,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     if images.get("gpu-operator.repo", None):
         k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
 
-    values_yaml = os.path.join(environment.sandbox_dir, f"values_{environment.gpu_operator_version}.yaml")
+    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
     if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
         Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
     else:
@@ -76,7 +82,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
         Logger.error(f"Failed to install helm chart for {release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
         Logger.error(f"Stderr: {ret_stderr.strip()}")
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to install helm-chart for {release_name}", False)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {release_name}")
     time.sleep(30)
 
     yield
@@ -89,7 +95,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     time.sleep(10)
 
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", False)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}")
     return
 
 @pytest.fixture(scope="module")
@@ -108,12 +114,8 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
         pass
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster",
-                              environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
@@ -141,7 +143,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
@@ -164,12 +166,8 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
 def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
     # Derive gpu information using amd-smi information
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster",
-                              environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Watch for all pod creation
     '''
@@ -181,7 +179,7 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
     for node in gpu_nodes:
@@ -196,21 +194,16 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
                                                                           environment.gpu_operator_namespace,
                                                                           cmd, exporter_pod_name, "metrics-exporter-container")
-        K8Helper.assert_or_debug(ret_code == 0 and len(amd_smi_info) > 0,
-                                 f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}",
-                                 environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
+                        f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
         amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
 
 
 def test_exporter_nodeport_deploy(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster",
-                              environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Watch for all pod creation
     '''
@@ -223,7 +216,7 @@ def test_exporter_nodeport_deploy(gpu_cluster, deviceconfig_install, environment
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
 
@@ -243,37 +236,32 @@ def test_exporter_nodeport_deploy(gpu_cluster, deviceconfig_install, environment
         if ret_code != 0:
             failed_endpoints.add(node_ip)
             Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
 def test_exporter_disable_nodeport_exporter(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes), "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # disable exporter and check for metrics
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = False
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
 
     export_pods = [
         common.PodInfo('metrics-exporter', 1, 1),
     ]
     running_pods = k8_util.k8_check_pod_terminated(gpu_cluster, environment.gpu_operator_namespace, export_pods)
-    K8Helper.assert_or_debug(not running_pods,
-                              f"Some of the pods are still running post uninstallation - {running_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, not running_pods, f"Some of the pods are still running post uninstallation - {running_pods}")
     devplugin_pods = [
         common.PodInfo('device-plugin', 1, 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devplugin_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     failed_endpoints = set()
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
@@ -291,25 +279,22 @@ def test_exporter_disable_nodeport_exporter(gpu_cluster, deviceconfig_install, e
             failed_endpoints.add(node_ip)
             Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == len(gpu_nodes),
-                              f"GET :{node_port}/metrics expected to fail for {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == len(gpu_nodes)),
+                    f"GET :{node_port}/metrics expected to fail for {failed_endpoints}")
 
     # Re enable exporter and check for metrics
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, "Failed to modify deviceconfig CR", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to modify deviceconfig CR")
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     time.sleep(30) # For the pod to initialize so that HTTP GET work
     failed_endpoints = set()
     for node in gpu_nodes:
@@ -328,19 +313,14 @@ def test_exporter_disable_nodeport_exporter(gpu_cluster, deviceconfig_install, e
         if ret_code != 0:
             failed_endpoints.add(node_ip)
             Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
 def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster",
-                              environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, ret_code == 0, "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -350,7 +330,7 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
 
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -362,15 +342,11 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
         common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     # Get all namespaces and check if metrics-reader is already created
     ret_code, namespace_info_list = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while fetching namespaces from k8-cluster",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while fetching namespaces from k8-cluster")
 
     metrics_reader_ns = "metrics-reader"
     sa_name = "exporter-client"
@@ -393,42 +369,32 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
     if not metrics_reader_ns_exists:
         # Create metrics-reader namespace
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_namespace(gpu_cluster, metrics_reader_ns)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create namespace:metrics-reader, error: {ret_stderr}",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create namespace:metrics-reader, error: {ret_stderr}")
 
     # Create ServiceAccount
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, metrics_reader_ns)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create service-account, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
     crb_name = 'metrics'
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, metrics_reader_ns, cluster_role_name, sa_name)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0),
+                    f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Create token for ServiceAccount
     token = k8_util.k8_create_token(gpu_cluster, metrics_reader_ns, sa_name, "1h")
-    K8Helper.assert_or_debug(token != None,
-                              f"Failed to create token for the service-account : {sa_name}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (token != None), f"Failed to create token for the service-account : {sa_name}")
     Logger.info(f"TOKEN={token}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
 
     # Validate by connecting to exporter endpoint with token
     failed_endpoints = set()
@@ -450,10 +416,9 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
         failed_endpoints = set()
         for devcfg in deviceconfig_install.devicecfg_list:
             service_name = f"{devcfg}-metrics-exporter"
-            K8Helper.assert_or_debug(service_name in endpoint_values,
-                                      f"No endpoint address found for {service_name}", environment.pause_on_failure)
-            K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                      f"No endpoint address found for {service_name}", environment.pause_on_failure)
+            K8Helper.triage(environment, (service_name in endpoint_values), f"No endpoint address found for {service_name}")
+            K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                            f"No endpoint address found for {service_name}")
             for host_ip_port in endpoint_values[service_name]:
                 host, ip, port = host_ip_port
                 ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster,
@@ -462,9 +427,7 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
                     failed_endpoints.add(host_ip_port)
                     Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
     # Restore/Revert back test configuration - Disable rbac (https)
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
@@ -475,7 +438,7 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
 
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -487,17 +450,13 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
 def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -507,7 +466,7 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
 
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -519,13 +478,11 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
         common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     # Get all namespaces and check if metrics-reader is already created
     ret_code, namespace_info_list = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while fetching namespaces from k8-cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while fetching namespaces from k8-cluster")
 
     metrics_reader_ns = "metrics-reader"
     sa_name = "exporter-client"
@@ -548,42 +505,31 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
     if not metrics_reader_ns_exists:
         # Create metrics-reader namespace
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_namespace(gpu_cluster, metrics_reader_ns)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create namespace:metrics-reader, error: {ret_stderr}",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create namespace:metrics-reader, error: {ret_stderr}")
 
     # Create ServiceAccount
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, metrics_reader_ns)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create service-account, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
     crb_name = 'metrics'
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, metrics_reader_ns, cluster_role_name, sa_name)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Create token for ServiceAccount
     token = k8_util.k8_create_token(gpu_cluster, metrics_reader_ns, sa_name, "1h")
-    K8Helper.assert_or_debug(token != None,
-                              f"Failed to create token for the service-account : {sa_name}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (token != None), f"Failed to create token for the service-account : {sa_name}")
     Logger.info(f"TOKEN={token}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     # Validate by connecting to exporter endpoint with token
     failed_endpoints = set()
     for node in gpu_nodes:
@@ -609,10 +555,9 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
         failed_endpoints = set()
         for devcfg in deviceconfig_install.devicecfg_list:
             service_name = f"{devcfg}-metrics-exporter"
-            K8Helper.assert_or_debug(service_name in endpoint_values,
-                                      f"No endpoint address found for {service_name}", environment.pause_on_failure)
-            K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                      f"No endpoint address found for {service_name}", environment.pause_on_failure)
+            K8Helper.triage(environment, (service_name in endpoint_values), f"No endpoint address found for {service_name}")
+            K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                            f"No endpoint address found for {service_name}")
             for host_ip_port in endpoint_values[service_name]:
                 host, ip, port = host_ip_port
                 ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster,
@@ -621,9 +566,7 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
                     failed_endpoints.add(host_ip_port)
                     Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
     # Restore/Revert back test configuration - Disable rbac (http)
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
@@ -634,7 +577,7 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
 
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -646,18 +589,14 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
 def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment):
     global Logger
     # Generate set of config-maps in the k8 cluster with different set of labels and metrics
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Restore default mode (non-rbac) for this testcase
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
@@ -668,7 +607,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
 
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     exporter_config_defn = {}
     label_support_info = metric_util.get_label_details(environment.gpu_operator_version)
@@ -697,11 +636,11 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
             },
         }
         exp_config_name = f"exporter-config-{idx}"
-        configmap_file = os.path.join(environment.sandbox_dir, f"{exp_config_name}.json")
+        configmap_file = os.path.join(environment.logdir, f"{exp_config_name}.json")
         with open(configmap_file, "w") as fp:
             fp.write(json.dumps(config_map, indent=4))
 
-        configmap_file = os.path.join(environment.sandbox_dir, f"config.json")
+        configmap_file = os.path.join(environment.logdir, f"config.json")
         with open(configmap_file, "w") as fp:
             fp.write(json.dumps(config_map, indent=4))
 
@@ -714,9 +653,8 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
                                                                        environment.gpu_operator_namespace,
                                                                        exp_config_name,
                                                                        configmap_file)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create configmap {exp_config_name} for {configmap_file}, err: {ret_stderr.strip()}",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, ret_code == 0,
+                        f"Failed to create configmap {exp_config_name} for {configmap_file}, err: {ret_stderr.strip()}")
         exporter_config_defn[exp_config_name] = (label_subset, metric_subset)
         Logger.info(f"Created configmap {exp_config_name} with labels: {label_subset} and metrics: {metric_subset}")
 
@@ -755,14 +693,13 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
             tcfg['metricsExporter.config'] = exp_config
             cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
             ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-            K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+            K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
             # Check for corresponding deviceconfig created
             K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
 
             failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-            K8Helper.assert_or_debug(not failed_pods,
-                                      f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+            K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
             time.sleep(30) # Wait for config-map is read by exporter pod
             expected_metrics = set(label_metrics_tuple[1])
             expected_metrics.update(['promhttp_metric_handler_errors_total'])
@@ -785,7 +722,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
                     Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
                     failed_endpoints.add(node_ip)
                     continue
-                metric_util.dump_metrics(resp, os.path.join(environment.sandbox_dir, f"{node_ip}_{exp_config}_metrics.txt"))
+                metric_util.dump_metrics(resp, os.path.join(environment.logdir, f"{node_ip}_{exp_config}_metrics.txt"))
                 obs_metric_info = metric_util.parse_metric_data(resp)
                 obs_metrics = set(obs_metric_info.keys())
 
@@ -796,7 +733,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
                         Logger.error(f"Missing: {expected_metrics - obs_metrics}")
                     if obs_metrics - expected_metrics:
                         Logger.error(f"Unexpected: {obs_metrics - expected_metrics}")
-                    failed_exp_config_metrics.append(exp_config)
+                    failed_exp_config_metrics.append((exp_config, f"Expected:{expected_metrics}, Observed:{obs_metrics}"))
 
                 # Check for labels associated with each exported metric
                 for metric_name, metric_data_list in obs_metric_info.items():
@@ -809,18 +746,14 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
                             Logger.error(f"Missing labels with config-map:{exp_config}, error: {expected_labels - observed_labels}")
                             label_check_failed = True
                     if label_check_failed and exp_config not in failed_exp_config_labels:
-                        failed_exp_config_labels.append(exp_config)
+                        failed_exp_config_labels.append((exp_config, f"Expected:{expected_labels}, Observed:{observed_labels}"))
 
     # Do final verification
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                             f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                             environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(failed_exp_config_metrics) == 0,
-                             f"Export ConfigMap (Fields) failed for {failed_exp_config_metrics} cases",
-                             environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(failed_exp_config_labels) == 0,
-                             f"Export ConfigMap (Labels) failed for {failed_exp_config_labels} cases",
-                             environment.pause_on_failure)
+    K8Helper.triage(environment, len(failed_endpoints) == 0, f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
+    K8Helper.triage(environment, (len(failed_exp_config_metrics) == 0),
+                    f"Export ConfigMap (Fields) failed for {failed_exp_config_metrics} cases")
+    K8Helper.triage(environment, (len(failed_exp_config_labels) == 0),
+                    f"Export ConfigMap (Labels) failed for {failed_exp_config_labels} cases")
 
 #
 # Following deploys deviceconfig metric.exporter in default mode (cluster endpoing ip)
@@ -828,10 +761,8 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
 def test_exporter_servicetype_default_deploy(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -840,7 +771,7 @@ def test_exporter_servicetype_default_deploy(gpu_cluster, deviceconfig_install, 
         tcfg['metricsExporter.rbacConfig.disableHttps'] = False
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -858,22 +789,19 @@ def test_exporter_servicetype_default_deploy(gpu_cluster, deviceconfig_install, 
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values), f"No endpoint address found for {service_name}")
+        K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                        f"No endpoint address found for {service_name}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster, ["-s", f"http://{ip}:{port}/metrics"])
@@ -881,64 +809,56 @@ def test_exporter_servicetype_default_deploy(gpu_cluster, deviceconfig_install, 
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
     # Disable metrics-exporter
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = False # Now disable exporter and check for metrics-exporter POD deleted
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     export_pods = [
         common.PodInfo('metrics-exporter', 1, 1),
     ]
     running_pods = k8_util.k8_check_pod_terminated(gpu_cluster, environment.gpu_operator_namespace, export_pods)
-    K8Helper.assert_or_debug(not running_pods,
-                              f"Some of the pods are still running post uninstallation - {running_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not running_pods, f"Some of the pods are still running post uninstallation - {running_pods}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name not in endpoint_values,
-                                  f"Endpoint address found for {service_name} after disabling exporter", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name not in endpoint_values),
+                        f"Endpoint address found for {service_name} after disabling exporter")
 
     # Reenable metrics-exporter
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values), f"No endpoint address found for {service_name}")
+        K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                        f"No endpoint address found for {service_name}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster, ["-s", f"http://{ip}:{port}/metrics"])
@@ -946,18 +866,14 @@ def test_exporter_servicetype_default_deploy(gpu_cluster, deviceconfig_install, 
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, len(failed_endpoints) == 0, f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
 
 def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -966,7 +882,7 @@ def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_ins
         tcfg['metricsExporter.rbacConfig.disableHttps'] = False
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -978,12 +894,10 @@ def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_ins
         common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     # Get all namespaces and check if metrics-reader is already created
     ret_code, namespace_info_list = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while fetching namespaces from k8-cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while fetching namespaces from k8-cluster")
 
     metrics_reader_ns = "metrics-reader"
     sa_name = "exporter-client"
@@ -1006,44 +920,39 @@ def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_ins
     if not metrics_reader_ns_exists:
         # Create metrics-reader namespace
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_namespace(gpu_cluster, metrics_reader_ns)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create namespace:metrics-reader, error: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create namespace:metrics-reader, error: {ret_stderr}")
 
     # Create ServiceAccount
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, metrics_reader_ns)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create service-account, error:{ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0),
+                    f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
     crb_name = 'metrics'
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, metrics_reader_ns, cluster_role_name, sa_name)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0),
+                    f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Create token for ServiceAccount
     token = k8_util.k8_create_token(gpu_cluster, metrics_reader_ns, sa_name, "1h")
-    K8Helper.assert_or_debug(token != None,
-                              f"Failed to create token for the service-account : {sa_name}", environment.pause_on_failure)
+    K8Helper.triage(environment, (token != None), f"Failed to create token for the service-account : {sa_name}")
     Logger.info(f"TOKEN={token}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values), f"No endpoint address found for {service_name}")
+        K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                        f"No endpoint address found for {service_name}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster,
@@ -1052,9 +961,7 @@ def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_ins
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTPS-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTPS-GET failed, nodes: {failed_endpoints}")
     # Check port 4999
     failed_endpoints = set()
     port = 4999
@@ -1073,18 +980,16 @@ def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_ins
                 failed_endpoints.add(f"{host}_{ip}_{port}")
                 Logger.error(f"Able to get metrics from {service_name} endpoint for {host} {ip}:{port}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTPS-GET succeeded with port:{port}, nodes: {failed_endpoints}",
-                              environment.pause_on_failure, expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTPS-GET succeeded with port:{port}, nodes: {failed_endpoints}",
+                    expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
 
 
 def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -1093,7 +998,7 @@ def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_instal
         tcfg['metricsExporter.rbacConfig.disableHttps'] = True
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -1105,12 +1010,10 @@ def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_instal
         common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     # Get all namespaces and check if metrics-reader is already created
     ret_code, namespace_info_list = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while fetching namespaces from k8-cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while fetching namespaces from k8-cluster")
 
     metrics_reader_ns = "metrics-reader"
     sa_name = "exporter-client"
@@ -1133,49 +1036,38 @@ def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_instal
     if not metrics_reader_ns_exists:
         # Create metrics-reader namespace
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_namespace(gpu_cluster, metrics_reader_ns)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create namespace:metrics-reader, error: {ret_stderr}",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create namespace:metrics-reader, error: {ret_stderr}")
 
     # Create ServiceAccount
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, metrics_reader_ns)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create service-account, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
     crb_name = 'metrics'
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, metrics_reader_ns, cluster_role_name, sa_name)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Create token for ServiceAccount
     token = k8_util.k8_create_token(gpu_cluster, metrics_reader_ns, sa_name, "1h")
-    K8Helper.assert_or_debug(token != None,
-                              f"Failed to create token for the service-account : {sa_name}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (token != None), f"Failed to create token for the service-account : {sa_name}")
     Logger.info(f"TOKEN={token}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name} in {endpoint_values}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name} in {endpoint_values}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values),
+                        f"No endpoint address found for {service_name} in {endpoint_values}")
+        K8Helper.triage(environment, len(endpoint_values[service_name]) > 0,
+                        f"No endpoint address found for {service_name} in {endpoint_values}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster, 
@@ -1184,9 +1076,8 @@ def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_instal
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
     # Check for port 4999
     failed_endpoints = set()
@@ -1206,17 +1097,15 @@ def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_instal
                 failed_endpoints.add(f"{host}_{ip}_{port}")
                 Logger.error(f"Able to get metrics from {service_name} endpoint for {host} {ip}:{port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET succeeded with port:{port}, nodes: {failed_endpoints}",
-                              environment.pause_on_failure, expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET succeeded with port:{port}, nodes: {failed_endpoints}",
+                    expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
 
 def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -1226,7 +1115,7 @@ def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install
         tcfg['metricsExporter.rbacConfig.disableHttps'] = False
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -1238,12 +1127,10 @@ def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install
         common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     # Get all namespaces and check if metrics-reader is already created
     ret_code, namespace_info_list = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while fetching namespaces from k8-cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while fetching namespaces from k8-cluster")
 
     metrics_reader_ns = "metrics-reader"
     sa_name = "exporter-client"
@@ -1266,44 +1153,36 @@ def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install
     if not metrics_reader_ns_exists:
         # Create metrics-reader namespace
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_namespace(gpu_cluster, metrics_reader_ns)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create namespace:metrics-reader, error: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create namespace:metrics-reader, error: {ret_stderr}")
 
     # Create ServiceAccount
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, metrics_reader_ns)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create service-account, error:{ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
     crb_name = 'metrics'
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, metrics_reader_ns, cluster_role_name, sa_name)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Create token for ServiceAccount
     token = k8_util.k8_create_token(gpu_cluster, metrics_reader_ns, sa_name, "1h")
-    K8Helper.assert_or_debug(token != None,
-                              f"Failed to create token for the service-account : {sa_name}", environment.pause_on_failure)
+    K8Helper.triage(environment, (token != None), f"Failed to create token for the service-account : {sa_name}")
     Logger.info(f"TOKEN={token}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values), f"No endpoint address found for {service_name}")
+        K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0), f"No endpoint address found for {service_name}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster,
@@ -1312,9 +1191,7 @@ def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
     # Check for default port=5000
     failed_endpoints = set()
@@ -1334,17 +1211,15 @@ def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install
                 failed_endpoints.add(f"{host}_{ip}_{port}")
                 Logger.error(f"Able to connect to disbaled metrics-endpoint for {host}, {ip} and {port}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTPS-GET succeeded for stale/disabled port, nodes: {failed_endpoints}",
-                              environment.pause_on_failure, expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
+    K8Helper.triage(environment, (len(failed_endpoints) == 0), 
+                    f"One or more metric endpoints HTTPS-GET succeeded for stale/disabled port, nodes: {failed_endpoints}",
+                    expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
 
 def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes),
-                              "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
@@ -1354,7 +1229,7 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
         tcfg['metricsExporter.rbacConfig.disableHttps'] = True
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     # Check for corresponding deviceconfig created
     K8Helper.check_deviceconfig_status(gpu_cluster, environment, deviceconfig_install.devicecfg_list)
@@ -1366,12 +1241,10 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
         common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.assert_or_debug(not failed_pods,
-                              f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     # Get all namespaces and check if metrics-reader is already created
     ret_code, namespace_info_list = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while fetching namespaces from k8-cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while fetching namespaces from k8-cluster")
 
     metrics_reader_ns = "metrics-reader"
     sa_name = "exporter-client"
@@ -1394,49 +1267,38 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
     if not metrics_reader_ns_exists:
         # Create metrics-reader namespace
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_namespace(gpu_cluster, metrics_reader_ns)
-        K8Helper.assert_or_debug(ret_code == 0,
-                                  f"Failed to create namespace:metrics-reader, error: {ret_stderr}",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create namespace:metrics-reader, error: {ret_stderr}")
 
     # Create ServiceAccount
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, metrics_reader_ns)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create service-account, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
     crb_name = 'metrics'
     ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, metrics_reader_ns, cluster_role_name, sa_name)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Create token for ServiceAccount
     token = k8_util.k8_create_token(gpu_cluster, metrics_reader_ns, sa_name, "1h")
-    K8Helper.assert_or_debug(token != None,
-                              f"Failed to create token for the service-account : {sa_name}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (token != None), f"Failed to create token for the service-account : {sa_name}")
     Logger.info(f"TOKEN={token}")
 
     time.sleep(30) # Wait for exporter to start working
     # Get endpoint for each node
     ret_code, endpoint_values = k8_util.k8_get_endpoints(gpu_cluster,
                                                          environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Error while collecting kubectl endpoints",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
     failed_endpoints = set()
     for devcfg in deviceconfig_install.devicecfg_list:
         service_name = f"{devcfg}-metrics-exporter"
-        K8Helper.assert_or_debug(service_name in endpoint_values,
-                                  f"No endpoint address found for {service_name} in {endpoint_values}", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(endpoint_values[service_name]) > 0,
-                                  f"No endpoint address found for {service_name} in {endpoint_values}", environment.pause_on_failure)
+        K8Helper.triage(environment, (service_name in endpoint_values),
+                        f"No endpoint address found for {service_name} in {endpoint_values}")
+        K8Helper.triage(environment, (len(endpoint_values[service_name]) > 0),
+                        f"No endpoint address found for {service_name} in {endpoint_values}")
         for host_ip_port in endpoint_values[service_name]:
             host, ip, port = host_ip_port
             ret_code, ret_stdout, ret_stderr = k8_util.k8_run_curl_cmd(gpu_cluster, 
@@ -1445,9 +1307,8 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
                 failed_endpoints.add(host_ip_port)
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {host_ip_port}, stdout: {ret_stdout} stderr: {ret_stderr}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
     # Check default port=5000
     failed_endpoints = set()
@@ -1467,7 +1328,7 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
                 failed_endpoints.add(f"{host}_{ip}_{port}")
                 Logger.error(f"Able to connect to disbaled metrics-endpoint for {host}, {ip} and {port}")
 
-    K8Helper.assert_or_debug(len(failed_endpoints) == 0,
-                              f"One or more metric endpoints HTTP-GET succeeded for stale/disabled port, nodes: {failed_endpoints}",
-                              environment.pause_on_failure, expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET succeeded for stale/disabled port, nodes: {failed_endpoints}",
+                    expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
 

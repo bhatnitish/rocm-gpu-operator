@@ -23,6 +23,8 @@ import logging
 import time
 import re
 import pprint
+import subprocess
+import shutil
 from enum import Enum
 from datetime import datetime
 
@@ -66,8 +68,8 @@ class K8Helper:
             pending_nodes = set(map(lambda x: x['metadata']['name'], gpu_nodes))
             for devcfg in devicecfg_list:
                 devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-                K8Helper.assert_or_debug(devcfg_info != None and devcfg in devcfg_info,
-                                          f"Failed to collect status of deviceconfig {devcfg}", environment.pause_on_failure)
+                K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
+                                f"Failed to collect status of deviceconfig {devcfg}")
 
                 nodeStatusMap = devcfg_info[devcfg]['status']['nodeModuleStatus']
                 for node in gpu_nodes:
@@ -91,12 +93,12 @@ class K8Helper:
             Logger.error("Failed to complete upgrade-process for all nodes")
             for devcfg in devicecfg_list:
                 devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-                K8Helper.assert_or_debug(devcfg_info != None and devcfg in devcfg_info,
-                                          f"Failed to collect status of deviceconfig {devcfg}", environment.pause_on_failure)
+                K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
+                                f"Failed to collect status of deviceconfig {devcfg}")
 
                 nodeStatus = devcfg_info[devcfg]['status']['nodeModuleStatus']
                 Logger.debug(nodeStatus)
-            K8Helper.assert_or_debug(upgrade_complete == True, "upgrade failed", environment.pause_on_failure)
+            K8Helper.triage(environment, upgrade_complete == True, "upgrade failed")
             return
         Logger.info("Upgrade complete for all nodes")
 
@@ -119,12 +121,12 @@ class K8Helper:
             Logger.error("Failed to complete upgrade-process for all nodes")
             for devcfg in devicecfg_list:
                 devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-                K8Helper.assert_or_debug(devcfg_info != None and devcfg in devcfg_info,
-                                          f"Failed to collect status of deviceconfig {devcfg}", environment.pause_on_failure)
+                K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
+                                f"Failed to collect status of deviceconfig {devcfg}")
 
                 nodeStatus = devcfg_info[devcfg]['status']['nodeModuleStatus']
                 Logger.debug(nodeStatus)
-            K8Helper.assert_or_debug(upgrade_complete == True, "upgrade failed", environment.pause_on_failure)
+            K8Helper.triage(environment, upgrade_complete == True, "upgrade failed")
             return
         Logger.info("Upgrade complete for all nodes")
 
@@ -137,8 +139,8 @@ class K8Helper:
             return
 
         ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-        K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-        K8Helper.assert_or_debug(len(gpu_nodes), "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+        K8Helper.triage(environment, ret_code == 0, "Error while getting gpu-nodes from k8-cluster")
+        K8Helper.triage(environment, len(gpu_nodes), "No nodes with AMD/GPU found in the cluster")
 
         # Check for build pods
         build_pods = []
@@ -168,15 +170,15 @@ class K8Helper:
             else:
                 break
 
-        K8Helper.assert_or_debug(K8Helper.PodStatus.PENDING not in build_pod_status, "build pod still pending", environment.pause_on_failure)
-        K8Helper.assert_or_debug(K8Helper.PodStatus.RUNNING not in build_pod_status, "build pod still running", environment.pause_on_failure)
-        K8Helper.assert_or_debug(K8Helper.PodStatus.FAILED not in build_pod_status, "build pod failed", environment.pause_on_failure)
+        K8Helper.triage(environment, K8Helper.PodStatus.PENDING not in build_pod_status, "build pod still pending")
+        K8Helper.triage(environment, K8Helper.PodStatus.RUNNING not in build_pod_status, "build pod still running")
+        K8Helper.triage(environment, K8Helper.PodStatus.FAILED not in build_pod_status, "build pod failed")
 
         # Check for kmm pods
         kmm_worker_pods = []
         for node in gpu_nodes:
             node_name = node['metadata']['name']
-            K8Helper.assert_or_debug(node_name != None, "Missing node-name for the gpu node in the node-info JSON", environment.pause_on_failure)
+            K8Helper.triage(environment, node_name != None, "Missing node-name for the gpu node in the node-info JSON")
             kmm_worker_pods.append(common.PodInfo(f"kmm-worker-{node_name}-", 1, 1))
 
         kmm_pod_status = set()
@@ -203,17 +205,17 @@ class K8Helper:
             else:
                 break
 
-        K8Helper.assert_or_debug(K8Helper.PodStatus.PENDING not in kmm_pod_status, "kmm-worker pod still pending", environment.pause_on_failure)
-        K8Helper.assert_or_debug(K8Helper.PodStatus.RUNNING not in kmm_pod_status, "kmm-worker pod still running", environment.pause_on_failure)
-        K8Helper.assert_or_debug(K8Helper.PodStatus.FAILED not in kmm_pod_status, "kmm-worker pod failed", environment.pause_on_failure)
+        K8Helper.triage(environment, K8Helper.PodStatus.PENDING not in kmm_pod_status, "kmm-worker pod still pending")
+        K8Helper.triage(environment, K8Helper.PodStatus.RUNNING not in kmm_pod_status, "kmm-worker pod still running")
+        K8Helper.triage(environment, K8Helper.PodStatus.FAILED not in kmm_pod_status, "kmm-worker pod failed")
 
         # Finally check for labels
         label_missing = set()
         for _ in range(5):
             label_missing.clear()
             ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-            K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
-            K8Helper.assert_or_debug(len(gpu_nodes), "No nodes with AMD/GPU found in the cluster", environment.pause_on_failure)
+            K8Helper.triage(environment, ret_code == 0, "Error while getting gpu-nodes from k8-cluster")
+            K8Helper.triage(environment, len(gpu_nodes), "No nodes with AMD/GPU found in the cluster")
 
             pattern = r"kmm\.node\.kubernetes\.io/" + environment.gpu_operator_namespace + r"\.(.*?)\.ready"
             for node in gpu_nodes:
@@ -227,7 +229,7 @@ class K8Helper:
             if len(label_missing) > 0:
                 Logger.warn(f"Missing kmm.ready label for {label_missing}")
                 time.sleep(120)
-        K8Helper.assert_or_debug(label_found, f"One or more nodes missing kmm.ready label : {label_missing}", environment.pause_on_failure)
+        K8Helper.triage(environment, label_found, f"One or more nodes missing kmm.ready label : {label_missing}")
         return
 
     # Check for corresponding deviceconfig created
@@ -235,14 +237,14 @@ class K8Helper:
     def check_deviceconfig_status(gpu_cluster, environment, devicecfg_list):
         for devcfg in devicecfg_list:
             devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
-            K8Helper.assert_or_debug(devcfg_info != None and devcfg in devcfg_info,
-                                      f"Failed to collect status of deviceconfig {devcfg}", environment.pause_on_failure)
+            K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
+                            f"Failed to collect status of deviceconfig {devcfg}")
             #status_info = devcfg_info[devcfg].get('status')
             #if environment.gpu_operator_version > "v1.1.0":
             #    conditions = status_info.get('conditions', [])
-            #    K8Helper.assert_or_debug(len(conditions) > 0, f"deviceconfig status.conditions is empty for {devcfg}", environment.pause_on_failure)
-            #    K8Helper.assert_or_debug(conditions[0].get('status') == 'True', f"deviceconfig {devcfg} status is not True", environment.pause_on_failure)
-            #    K8Helper.assert_or_debug(conditions[0].get('type') == 'Ready', f"deviceconfig {devcfg} type is not Ready", environment.pause_on_failure)
+            #    K8Helper.triage(environment, len(conditions) > 0, f"deviceconfig status.conditions is empty for {devcfg}")
+            #    K8Helper.triage(environment, conditions[0].get('status') == 'True', f"deviceconfig {devcfg} status is not True")
+            #    K8Helper.triage(environment, conditions[0].get('type') == 'Ready', f"deviceconfig {devcfg} type is not Ready")
         return
 
     @staticmethod
@@ -253,8 +255,8 @@ class K8Helper:
         for devcfg_name, devcfg_info in devcfg_map.items():
             devcfg_driver_version = devcfg_info.get('spec').get('driver').get('version')
             Logger.info(f'Configured Version: {devcfg_driver_version}') 
-            K8Helper.assert_or_debug(config_version == devcfg_driver_version,
-                                     f"Expected config_version: {config_version}, device_config: {devcfg_driver_version}", environment.pause_on_failure)
+            K8Helper.triage(environment, config_version == devcfg_driver_version,
+                            f"Expected config_version: {config_version}, device_config: {devcfg_driver_version}")
 
         # check the worker node driver version
         ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
@@ -262,32 +264,58 @@ class K8Helper:
             node_name = k8_util.k8_get_node_hostname(node)
             version_module_label = f"kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.{devcfg_name}"
             node_driver_version = node['metadata']['labels'][version_module_label]
-            K8Helper.assert_or_debug(config_version == node_driver_version,
-                                      f"failed for node {node_name}: {node_driver_version}", environment.pause_on_failure)
+            K8Helper.triage(environment, config_version == node_driver_version,
+                            f"failed for node {node_name}: {node_driver_version}")
             cmd = ["dmesg", "-T"]
             #cmd = ["sudo", "dmesg", "-T", "|", "grep", "'amdgpu version'", "|", "tail", "-1"]
             ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd, skip_chroot = True)
-            K8Helper.assert_or_debug(ret_code == 0, f"error getting dmesg from {node_name} {node_name}", environment.pause_on_failure)
-            K8Helper.assert_or_debug(resp_stdout != None, f"Error: Command output is None", environment.pause_on_failure)
+            K8Helper.triage(environment, ret_code == 0, f"error getting dmesg from {node_name} {node_name}")
+            K8Helper.triage(environment, resp_stdout != None, f"Error: Command output is None")
             Logger.debug(f"Cmd:{cmd}, Response:\n{LogPrettyPrinter.pformat(resp_stdout)}")
             amdgpu_lines = list(filter(lambda line: 'amdgpu version' in line, resp_stdout.split("\n")))
-            K8Helper.assert_or_debug(len(amdgpu_lines) > 0, "No dmesg-lines with 'amdgpu version' information", environment.pause_on_failure)
+            K8Helper.triage(environment, len(amdgpu_lines) > 0, "No dmesg-lines with 'amdgpu version' information")
             matching_lines = [line for line in amdgpu_lines if rocm_version in line]
-            K8Helper.assert_or_debug(len(matching_lines) > 0, f"can't find {rocm_version} in {amdgpu_lines}", environment.pause_on_failure)
+            K8Helper.triage(environment, len(matching_lines) > 0, f"can't find {rocm_version} in {amdgpu_lines}")
 
         # TODO: Enhance to check amd-smi output
 
     @staticmethod
-    def assert_or_debug(condition, message, pause_on_failure = False, expected_to_fail = False):
+    def triage(environment, condition : bool, message : str, expected_to_fail : bool = False):
         global Logger
-        if not condition:
-            if pause_on_failure:
-                Logger.error(f"Pausing for failure : {message}")
-                pytest.set_trace()
-            if expected_to_fail:
-                pytest.xfail(message)
+        global LogPrettyPrinter
+        if condition:
+            # Test/condition passed
+            return
+        # Test/Condition Failed - triage
+        if expected_to_fail:
+            pytest.xfail(message)
+        else:
+            if environment.tech_support_tool:
+                Logger.info(f"Running tech-support tool {environment.tech_support_tool}")
+                cmd = [environment.tech_support_tool, "all"]
+                if hasattr(environment, "k8_secrets_file"):
+                    cmd.extend(["--kubeconfig", environment.k8_secrets_file])
+                cmd_resp = subprocess.run(cmd, check=False,
+                                          stdout=subprocess.PIPE,
+                                          stderr=subprocess.PIPE,
+                                          encoding='utf-8')
+                Logger.info(f"tech-support tool returncode: {cmd_resp.returncode}")
+                Logger.debug(f"tech-support tool stdout:\n{LogPrettyPrinter.pformat(cmd_resp.stdout)}")
+                Logger.debug(f"tech-support tool stderr:\n{LogPrettyPrinter.pformat(cmd_resp.stderr)}")
+                if cmd_resp.returncode == 0:
+                    for file_name in os.listdir(os.getcwd()):
+                        if "techsupport-" in file_name:
+                            if hasattr(environment, 'current_tc_name'):
+                                shutil.move(file_name, 
+                                            os.path.join(environment.logdir, "tech-support", f"tech_support_{environment.current_tc_name}.tgz"))
+                            else:
+                                shutil.move(file_name, environment.logdir)
+                            break
+                else:
+                    Logger.warn(f"Failed to generate/collect techsupport file")
             else:
-                pytest.fail(message)
+                Logger.warn(f"Missing tech-support-tool information, no additional logs collected")
+            pytest.fail(message)
 
     @staticmethod
     def workload_operation(gpu_cluster, environment, op_code, **kwargs):
@@ -303,17 +331,17 @@ class K8Helper:
         if node_name == None:
             # Take one node with gpu
             ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-            K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+            K8Helper.triage(environment, ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster")
             gpu_node = gpu_nodes[0]
             node_name = k8_util.k8_get_node_hostname(gpu_node)
 
         # check gpu capacity
         init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-        K8Helper.assert_or_debug(int(init_cap) != -1 or int(init_alloc) != -1,
-                          f'Err getting gpu capacity and allocatable values: capacity: {init_cap} allocatable: {init_alloc}', environment.pause_on_failure)
+        K8Helper.triage(environment, int(init_cap) != -1 or int(init_alloc) != -1,
+                        f'Err getting gpu capacity and allocatable values: capacity: {init_cap} allocatable: {init_alloc}')
 
         # check if the node has allocatable gpus; if not fail
-        K8Helper.assert_or_debug(init_cap != 0 or init_alloc != 0, f'no gpu available', environment.pause_on_failure)
+        K8Helper.triage(environment, init_cap != 0 or init_alloc != 0, f'no gpu available')
 
         # create a workload requesting one gpu
         pod_name = f"pytorch-gpu-pod-{common.generate_8byte_sha(node_name)}"
@@ -327,7 +355,7 @@ class K8Helper:
                     'nodeSelector' : node_name,
                     'podStatus' : K8Helper.PodStatus.NA,
                 }
-            wl_file = os.path.join(environment.sandbox_dir, f"{pod_name}.yaml")
+            wl_file = os.path.join(environment.logdir, f"{pod_name}.yaml")
             Logger.debug(f"New workload specification : {workload_config}")
             cr_spec = spec_util.generate_k8_workload_template(wl_file, workload_config)
             ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, cr_spec, wl_file)

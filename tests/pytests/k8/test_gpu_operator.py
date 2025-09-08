@@ -18,6 +18,7 @@
 
 import pdb
 import pytest
+import pprint
 import sys
 import os
 import time
@@ -30,6 +31,12 @@ import lib.spec_util as spec_util
 from k8.util import K8Helper
 
 Logger = logging.getLogger("k8.test_gpu_operator")
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_testcase_info(request, environment):
+    setattr(environment, 'current_tc_name', request.node.name)
+    yield
+    delattr(environment, 'current_tc_name')
 
 @pytest.fixture(scope="module")
 def gpu_operator_install(gpu_cluster, release_name, images, environment):
@@ -53,7 +60,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     if images.get("gpu-operator.repo", None):
         k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
 
-    values_yaml = os.path.join(environment.sandbox_dir, f"values_{environment.gpu_operator_version}.yaml")
+    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
     if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
         Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
     else:
@@ -67,7 +74,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
         Logger.error(f"Failed to install helm chart for {release_name}")
         Logger.error(f"Stdout: {ret_stdout}")
         Logger.error(f"Stderr: {ret_stderr}")
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to install {release_name}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install {release_name}")
     time.sleep(30)
     yield
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -79,7 +86,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     time.sleep(10)
 
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}")
     return
 
 def install_deviceconfig(gpu_cluster, images, environment):
@@ -97,12 +104,8 @@ def install_deviceconfig(gpu_cluster, images, environment):
         pass
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0,
-                              "Error while getting gpu-nodes from k8-cluster",
-                              environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(gpu_nodes) > 0,
-                              "No nodes with AMD/GPU found in the cluster",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
@@ -131,7 +134,7 @@ def install_deviceconfig(gpu_cluster, images, environment):
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to create deviceconfig, stderr: {ret_stderr}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
@@ -166,26 +169,27 @@ def test_gpu_operator_install(gpu_cluster, release_name, gpu_operator_install, e
     global Logger
 
     ret_code, ret_stdout, ret_stderr = k8_util.helm_list(gpu_cluster, environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, "Failed to list helm-charts", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Failed to list helm-charts")
 
     gpu_operator_running = False
     for chart in json.loads(ret_stdout):
         if (chart['name'] == release_name and
             chart['status'] == 'deployed'):
             gpu_operator_running = True
-    K8Helper.assert_or_debug(gpu_operator_running,
-                              f"helm-chart {release_name} is not in expected state {json.dumps(ret_stdout, indent=4)}",
-                              environment.pause_on_failure)
+    K8Helper.triage(environment, gpu_operator_running,
+                    f"helm-chart {release_name} is not in expected state {json.dumps(ret_stdout, indent=4)}")
 
     # Check if kube-amd-gpu namespace is created
     ret_code, k8_namespaces = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "", environment.pause_on_failure)
-    K8Helper.assert_or_debug(len(list(filter(lambda x: x['metadata']['name'] == environment.gpu_operator_namespace, k8_namespaces))) == 1, "", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error checking k8-namespaces from cluster")
+    K8Helper.triage(environment,
+                    (len(list(filter(lambda x: x['metadata']['name'] == environment.gpu_operator_namespace, k8_namespaces))) == 1),
+                    f"Could not find {environment.gpu_operator_namespace} in the cluster")
 
 def test_gpu_operator_check_all_pods(gpu_cluster, release_name, gpu_operator_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0),"gpu-operator failed to find amd/gpu nodes in the cluster")
 
     # Wait for all pods to be created
     exp_pod_list = [
@@ -197,26 +201,25 @@ def test_gpu_operator_check_all_pods(gpu_cluster, release_name, gpu_operator_ins
         common.PodInfo(f'{release_name}-node-feature-discovery-worker', len(gpu_nodes), 1),
     ]
     failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, exp_pod_list)
-    K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
 def test_gpu_operator_check_deviceconfig_crd(gpu_cluster, gpu_operator_install, environment):
     global Logger
 
     deviceconfig_crd = k8_util.k8_lookup_crd(gpu_cluster, "deviceconfigs.amd.com")
-    K8Helper.assert_or_debug(deviceconfig_crd != None, f"Missing deviceconfigs.amd.com CRD post gpu-operator installation", environment.pause_on_failure)
+    K8Helper.triage(environment, deviceconfig_crd != None, f"Missing deviceconfigs.amd.com CRD post gpu-operator installation")
 
     # Check metadata
     if environment.gpu_operator_version != "v1.1.0":
         # TODO: Verify why this is failing for gpu-operator v1.1.0
         metadata = deviceconfig_crd['metadata']
-        K8Helper.assert_or_debug(metadata['labels']['app.kubernetes.io/version'] == environment.gpu_operator_version,
-                                  f"Mismatch in metadata version {environment.gpu_operator_version} vs {metadata['labels']['app.kubernetes.io/version']}",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, (metadata['labels']['app.kubernetes.io/version'] == environment.gpu_operator_version),
+                        f"Mismatch in metadata version {environment.gpu_operator_version} vs {metadata['labels']['app.kubernetes.io/version']}")
 
     status = deviceconfig_crd['status']
-    K8Helper.assert_or_debug(status.get('conditions', None) != None, f"Missing status.conditions to check current status", environment.pause_on_failure)
+    K8Helper.triage(environment, (status.get('conditions', None) != None), f"Missing status.conditions to check current status")
     for c in status.get('conditions', None):
-        K8Helper.assert_or_debug(c.get('status', 'False') == 'True', f"Condition {c['type']} is not True/Successful", environment.pause_on_failure)
+        K8Helper.triage(environment, (c.get('status', 'False') == 'True'), f"Condition {c['type']} is not True/Successful")
 
     # TODO: Check the spec.properties - based on gpu-operator release
 
@@ -224,16 +227,16 @@ def test_gpu_operator_uninstall(request, gpu_cluster, images, release_name, gpu_
     global Logger
     # Check if installation was successful
     ret_code, k8_namespaces = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "Error while collecting namespaces", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while collecting namespaces")
     namespace_list = list(filter(lambda x: x['metadata']['name'] == environment.gpu_operator_namespace, k8_namespaces))
-    K8Helper.assert_or_debug(len(namespace_list) == 1, f"Missing namespace : {environment.gpu_operator_namespace}", environment.pause_on_failure)
+    K8Helper.triage(environment, (len(namespace_list) == 1), f"Missing namespace : {environment.gpu_operator_namespace}")
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "Error while getting gpu-nodes from k8-cluster", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
 
     def _restore_gpu_operator():
         # Restore gpu-operator
-        values_yaml = os.path.join(environment.sandbox_dir, f"values_{environment.gpu_operator_version}.yaml")
+        values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
         if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
             Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
         else:
@@ -247,19 +250,19 @@ def test_gpu_operator_uninstall(request, gpu_cluster, images, release_name, gpu_
             Logger.error(f"Failed to install helm chart for {release_name}")
             Logger.error(f"Stdout: {ret_stdout}")
             Logger.error(f"Stderr: {ret_stderr}")
-        K8Helper.assert_or_debug(ret_code == 0, f"Failed to install {release_name}", environment.pause_on_failure)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to install {release_name}")
         time.sleep(30)
         # Wait for all pods to be re-created
         failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, exp_pod_list)
-        K8Helper.assert_or_debug(not failed_pods, f"One or more pods are not ready - {failed_pods}", environment.pause_on_failure)
+        K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     request.addfinalizer(_restore_gpu_operator)
 
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.assert_or_debug(ret_code == 0, f"Failed to uninstall {release_name} helm-chart error: {ret_stderr}", environment.pause_on_failure)
+    K8Helper.triage(environment, ret_code == 0, f"Failed to uninstall {release_name} helm-chart error: {ret_stderr}")
 
     # Check if kube-amd-gpu namespace is deleted
     ret_code, k8_namespaces = k8_util.k8_get_namespaces(gpu_cluster)
-    K8Helper.assert_or_debug(ret_code == 0, "Error while collecting namespaces", environment.pause_on_failure)
+    K8Helper.triage(environment, (ret_code == 0), "Error while collecting namespaces")
     namespace_list = list(filter(lambda x: x['metadata']['name'] == environment.gpu_operator_namespace, k8_namespaces))
     if len(namespace_list):
         # Wait for all pods to be deleted
@@ -272,16 +275,15 @@ def test_gpu_operator_uninstall(request, gpu_cluster, images, release_name, gpu_
             common.PodInfo(f'{release_name}-node-feature-discovery-worker', len(gpu_nodes), 1),
         ]
         running_pods = k8_util.k8_check_pod_terminated(gpu_cluster, environment.gpu_operator_namespace, exp_pod_list)
-        K8Helper.assert_or_debug(not running_pods,
-                                  f"Some of the pods are still running post uninstallation - {running_pods}", environment.pause_on_failure)
+        K8Helper.triage(environment, not running_pods,
+                        f"Some of the pods are still running post uninstallation - {running_pods}")
 
     # Check deviceconfigs.amd.com CRDs are removed 
     if environment.gpu_operator_version in ['v1.0.0', 'v1.1.0']:
         Logger.debug('Skipping checking of deviceconfigs.amd.com CRD cleanup for gpu-operator chart version v1.0.0 and v1.1.0')
     else:
         deviceconfig_crd = k8_util.k8_lookup_crd(gpu_cluster, "deviceconfigs.amd.com")
-        K8Helper.assert_or_debug(deviceconfig_crd == None,
-                                  f"CRD deviceconfigs.amd.com still found post gpu-operator uninstallation",
-                                  environment.pause_on_failure)
+        K8Helper.triage(environment, (deviceconfig_crd == None),
+                        f"CRD deviceconfigs.amd.com still found post gpu-operator uninstallation")
     time.sleep(30)
 

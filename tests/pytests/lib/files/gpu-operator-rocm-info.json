@@ -15,6 +15,10 @@
         {
             "deviceconfig-version" : "6.3",
             "rocm-version" : "6.10.5"
+        },
+        {
+            "deviceconfig-version" : "6.4.3",
+            "rocm-version" : "6.12.12"
         }
     ]
 }

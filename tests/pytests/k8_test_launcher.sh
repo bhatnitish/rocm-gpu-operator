@@ -27,6 +27,9 @@ function usage() {
     echo "          --testcase <testcase-name> Eq: def test_<tc_name>"
     echo "          --debug"
     echo ""
+    echo "Environment Variables:"
+    echo "TECH_SUPPORT_TOOL : Path to tech-support-dump.sh, default: $PWD/techsupport_dump.sh"
+    echo ""
 }
 
 IMAGE_MANIFEST="NA"
@@ -36,6 +39,7 @@ TC_MODULE="ALL"
 TC_NAME="ALL"
 ENABLE_DEBUGGING="NA"
 DRIVER_SPEC="NA"
+TECH_SUPPORT_TOOL=${TECH_SUPPORT_TOOL:-"${PWD}/techsupport_dump.sh"}
 
 function collect_tech_support() {
     echo "Collect test run logs"
@@ -94,7 +98,7 @@ function launch_pytest() {
     CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
     if [[ "${ENABLE_DEBUGGING}" == "YES" ]];
     then
-        CMD_OPT+=" --pause-on-failure"
+        CMD_OPT+=" --pdb"
     fi
     if [[ "${SECRETS}" != "NA" ]];
     then
@@ -105,11 +109,19 @@ function launch_pytest() {
         CMD_OPT+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
     fi
     CMD_OPT+=" --image-manifest ${IMAGE_MANIFEST}"
-
     echo ""
     echo "****** USING FOLLOWING IMAGES FOR THE TEST ******"
     cat ${IMAGE_MANIFEST}
     echo ""
+
+    if [[ -f $TECH_SUPPORT_TOOL ]];
+    then
+        CMD_OPT+=" --tech-support-tool ${TECH_SUPPORT_TOOL}"
+    else
+        echo ""
+        echo "ALERT:  **** Missing ${TECH_SUPPORT_TOOL}, no tech-support will be collected ****"
+        echo ""
+    fi
     echo "Running test with cmd-opt ${CMD_OPT}"
     export PYTHONIOENCODING=utf-8
     pytest ${test_sel} --log-file=logs/${DEPLOYMENT}_test_run.log \

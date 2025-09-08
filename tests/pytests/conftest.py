@@ -84,16 +84,16 @@ def pytest_addoption(parser):
     parser.addoption(
             "--amdgpu-driver-spec",
             action = "store",
-            default = "lib/files/amd-deviceconfig-driver-spec.json",
+            default = "lib/files/amd-deviceconfig-default-driver-spec.json",
             required = False,
             help = "AMDGPU Driver to use"
     )
 
     parser.addoption(
-            "--pause-on-failure",
-            action = "store_true",
-            default = False,
-            help = "Pause on failure - calls pytest.set_trace() during assert"
+            "--tech-support-tool",
+            action="store",
+            default=None,
+            help="Path to tech-support tool to collect information",
     )
 
 
@@ -133,12 +133,11 @@ def environment(request):
     setattr(tenv, 'gpu_operator_namespace', 'kube-amd-gpu')
     setattr(tenv, 'download_folder', 'downloads')
     setattr(tenv, 'global_registry', request.config.option.global_registry)
-    setattr(tenv, 'sandbox_dir', "logs")
+    setattr(tenv, 'logdir', "logs")
     if request.config.option.amdgpu_driver_spec:
         with open(request.config.option.amdgpu_driver_spec, "r") as fp:
             driver_spec = json.load(fp)
             setattr(tenv, 'amdgpu_driver_spec', driver_spec)
-    setattr(tenv, 'pause_on_failure', request.config.option.pause_on_failure)
     kube_config_file = kube_config = os.path.join(Path.home(), ".kube", "config")
     if os.path.exists(kube_config_file):
         setattr(tenv, 'kube_config_file', kube_config_file)
@@ -150,6 +149,11 @@ def environment(request):
         secrets_json_file = request.config.option.secrets_json
     if os.path.exists(secrets_json_file):
         setattr(tenv, 'k8_secrets_file', secrets_json_file)
+    setattr(tenv, 'tech_support_tool', None)
+    if request.config.option.tech_support_tool:
+        if os.path.exists(request.config.option.tech_support_tool):
+            setattr(tenv, 'tech_support_tool', request.config.option.tech_support_tool)
+            os.makedirs(os.path.join(tenv.logdir, "tech-support"), exist_ok=True)
     '''
     request.config._metadata['Helm-Chart Version'] = request.config.option.gpu_operator_version
     request.config._metadata['Metrics Exporter Version'] = request.config.option.metrics_exporter_version

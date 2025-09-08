@@ -13,28 +13,28 @@ images:
             kind        : container
 
         gpu-operator:
-            location    : file:///gpu-operator/tests/pytests/gpu-operator-helm-k8s-v1.3.1-v1.3.1-11.tgz
-            version     : v1.3.1-11
+            location    : file:///gpu-operator/tests/pytests/gpu-operator-helm-k8s-v1.4.0-v1.4.0-14.tgz
+            version     : v1.4.0-14
             kind        : helm-chart
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
             location    : container://<registry>/amdpsdo/gpu-operator
-            version     : v1.3.1-11
+            version     : v1.4.0-14
             kind        : container
             secret      : docker-amdpsdo-auth
 
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://<registry>/amdpsdo/device-metrics-exporter
-            version     : v1.3.1-14
+            version     : v1.4.0-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         test-runner:
             key         : testRunner.image
             location    : container://<registry>/amdpsdo/test-runner
-            version     : v1.3.1-14
+            version     : v1.4.0-20
             kind        : container
             secret      : docker-amdpsdo-auth
         
@@ -55,28 +55,28 @@ images:
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
             location    : container://<registry>/amdpsdo/kernel-module-management-signimage
-            version     : v1.3.1-2
+            version     : v1.4.0-1
             kind        : container
             secret      : docker-amdpsdo-auth
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
             location    : container://<registry>/amdpsdo/kernel-module-management-worker
-            version     : v1.3.1-2
+            version     : v1.4.0-1
             kind        : container
             secret      : docker-amdpsdo-auth
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
             location    : container://<registry>/amdpsdo/kernel-module-management-operator
-            version     : v1.3.1-2
+            version     : v1.4.0-1
             kind        : container
             secret      : docker-amdpsdo-auth
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
             location    : container://<registry>/amdpsdo/kernel-module-management-webhook-server
-            version     : v1.3.1-2
+            version     : v1.4.0-1
             kind        : container
             secret      : docker-amdpsdo-auth
 

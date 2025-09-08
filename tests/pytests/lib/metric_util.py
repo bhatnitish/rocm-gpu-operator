@@ -88,8 +88,9 @@ def get_supported_metrics(gpu_series = None):
         supported_metrics = []
         for entry in metrics_data['metrics']:
             for support in entry['gpu-support']:
-                if support['gpu'] == gpu_series:
+                if gpu_series in support['gpu']:
                     supported_metrics.append(entry)
+                    break
         return supported_metrics
     return metrics_data['metrics']
 
@@ -116,7 +117,7 @@ def get_metric_support_info(metric_metadata, gpu_series):
     global Logger
 
     for support in metric_metadata['gpu-support']:
-        if support['gpu'] == gpu_series:
+        if gpu_series in support['gpu']:
             return support
     return None
 
