@@ -294,7 +294,7 @@ class K8Helper:
                 Logger.info(f"Running tech-support tool {environment.tech_support_tool}")
                 cmd = [environment.tech_support_tool, "all"]
                 if hasattr(environment, "k8_secrets_file"):
-                    cmd.extend(["--kubeconfig", environment.k8_secrets_file])
+                    cmd.extend(["-k", environment.k8_secrets_file])
                 cmd_resp = subprocess.run(cmd, check=False,
                                           stdout=subprocess.PIPE,
                                           stderr=subprocess.PIPE,

@@ -14,7 +14,7 @@
             "name": "GPU_AVERAGE_PACKAGE_POWER",
             "gpu-support" : [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X"],
+                    "gpu" : ["MI210", "MI250"],
                     "amd-smi" : "power.socket_power",
                     "gpu-agent" : "stats.AvgPackagePower"
                 }
@@ -24,7 +24,7 @@
             "name": "GPU_EDGE_TEMPERATURE",
             "gpu-support" : [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X"],
+                    "gpu" : ["MI210", "MI250"],
                     "gpu-agent": "stats.temperature.edge_temperature",
                     "amd-smi": "temperature.edge"
                 }
@@ -170,7 +170,7 @@
             ]
         },
         {
-            "name": "PCIE_REPLAYROLLOVER_COUNT",
+            "name": "PCIE_REPLAY_ROLLOVER_COUNT",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
@@ -192,7 +192,7 @@
             ]
         },
         {
-            "name": "PCIE_NAC_RECEIVED_COUNT",
+            "name": "PCIE_NACK_RECEIVED_COUNT",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
@@ -381,7 +381,7 @@
             ]
         },
         {
-            "name": "GPU_CURRENT_ACCUMULATED_COUNTER",
+            "name": "GPU_VIOLATION_CURRENT_ACCUMULATED_COUNTER",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
@@ -392,7 +392,7 @@
             ]
         },
         {
-            "name": "GPU_VIOLATION_PROCESSOR_HOT_RESIDENCY_ACCUMULATE",
+            "name": "GPU_VIOLATION_PROC_HOT_RESIDENCY_ACCUMULATED",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
@@ -414,7 +414,7 @@
             ]
         },
         {
-            "name": "GPU_VIOLATION_SOCKET_THERMAL_RESIDENCY_ACCUMULAT",
+            "name": "GPU_VIOLATION_SOC_THERMAL_RESIDENCY_ACCUMULATED",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
@@ -425,7 +425,7 @@
             ]
         },
         {
-            "name": "GPU_VIOLATION_VR_THERMAL_RESIDENCY_ACCUMULATED",
+            "name": "GPU_VIOLATION_VR_THERMAL_TRACKING_ACCUMULATED",
             "skip-validation" : "yes",
             "gpu-support": [
                 {

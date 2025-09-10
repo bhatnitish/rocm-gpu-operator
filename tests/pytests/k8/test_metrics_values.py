@@ -26,6 +26,7 @@ import json
 import logging
 import random
 import threading
+from collections import defaultdict
 import lib.common as common
 import lib.k8_util as k8_util
 import lib.spec_util as spec_util
@@ -235,7 +236,7 @@ def metrics_samples(gpu_cluster, deviceconfig_install, amd_smi_collect, environm
             if ret_code != 0:
                 Logger.error(f"Cmd {cmd} failed on {exporter_pod_name}, error : {resp_stderr}")
             else:
-                cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\""))
+                cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\"").replace("False", "\"False\""))
             time.sleep(1)
         return
 
@@ -249,7 +250,7 @@ def metrics_samples(gpu_cluster, deviceconfig_install, amd_smi_collect, environm
             if ret_code != 0:
                 Logger.error(f"Cmd {cmd} failed on {exporter_pod_name}, error : {resp_stderr}")
             else:
-                cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\""))
+                cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\"").replace("False", "\"False\""))
             time.sleep(1)
         return
 
@@ -455,7 +456,7 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    failed_metrics = set()
+    failed_metrics = defaultdict(set)
     all_idle_metrics, all_workload_metrics = metrics_samples
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
@@ -471,17 +472,18 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
 
         supported_metrics = metric_util.get_supported_metrics(cluster_node.gpu_series)
         Logger.info(f"Node: {node_name} having {cluster_node.gpu_series} has {len(supported_metrics)} metrics")
-        Logger.debug(f"Node: {node_name} having {cluster_node.gpu_series} has {supported_metrics} metrics")
         for entry in supported_metrics:
             metric_to_test = entry['name']
             Logger.info(f"Checking {metric_to_test} among exported metrics for node {node_name}")
             for gpu_id in range(cluster_node.num_gpus):
                 if _test_if_metrics_exported(metric_to_test, gpu_id, idle_metrics) == False:
-                    failed_metrics.add(metric_to_test)
+                    Logger.error(f"Idle Conditions Metrics: {metric_to_test} failed for {gpu_id}")
+                    failed_metrics[metric_to_test].add(gpu_id)
                 if _test_if_metrics_exported(metric_to_test, gpu_id, workload_metrics) == False:
-                    failed_metrics.add(metric_to_test)
+                    Logger.error(f"Load Conditions Metrics: {metric_to_test} failed for {gpu_id}")
+                    failed_metrics[metric_to_test].add(gpu_id)
     K8Helper.triage(environment, (len(failed_metrics) == 0),
-                    f"Failed to validate {len(failed_metrics)} metrics from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
+                    f"Metics validation failed: {failed_metrics.keys()} from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
 
 
 def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to_test, environment):
