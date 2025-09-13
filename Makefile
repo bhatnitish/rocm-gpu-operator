@@ -31,6 +31,14 @@ KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
 KMM_WEBHOOK_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-webhook-server
 KMM_OPERATOR_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-operator
 
+# Operand related images
+EXPORTER_IMAGE_TAG ?= latest
+METRICS_EXPORTER_IMG = $(DOCKER_REGISTRY)/device-metrics-exporter:$(EXPORTER_IMAGE_TAG)
+DEVICE_CONFIG_MANAGER_IMAGE_TAG ?= latest
+DEVICE_CONFIG_MANAGER_IMG = $(DOCKER_REGISTRY)/device-config-manager:$(DEVICE_CONFIG_MANAGER_IMAGE_TAG)
+TEST_RUNNER_IMAGE_TAG ?= latest
+TEST_RUNNER_IMG = $(DOCKER_REGISTRY)/test-runner:$(TEST_RUNNER_IMAGE_TAG)
+
 #######################
 # Helm Charts variables
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/deviceconfig_example.yaml config/default/kustomization.yaml
@@ -38,6 +46,7 @@ CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml
+DEFAULT_VALUES_FILES=helm-charts-k8s/values.yaml helm-charts-openshift/values.yaml hack/k8s-patch/metadata-patch/values.yaml hack/openshift-patch/metadata-patch/values.yaml
 
 ifdef OPENSHIFT
 $(info selected openshift)
@@ -189,6 +198,12 @@ update-registry: ## Update all image URLs based on the image variables
 	hack/k8s-patch/metadata-patch/values.yaml helm-charts-k8s/values.yaml \
 	hack/openshift-patch/metadata-patch/values.yaml helm-charts-openshift/values.yaml \
 	example/deviceconfig_example.yaml
+	# update operands image tags
+	@for file in $(DEFAULT_VALUES_FILES); do \
+		yq eval -i '.deviceConfig.spec.metricsExporter.image = "$(METRICS_EXPORTER_IMG)"' $$file; \
+		yq eval -i '.deviceConfig.spec.configManager.image = "$(DEVICE_CONFIG_MANAGER_IMG)"' $$file; \
+		yq eval -i '.deviceConfig.spec.testRunner.image = "$(TEST_RUNNER_IMG)"' $$file; \
+	done
 	sed -i -e 's|tag:.*$$|tag: ${KMM_IMAGE_TAG}|' \
 	-e 's|repository:.*operator.*$$|repository: ${KMM_OPERATOR_IMG_NAME}|' \
 	-e 's|repository:.*webhook.*$$|repository: ${KMM_WEBHOOK_IMG_NAME}|' \
