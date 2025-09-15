@@ -18,7 +18,7 @@ fi
 
 tag_prefix="${RELEASE%-*}"
 
-if [ "$tag_prefix" == "operator-0.0.1" ]; then
+if [ "$tag_prefix" == "main" ]; then
   tag="latest"
 else
   tag="$tag_prefix"
@@ -35,10 +35,14 @@ setup_dir () {
 copy_artifacts () {
     # copy gpu-opertar container image
     cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/amd-gpu-operator-latest-$RELEASE.tar.gz
-    # copy k8s helm package
-    cp /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
-    # copy openshift helm package
-    cp /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/gpu-operator-helm-openshift-$PROJECT_VERSION-$RELEASE.tgz
+    # copy internal k8s helm package
+    cp /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/internal-gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
+    # copy amdpsdo k8s helm package
+    cp /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/amdpsdo-gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
+    # copy internal openshift helm package
+    cp /gpu-operator/build/charts/internal-gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/internal-gpu-operator-helm-openshift-$PROJECT_VERSION-$RELEASE.tgz
+    # copy amdpsdo openshift helm package
+    cp /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/amdpsdo-gpu-operator-helm-openshift-$PROJECT_VERSION-$RELEASE.tgz
     # copy gpu operator OLM bundle package
     cp /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/internal-gpu-operator-olm-bundle-$RELEASE.tar.gz
     # copy gpu operator OLM bundle package for amdpsdo repository
@@ -66,6 +70,10 @@ docker_push () {
       echo "DOCKERHUB_TOKEN is not set"
     else
       docker login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$tag
+      docker push amdpsdo/gpu-operator:$tag
+
+      # push with hourly release tag
       docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$RELEASE
       docker push amdpsdo/gpu-operator:$RELEASE
       # push OLM bundle images 

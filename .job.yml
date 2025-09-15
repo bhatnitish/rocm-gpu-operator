@@ -23,10 +23,17 @@ builds:
 
   build-gpu-operator-k8s:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
-               PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION KMM_IMAGE_TAG=$PROJECT_VERSION make helm"]
+               mkdir -p build/charts && \
+               PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION KMM_IMAGE_TAG=$PROJECT_VERSION make helm && \
+               cp helm-charts-k8s/gpu-operator-helm-k8s-v1.4.0.tgz \
+                  build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz && \
+               DOCKER_REGISTRY=docker.io/amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.4.0 IMAGE_TAG=${RELEASE:-latest} KMM_IMAGE_TAG=$PROJECT_VERSION make helm && \
+               cp helm-charts-k8s/gpu-operator-helm-k8s-v1.4.0.tgz \
+                  build/charts/amdpsdo-gpu-operator-helm-k8s-v1.4.0.tgz"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
-     - /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.4.0.tgz
+     - /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz
+     - /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-k8s-v1.4.0.tgz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
@@ -34,10 +41,17 @@ builds:
 
   build-gpu-operator-openshift:
     commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
-               OPENSHIFT=1 PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION make helm"]
+               mkdir -p build/charts && \
+               OPENSHIFT=1 PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION make helm && \
+               cp helm-charts-openshift/gpu-operator-helm-openshift-v1.4.0.tgz \
+                  build/charts/internal-gpu-operator-helm-openshift-v1.4.0.tgz && \
+               OPENSHIFT=1 DOCKER_REGISTRY=docker.io/amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.4.0 IMAGE_TAG=${RELEASE:-latest} make helm && \
+               cp helm-charts-openshift/gpu-operator-helm-openshift-v1.4.0.tgz \
+                  build/charts/amdpsdo-gpu-operator-helm-openshift-v1.4.0.tgz"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
-     - /gpu-operator/helm-charts-openshift/gpu-operator-helm-openshift-v1.4.0.tgz
+     - /gpu-operator/build/charts/internal-gpu-operator-helm-openshift-v1.4.0.tgz
+     - /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-openshift-v1.4.0.tgz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
