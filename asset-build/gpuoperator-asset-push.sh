@@ -82,6 +82,17 @@ docker_push () {
     fi
 }
 
+helm_push () {
+    if [ -z $DOCKERHUB_TOKEN ]
+    then
+      echo "DOCKERHUB_TOKEN is not set"
+    else
+      helm registry login --username=shreyajmeraamd --password-stdin <<< $DOCKERHUB_TOKEN
+      # Push amdpsdo k8s helm chart
+      helm push /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-k8s-$PROJECT_VERSION.tgz oci://docker.io/amdpsdo/gpu-operator-helm-charts
+    fi
+}
+
 setup () {
     setup_dir
     copy_artifacts
@@ -103,6 +114,7 @@ main () {
 
   # docker push need happen after asset-push in case docker is not fully started yet
   docker_push
+  helm_push
 }
 
 main
