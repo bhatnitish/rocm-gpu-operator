@@ -39,6 +39,11 @@ images:
             image       : /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
             kind        : container
 
+        config-manager:
+            key         : configManager.image
+            image       : /device-config-manager/docker/obj/device-config-manager-config-manager.tgz
+            kind        : container
+
         device-plugin:
             key         : devicePlugin.devicePluginImage
             location    : container://<registry>/rocm/k8s-device-plugin

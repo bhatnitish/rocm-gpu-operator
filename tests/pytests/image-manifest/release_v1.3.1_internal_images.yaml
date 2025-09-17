@@ -38,6 +38,12 @@ images:
             version     : v1.3.1
             kind        : container
         
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/rocm/device-config-manager
+            version     : v1.3.1
+            kind        : container
+
         device-plugin:
             key         : devicePlugin.devicePluginImage
             location    : container://<registry>/rocm/k8s-device-plugin

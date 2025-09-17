@@ -482,6 +482,25 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         else:
             del device_config['spec']['testRunner']
 
+    # config-manager
+    if 'configManager' in device_config['spec']:
+        if not skip_sections.get('configManager', False):
+            if spec.get('configManager.image.repository', None):
+                img = f"{spec.get('configManager.image.repository')}:{spec.get('configManager.image.version')}"
+                device_config['spec']['configManager']['image'] = img
+            device_config['spec']['configManager']['enable'] = spec.get('configManager.enable', False)
+            device_config['spec']['configManager']['imagePullPolicy'] = spec.get('configManager.imagePullPolicy', 'IfNotPresent')
+            if spec.get('configManager.config', None):
+                device_config['spec']['configManager']['config'] = {
+                        'name' : spec.get('configManager.config'),
+                }
+            if spec.get('configManager.image.secret', None):
+                device_config['spec']['configManager']['imageRegistrySecret'] = {
+                        'name' : spec.get('configManager.image.secret')
+                }
+            device_config['spec']['configManager']['upgradePolicy']['maxUnavailable'] = spec.get('configManager.upgradePolicy.maxUnavailable', 1)
+            device_config['spec']['configManager']['upgradePolicy']['upgradeStrategy'] = spec.get('configManager.upgradePolicy.upgradeStrategy', 'RollingUpdate')
+
     # selector
     if spec.get('selector.field', None) and spec.get('selector.value', None):
         device_config['spec']['selector'] = {

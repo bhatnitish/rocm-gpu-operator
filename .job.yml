@@ -80,7 +80,15 @@ builds:
        --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker-agfhc --alien-branch ${JOB_BASE_BRANCH}"]
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
-      - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+
+  build-external-config-manager:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-config-manager && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-config-manager \
+       --alien-repo pensando/device-config-manager --alien-target build-device-config-manager-docker-ubi9 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+      - /device-config-manager/docker/obj/device-config-manager-config-manager.tgz
 
   build-external-kernel-module-manager:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
