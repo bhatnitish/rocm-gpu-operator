@@ -9,4 +9,4 @@ dependencies:
   repository: file://./charts/remediation
   version: v1.0.0
 digest: sha256:41fa6a6232514acebf6abdcb1bccaf087e134b9f413b8fa33a7fec1f58a99e07
-generated: "2025-08-21T00:26:06.50696363Z"
+generated: "2025-09-16T14:02:19.821636286Z"
