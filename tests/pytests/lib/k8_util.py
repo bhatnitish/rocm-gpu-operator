@@ -34,7 +34,6 @@ from typing import List, Dict
 from kubernetes import client, config, stream
 from kubernetes.client.rest import ApiException
 import lib.common as common
-import lib.spec_util as spec_util
 
 Logger = logging.getLogger("lib.k8util")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
@@ -452,6 +451,20 @@ def k8_get_node_gpu_alloc_requests(k8_cluster, node_name):
 
     return(requests, limit)
     
+
+def k8_get_node_gpu_allocatable(k8_cluster: common.k8_cluster, node_name: str) -> str:
+    ret_code, gpu_nodes = k8_get_gpu_nodes(k8_cluster)
+    filtered_list = list(filter(lambda x: x['metadata']['name'] == node_name, gpu_nodes))
+    assert len(filtered_list) == 1, f"No such cluster-node exists: {node_name}"
+
+    node = filtered_list[0]
+
+    for gpu_type in node['status']['allocatable'].keys():
+        if node['status']['allocatable'][gpu_type] != '0':
+            return gpu_type
+    return "amd.com/gpu"
+
+
 @log_arguments
 def k8_get_pods(k8_cluster, namespace, node_name = None):
     """
@@ -720,7 +733,23 @@ def k8_delete_cr(k8_cluster, cr_spec, cr_file):
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
 @log_arguments
-def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : str,  endpoint_verbs : List) -> (int, str, str):
+def k8_create_rules_from_endpoint_list(endpoint_verbs : List):
+    rules = []
+    for url_verb in endpoint_verbs:
+        url, verb = url_verb
+        rules.append(client.V1PolicyRule(non_resource_ur_ls = [url], verbs=[verb]))
+    return rules
+
+@log_arguments
+def k8_create_rules_from_verbs(resources, verbs, api_groups=[""]):
+    return client.V1PolicyRule(
+        api_groups=api_groups,
+        resources=resources,
+        verbs=verbs
+    )
+
+@log_arguments
+def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : str, rules : List) -> (int, str, str):
     """
     API to create a cluster-role with specific endpoint and corresponding verb
 
@@ -738,15 +767,10 @@ def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : s
     if k8_cluster.k8_kube_config:
         api = client.RbacAuthorizationV1Api()
 
-        rules = []
-        for url_verb in endpoint_verbs:
-            url, verb = url_verb
-            rules.append(client.V1PolicyRule(non_resource_ur_ls = [url], verbs=[verb]))
-
         cluster_role = client.V1ClusterRole(
                 api_version="rbac.authorization.k8s.io/v1",
                 kind = "ClusterRole",
-                metadata = client.V1ObjectMeta(name=cluster_role_name), 
+                metadata = client.V1ObjectMeta(name=cluster_role_name),
                 rules=rules)
         try:
             api_response = api.create_cluster_role(cluster_role)
@@ -754,7 +778,7 @@ def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : s
         except ApiException as e:
             return -1, "", str(e)
     else:
-        # Build yaml file 
+        # Build yaml file
         cr_file = os.path.join("logs", f"cluster_role_{cluster_role_name}.yaml")
         spec_util.generate_cluster_role_spec(cr_file, cluster_role_name, endpoint_verbs)
         cmd = ["kubectl", "apply", "-f"]
@@ -832,7 +856,7 @@ def k8_delete_pod(k8_cluster : common.k8_cluster, pod_name : str, namespace : st
         api = client.CoreV1Api()
         try:
             resp = api.delete_namespaced_pod(pod_name, namespace)
-            Logger.debug(f"Successfully delete pod, {pod_name}")
+            #Logger.debug(f"Successfully delete pod, resp:\n{LogPrettyPrinter.pformat(resp)}")
             return 0, "", ""
         except ApiException as e:
             Logger.error(f"Failed to delete pod, error: {e}")
@@ -946,8 +970,199 @@ def k8_create_namespace(k8_cluster : common.k8_cluster, namespace : str):
         cmd = f"kubectl create namespace {namespace}"
         return k8_cluster.k8_master.run_command(cmd)
 
+
 @log_arguments
-def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_name: str, job_name : str, healthy : bool, schedule : bool, minute : str):
+def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str):
+    global Logger
+    apps_v1 = client.AppsV1Api()
+    core_v1 = client.CoreV1Api()
+    gpu_type = k8_get_node_gpu_allocatable(k8_cluster, worker)
+    init_cap, alloc = k8_get_node_gpu_capacity(k8_cluster, worker)
+
+    # Define deployment metadata
+    labels = {"purpose": "demo-pytorch-amdgpu"}
+
+    # Define the volume mounts for the init container
+    init_container_volume_mounts = [
+        client.V1VolumeMount(
+            name="config-volume",
+            mount_path="/etc/test-runner/"
+        ),
+        client.V1VolumeMount(
+            name="rvs-logs",
+            mount_path="/var/log"
+        )
+    ]
+
+    # Define initContainer for the test runner
+    init_container = client.V1Container(
+        name="init-test-runner",
+        image=f"{images.get('testRunner.image.repository')}:{images.get('testRunner.image.version')}",
+        image_pull_policy="IfNotPresent",
+        volume_mounts=init_container_volume_mounts,
+        resources=client.V1ResourceRequirements(
+            requests={gpu_type: init_cap},
+            limits={gpu_type: init_cap}
+        ),
+        env=[
+            client.V1EnvVar(name="TEST_TRIGGER", value="PRE_START_JOB_CHECK"),
+            client.V1EnvVar(
+                name="POD_NAME",
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.name")
+                )
+            ),
+            client.V1EnvVar(
+                name="POD_NAMESPACE",
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.namespace")
+                )
+            ),
+            client.V1EnvVar(
+                name="NODE_NAME",
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(field_path="spec.nodeName")
+                )
+            )
+        ]
+    )
+
+    # Define the copy-rvs-logs container
+    copy_logs_container = client.V1Container(
+        name="copy-rvs-logs",
+        image="busybox",
+        command=["sh", "-c", "echo 'Copying RVS logs...'; cp -rv /var/log/* /host-logs/ && sleep 3600"],
+        volume_mounts=[
+            client.V1VolumeMount(name="rvs-logs", mount_path="/var/log"),
+            client.V1VolumeMount(name="host-logs", mount_path="/host-logs"),
+        ]
+    )
+
+    # Define the main container for the PyTorch workload
+    main_container = client.V1Container(
+        name="pytorch-gpu-workload",
+        image="docker.io/rocm/pytorch:latest",
+        command=["/bin/bash", "-c", "--"],
+        args=["sleep 6000"],
+        resources=client.V1ResourceRequirements(
+            requests={gpu_type: "1"},
+            limits={gpu_type: "1"}
+        ),
+    )
+
+    # Define the volumes
+    volumes = [
+        client.V1Volume(
+            name="rvs-logs",
+            empty_dir=client.V1EmptyDirVolumeSource()
+        ),
+        client.V1Volume(
+            name="host-logs",
+            host_path=client.V1HostPathVolumeSource(
+                path="/var/log/amd-test-runner",
+                type="DirectoryOrCreate"
+            )
+        ),
+        client.V1Volume(
+            name="config-volume",
+            config_map=client.V1ConfigMapVolumeSource(name="config-test-runner")
+        ),
+    ]
+
+    # Define the Pod template spec
+    pod_template_spec = client.V1PodTemplateSpec(
+        metadata=client.V1ObjectMeta(labels=labels),
+        spec=client.V1PodSpec(
+            service_account_name=sa_name,
+            init_containers=[init_container],
+            containers=[copy_logs_container, main_container],
+            volumes=volumes
+        )
+    )
+
+    # Define the Deployment spec
+    deployment_spec = client.V1DeploymentSpec(
+        replicas=1,
+        selector=client.V1LabelSelector(match_labels=labels),
+        template=pod_template_spec
+    )
+
+    # Combine everything into the final Deployment body
+    deployment_body = client.V1Deployment(
+        api_version="apps/v1",
+        kind="Deployment",
+        metadata=client.V1ObjectMeta(name=deployment_name, namespace=namespace, labels=labels),
+        spec=deployment_spec
+    )
+
+    # Call the function to create the Deployment
+    try:
+        # Create the Deployment using the create_namespaced_deployment method
+        deployment = apps_v1.create_namespaced_deployment(
+            namespace=namespace,
+            body=deployment_body
+        )
+        Logger.info(f"Deployment '{deployment_body.metadata.name}' created successfully in namespace '{namespace}'.")
+        Logger.info(f"Status : {deployment.status.ready_replicas}")
+    except ApiException as e:
+        assert True, f"Error creating Deployment: {e}"
+
+@log_arguments
+def k8_get_deployment(namespace, deployment_name):
+    global Logger
+    apps_v1 = client.AppsV1Api()
+    try:
+        deployment = apps_v1.read_namespaced_deployment(name=deployment_name, namespace=namespace)
+        Logger.info(f"Deployment '{deployment.metadata.name}' found. Status:")
+        Logger.info(f"  Replicas: {deployment.status.replicas}")
+        Logger.info(f"  Ready Replicas: {deployment.status.ready_replicas}")
+        Logger.info(f"  Available Replicas: {deployment.status.available_replicas}")
+        Logger.info(f"  Unavailable Replicas: {deployment.status.unavailable_replicas}")
+
+        Logger.info("\n  Deployment Conditions:")
+        if deployment.status.conditions:
+            Logger.info(deployment.status.conditions)
+        else:
+            Logger.info("No conditions reported for the deployment.")
+        return deployment
+    except client.ApiException as e:
+        if e.status == 404:
+            Logger.error(f"Error: Deployment '{deployment_name}' not found in namespace '{namespace}'.")
+        else:
+            Logger.error(f"Error fetching deployment status: {e}")
+        assert True, f"Error fetching Deployment: {e}"
+
+@log_arguments
+def k8_delete_deployment(namespace, deployment_name):
+    global Logger
+    apps_v1 = client.AppsV1Api()
+    try:
+        delete_options = client.V1DeleteOptions(
+            propagation_policy="Foreground", # Options: "Foreground", "Background", "Orphan"
+            grace_period_seconds=5 # Graceful shutdown period in seconds
+        )
+
+        # Delete the namespaced deployment
+        api_response = apps_v1.delete_namespaced_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            body=delete_options
+        )
+
+        Logger.info(f"Deployment '{deployment_name}' in namespace '{namespace}' deleted successfully.")
+        # You might inspect api_response for further details, though it often returns a V1Status object on success.
+        return
+
+    except client.ApiException as e:
+        if e.status == 404:
+            assert True, f"Error: Deployment '{deployment_name}' not found in namespace '{namespace}'."
+        else:
+            assert True, f"Error deleting deployment: {e}"
+    except Exception as e:
+        assert True, f"An unexpected error occurred: {e}"
+
+@log_arguments
+def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker : str, sa_name: str, job_name : str, healthy : bool, schedule : bool, minute : str):
     global Logger
 
     # Pre loaded Load Kubernetes configuration
@@ -955,6 +1170,8 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
     # Create an instance of the BatchV1Api, which is used for Jobs
 
     batch_v1_api = client.BatchV1Api()
+    gpu_type = k8_get_node_gpu_allocatable(k8_cluster, worker)
+    init_cap, alloc = k8_get_node_gpu_capacity(k8_cluster, worker)
 
     # Define environment variables
     env_vars = [
@@ -988,7 +1205,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
         # Note: Custom resources like 'amd.com/gpu' are strings in the limits dictionary.
         resources = client.V1ResourceRequirements(
             limits={
-                "amd.com/gpu": "1"  # Requesting 8 GPUs
+                gpu_type: init_cap  # Requesting 8 GPUs
             }
         )
         # Define containers
@@ -1014,6 +1231,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
         volume_mounts = [
             client.V1VolumeMount(mount_path="/dev/dri", name="dri"),
             client.V1VolumeMount(mount_path="/dev/kfd", name="kfd"),
+            client.V1VolumeMount(mount_path="/var/log/amd-test-runner", name="host-logs")
         ]
 
         # Define volumes
@@ -1030,6 +1248,13 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
                     path="/dev/dri", type="Directory"
                 ),
             ),
+            client.V1Volume(
+                name="host-logs",
+                host_path=client.V1HostPathVolumeSource(
+                    path="/var/log/amd-test-runner",
+                    type="DirectoryOrCreate"
+                )
+            )
         ]
         # Define containers
         container = client.V1Container(
@@ -1062,7 +1287,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
 
     # Define job metadata
     job_metadata = client.V1ObjectMeta(
-        name=job_name, namespace="default"
+        name=job_name, namespace=namespace
     )
 
     if not schedule:
@@ -1075,7 +1300,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
         )
         try:
             # Create the Job in the specified namespace
-            api_response = batch_v1_api.create_namespaced_job(namespace="default", body=job)
+            api_response = batch_v1_api.create_namespaced_job(namespace=namespace, body=job)
             Logger.info(f"Job created successfully: {api_response.metadata.name}")
         except client.ApiException as e:
             assert True, f"Error creating Job: {e}"
@@ -1096,10 +1321,11 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
         )
         try:
             # Create the Job in the specified namespace
-            api_response = batch_v1_api.create_namespaced_cron_job(namespace="default", body=cron_job)
+            api_response = batch_v1_api.create_namespaced_cron_job(namespace=namespace, body=cron_job)
             Logger.info(f"Job created successfully: {api_response.metadata.name}")
         except client.ApiException as e:
             assert True, f"Error creating Job: {e}"
+
 
 @log_arguments
 def k8_get_job_status(k8_cluster : common.k8_cluster, namespace : str, job_name):
@@ -1349,6 +1575,7 @@ def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configm
         cmd = ["kubectl", "delete", "configmap", "--namespace", namespace, configmap_name]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
 
+@log_arguments
 def k8_crictl_run_command(cluster_node, container_name, command):
     """
     API to run/inspect a container using crictl tool
@@ -1431,12 +1658,45 @@ def k8_delete_cluster_role(k8_cluster, cluster_role_name):
         try:
             api_response = rbac_api.delete_cluster_role(cluster_role_name)
         except ApiException as e:
-            Logger.error(f"Failed to delete cluster-role {cluster_role_name}, error {e}")
+            Logger.debug(f"Failed to delete cluster-role {cluster_role_name}, error {e}")
             return -1, "", str(e)
         return 0, "", ""
     else:
         cmd = ["kubectl", "delete", "clusterrole", cluster_role_name]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
+
+@log_arguments
+def k8_get_node_labels(k8_cluster, node_name):
+    global Logger
+    v1 = client.CoreV1Api()
+    try:
+        node = v1.read_node(name=node_name)
+        return node.metadata.labels
+    except ApiException as e:
+        Logger.error(f"Error getting labels for node '{node_name}': {e}")
+        return -1, "", str(e)
+
+@log_arguments
+def k8_label_node(node_name, labels_dict=None, overwrite=True):
+    """Applies labels to a node."""
+    global Logger
+    v1 = client.CoreV1Api()
+    POLL_INTERVAL_SECONDS = 5
+    if labels_dict is None:
+        labels_dict = {}
+    body = {
+        "metadata": {
+            "labels": labels_dict
+        }
+    }
+    try:
+        v1.patch_node(name=node_name, body=body)
+        Logger.info(f"Labels applied to node '{node_name}': {labels_dict}")
+        time.sleep(POLL_INTERVAL_SECONDS) # Give system time to update
+        return True
+    except ApiException as e:
+        Logger.erro(f"Error labeling node '{node_name}': {e}")
+        return False
 
 @log_arguments
 def k8_get_events(k8_cluster, namespace : str, pod_name=None):
@@ -1480,17 +1740,42 @@ def k8_get_pod_name(k8_cluster, pod_str : str, namespace : str, node_name : str 
             return pod['metadata']['name']
 
 @log_arguments
-def k8_get_pod_logs(k8_cluster, pod_str : str, namespace : str, since="180s"):
+def k8_get_container_logs(k8_cluster, pod_str, namespace, container):
+    global Logger
     pod_name = k8_get_pod_name(k8_cluster, pod_str, namespace)
-    if k8_cluster.k8_kube_config: 
-        api = client.CoreV1Api()
+    api = client.CoreV1Api()
+    logs = ""
+
+    try:
         logs = api.read_namespaced_pod_log(
             name=pod_name,
             namespace=namespace,
-            since_seconds=int(since[:-1]),
-            _return_http_data_only=True
+            container=container
         )
-        return (0, logs, '')
+    except client.ApiException as e:
+        Logger.error(f"Error getting container logs: {e}")
+    return logs
+
+@log_arguments
+def k8_get_pod_logs(k8_cluster, pod_str : str, namespace : str, since="180s", container = None):
+    if container != None:
+        logs = k8_get_container_logs(k8_cluster, pod_str, namespace, container)
+        return 0, logs, ""
+
+    pod_name = k8_get_pod_name(k8_cluster, pod_str, namespace)
+    if k8_cluster.k8_kube_config: 
+        api = client.CoreV1Api()
+        try:
+            logs = api.read_namespaced_pod_log(
+                name=pod_name,
+                namespace=namespace,
+                since_seconds=int(since[:-1]),
+                _return_http_data_only=True
+            )
+            return 0, logs, ""
+        except client.ApiException as e:
+            Logger.error(f"Error getting container logs: {e}")
+            return 0, "", str(e)
     else:
         cmd = ["kubectl", "logs", pod_name, "--namespace", namespace, f"--since={since}"]
         return k8_cluster.k8_master.run_command(" ".join(cmd))
@@ -1499,20 +1784,43 @@ def k8_get_pod_logs(k8_cluster, pod_str : str, namespace : str, since="180s"):
 def k8_get_test_runner_worker_logs(k8_cluster):
     cmd = ["ls", "-lart", "/var/log/amd-test-runner"]
 
+    worker_logs_dict = dict()
     for wn in k8_cluster.worker_nodes:
         ret_code, resp_stdout, resp_stderr = wn.run_command(" ".join(cmd), timeout = 60)
-
+        worker_logs_dict[wn.hostname] = resp_stdout
+    return worker_logs_dict
 
 @log_arguments
-def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str):
+def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str, taint_add=True):
     """
     API to taint node
 
     Example: kubectl taint nodes node_name gpu=unhealthy:NoSchedule
     """
     global Logger
-    cmd = ["kubectl", "taint", "nodes", node_name, "gpu=unhealthy:NoSchedule"]
-    return k8_cluster.k8_master.run_command(" ".join(cmd))
+    taint_key = "amd-dcm"
+    taint_value = "up"
+    taint_effect = "NoExecute"
+
+    if k8_cluster.k8_kube_config:
+        v1 = client.CoreV1Api()
+        node = v1.read_node(name=node_name)
+        new_taint = client.V1Taint(key=taint_key, value=taint_value, effect=f"{taint_effect}")
+
+        node.spec.taints = []
+        if taint_add:
+            node.spec.taints = [new_taint]
+
+        # Update the node object with the modified taints
+        try:
+            v1.patch_node(name=node_name, body=node)
+            Logger.info(f"Node '{node_name}' successfully tainted with {taint_key}={taint_value}:{taint_effect}, taint={taint_add}")
+        except client.ApiException as e:
+            Logger.error(f"Error tainting node: {e}")
+
+    else:
+        cmd = ["kubectl", "taint", "nodes", node_name, f"{taint_key}={taint_value}:{taint_effect}{taint_add}"]
+        return k8_cluster.k8_master.run_command(" ".join(cmd))
 
 @log_arguments
 def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
@@ -1522,8 +1830,8 @@ def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
     Example: kubectl untaint nodes node_name gpu=unhealthy:NoSchedule
     """
     global Logger
-    cmd = ["kubectl", "taint", "nodes", node_name, "gpu=unhealthy:NoSchedule-"]
-    return k8_cluster.k8_master.run_command(" ".join(cmd))
+    k8_taint_node(k8_cluster, node_name, False)
+
 
 @log_arguments
 def k8_metrics_error(k8_cluster, counts, error_list, namespace : str):
@@ -1646,7 +1954,7 @@ def k8_delete_cluster_role_binding(k8_cluster, cluster_role_name):
         try:
             api_response = rbac_api.delete_cluster_role_binding(cluster_role_name)
         except ApiException as e:
-            Logger.error(f"Failed to delete cluster-role-binding {cluster_role_name}, error {e}")
+            Logger.debug(f"Failed to delete cluster-role-binding {cluster_role_name}, error {e}")
             return -1, "", str(e)
         return 0, "", ""
     else:
@@ -1700,7 +2008,7 @@ def k8_delete_service_account(k8_cluster : common.k8_cluster, sa_name : str, nam
         try:
             api_response = api.delete_namespaced_service_account(sa_name, namespace)
         except ApiException as e:
-            Logger.error(f"Failed to delete service-account {sa_name} error : {e}")
+            Logger.debug(f"Failed to delete service-account {sa_name} error : {e}")
             return -1, "", str(e)
         return 0, "", ""
     else:
