@@ -79,7 +79,7 @@ def parse_metric_data(http_response):
             })
     return metrics
 
-def get_supported_metrics(gpu_series = None):
+def get_supported_metrics(gpu_series = None, skip_profiler_metrics = True):
     global Logger
     with open('lib/files/metrics-support.json', 'r') as fp:
         metrics_data = json.load(fp)
@@ -87,6 +87,8 @@ def get_supported_metrics(gpu_series = None):
     if gpu_series:
         supported_metrics = []
         for entry in metrics_data['metrics']:
+            if skip_profiler_metrics and '_PROF_' in entry['name']:
+                continue
             for support in entry['gpu-support']:
                 if gpu_series in support['gpu']:
                     supported_metrics.append(entry)

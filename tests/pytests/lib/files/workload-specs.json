@@ -1,0 +1,171 @@
+{
+    "workload-specs" : [
+        {
+            "workload-type" : "rocm-pytorch-benchmark",
+            "spec" : {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "pytorch-gpu-pod-1",
+                    "namespace": "default",
+                    "labels": {
+                        "purpose": "demo-wl"
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "pytorch-gpu-container",
+                            "image": "docker.io/rocm/pytorch:latest",
+                            "workingDir": "/root",
+                            "command": [
+                                "/bin/bash",
+                                "-c",
+                                "--"
+                            ],
+                            "args": [
+                                "git clone https://github.com/ROCm/pytorch-micro-benchmarking.git;",
+                                "cd pytorch-micro-benchmarking;",
+                                "python micro_benchmarking_pytorch.py --network resnet50 --compile > /tmp/benchmark-output;",
+                                "sleep infinity & wait"
+                            ],
+                            "resources": {
+                                "limits": {
+                                    "amd.com/gpu": 0
+                                }
+                            }
+                        }
+                    ],
+                    "nodeSelector": {
+                        "kubernetes.io/hostname": "node"
+                    }
+                }
+            }
+        },
+        {
+            "workload-type" : "busybox-workload",
+            "spec" : {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "busybox-workload",
+                    "namespace": "default",
+                    "labels": {
+                        "purpose": "sample-workload"
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "busybox-container",
+                            "image": "registry.test.pensando.io:5000/busybox:1.36",
+                            "workingDir": "/root",
+                            "command": [
+                                "/bin/sh",
+                                "-c",
+                                "--"
+                            ],
+                            "args": [
+                                "sleep infinity & wait"
+                            ],
+                            "resources": {
+                                "limits": {
+                                    "amd.com/gpu": 0
+                                }
+                            }
+                        }
+                    ],
+                    "nodeSelector": {
+                        "kubernetes.io/hostname": "node"
+                    }
+                }
+            }
+        },
+        {
+            "workload-type" : "alexnet-tf-gpu",
+            "spec" : {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "alexnet-tf-gpu-pod",
+                    "namespace": "default",
+                    "labels": {
+                        "purpose": "demo-alexnet"
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "alexnet-tf-gpu-container",
+                            "image": "registry.test.pensando.io:5000/rocm/tensorflow:latest",
+                            "workingDir": "/root",
+                            "command": [
+                                "/bin/bash",
+                                "-c",
+                                "--"
+                            ],
+                            "args": [
+                                "sed -i '/from models.experimental import deepspeech/d' /benchmarks/scripts/tf_cnn_benchmarks/models/model_config.py;",
+                                "while :; do",
+                                "   python3 /benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py --model=alexnet;",
+                                "   sleep 5;",
+                                "done"
+                            ],
+                            "resources": {
+                                "limits": {
+                                    "amd.com/gpu": 0
+                                }
+                            }
+                        }
+                    ],
+                    "nodeSelector": {
+                        "kubernetes.io/hostname": "node"
+                    }
+                }
+            }
+        },
+        {
+            "workload-type" : "resnet-tf-gpu",
+            "spec" : {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "resnet-tf-gpu-pod",
+                    "namespace": "default",
+                    "labels": {
+                        "purpose": "demo-alexnet"
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "resnet-tf-gpu-container",
+                            "image": "registry.test.pensando.io:5000/rocm/tensorflow:latest",
+                            "workingDir": "/root",
+                            "command": [
+                                "/bin/bash",
+                                "-c",
+                                "--"
+                            ],
+                            "args": [
+                                "sed -i '/from models.experimental import deepspeech/d' /benchmarks/scripts/tf_cnn_benchmarks/models/model_config.py;",
+                                "while :; do",
+                                "   python3 /benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py --model=resnet;",
+                                "   sleep 5;",
+                                "done"
+                            ],
+                            "resources": {
+                                "limits": {
+                                    "amd.com/gpu": 0
+                                }
+                            }
+                        }
+                    ],
+                    "nodeSelector": {
+                        "kubernetes.io/hostname": "node"
+                    }
+                }
+            }
+        }
+    ]
+}

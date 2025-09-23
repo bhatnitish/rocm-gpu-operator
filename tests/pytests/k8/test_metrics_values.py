@@ -38,7 +38,7 @@ from k8.util import K8Helper
 Logger = logging.getLogger("k8.test_metrics_values")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
     yield
@@ -118,6 +118,30 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
+    # Enable profile-metrics
+    config_map_name = "prof-metrics-cfgmap"
+    config_map = {
+        "GPUConfig" : {
+            "ProfilerMetrics": {
+                "all": True,
+            }
+        },
+    }
+    configmap_file = os.path.join(environment.logdir, f"{config_map_name}.json")
+    with open(configmap_file, "w") as fp:
+        fp.write(json.dumps(config_map, indent=4))
+
+    configmap_file = os.path.join(environment.logdir, f"config.json")
+    with open(configmap_file, "w") as fp:
+        fp.write(json.dumps(config_map, indent=4))
+
+    # Delete if there is any previous instance with same name
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(gpu_cluster, environment.gpu_operator_namespace, config_map_name)
+    Logger.debug(f"Configmap cleanup: ret_code:{ret_code}")
+    # ignore ret_code
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_configmap(gpu_cluster, 
+                                                                   environment.gpu_operator_namespace,
+                                                                   config_map_name, configmap_file)
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
             'driver.enable' : True,
@@ -127,6 +151,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
             'metricsExporter.port' : 5000,
             'metricsExporter.rbacConfig.enable' : False,
             'metricsExporter.rbacConfig.disableHttps' : False,
+            'metricsExporter.config' : config_map_name,
         }
     test_config.update(images)
 
@@ -205,13 +230,14 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
 
 @pytest.fixture(scope="module")
-def metrics_samples(gpu_cluster, deviceconfig_install, amd_smi_collect, environment):
+def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, environment):
     global Logger
     global LogPrettyPrinter
     Logger.info(f"Collecting metrics-exporter curl output, amd-smi metrics and gpuctl metrics snapshot")
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    K8Helper.delete_debug_pods(gpu_cluster, [environment.gpu_operator_namespace, "default"])
 
     # Watch for all pod creation
     '''
@@ -338,11 +364,15 @@ def metrics_samples(gpu_cluster, deviceconfig_install, amd_smi_collect, environm
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
         gpu_cap, gpu_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-        for idx in range(gpu_cap):
-            workload_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, node_name=node_name)
-            K8Helper.triage(environment, (workload_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING),
-                            f"Workload-{idx} failed to start {workload_ctxt}")
-            local_workload_ctxts.append(workload_ctxt)
+        params = {
+            "node_name" : node_name,
+            "images" : images,
+            "num_gpu_reqd" : gpu_cap,
+        }
+        workload_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
+        K8Helper.triage(environment, (workload_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING),
+                        f"Job: workload failed to start : {workload_ctxt}")
+        local_workload_ctxts.append(workload_ctxt)
 
     # Collect new sample of metrics
     workload_metrics = {}
@@ -404,7 +434,7 @@ def metrics_samples(gpu_cluster, deviceconfig_install, amd_smi_collect, environm
             K8Helper.triage(environment, (len(gpuctl_metrics) == num_samples),
                             f"Failed to collect all required number of gpucltl-metrics samples for node {node_name}")
     for ctxt in local_workload_ctxts:
-        K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+        K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **ctxt)
     yield (idle_metrics, workload_metrics)
     return
 

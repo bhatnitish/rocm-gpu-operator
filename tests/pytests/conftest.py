@@ -95,6 +95,12 @@ def pytest_addoption(parser):
             default=None,
             help="Path to tech-support tool to collect information",
     )
+    parser.addoption(
+            "--workload-selection",
+            action="store",
+            default="alexnet-tf-gpu",
+            help="Workload template to use",
+    )
 
 
 def pytest_html_report_title(report):
@@ -138,22 +144,28 @@ def environment(request):
         with open(request.config.option.amdgpu_driver_spec, "r") as fp:
             driver_spec = json.load(fp)
             setattr(tenv, 'amdgpu_driver_spec', driver_spec)
-    kube_config_file = kube_config = os.path.join(Path.home(), ".kube", "config")
+    kube_config_file = os.path.join(Path.home(), ".kube", "config")
     if os.path.exists(kube_config_file):
         setattr(tenv, 'kube_config_file', kube_config_file)
     else:
         pytest.fail("Failed to find kube_config_file for cluster operator - Aborting")
 
+    # Secrets file
     secrets_json_file = os.path.join(Path.home(), ".kube", "secrets.json")
     if request.config.option.secrets_json:
         secrets_json_file = request.config.option.secrets_json
     if os.path.exists(secrets_json_file):
         setattr(tenv, 'k8_secrets_file', secrets_json_file)
+
+    # Tech-support tool
     setattr(tenv, 'tech_support_tool', None)
     if request.config.option.tech_support_tool:
         if os.path.exists(request.config.option.tech_support_tool):
             setattr(tenv, 'tech_support_tool', request.config.option.tech_support_tool)
             os.makedirs(os.path.join(tenv.logdir, "tech-support"), exist_ok=True)
+
+    # Workload Template
+    setattr(tenv, 'default_workload', request.config.option.workload_selection)
     '''
     request.config._metadata['Helm-Chart Version'] = request.config.option.gpu_operator_version
     request.config._metadata['Metrics Exporter Version'] = request.config.option.metrics_exporter_version
@@ -165,13 +177,33 @@ def environment(request):
 def gpu_cluster(request, release_name, environment):
     global Logger
     if environment.deployment_mode in ["k8", "openshift"]:
-        localhost = common.Node("localhost", None, None, None, "master", None)
-        k8_cluster_inst = common.k8_cluster(master_node = localhost)
+        k8_util.k8_lib_init(environment.kube_config_file)
+        ret_code, k8_nodes = k8_util.k8_get_nodes()
+        assert ret_code == 0, "Failed to collect nodes from cluster"
+        master_node = None
+        worker_nodes = []
+        mini_kube_cluster = False
+        for node in k8_nodes:
+            node_ip = k8_util.k8_get_node_address(node)
+            if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
+                master_node = common.Node(node_ip, None, None, None, "master", None)
+                if 'node-role.kubernetes.io/worker' in node['metadata']['labels']:
+                    Logger.info(f"control-plane node is also a worker-node")
+                    worker_nodes.append(common.Node(node_ip, None, None, None, "worker", None))
+                    mini_kube_cluster = True
+                else:
+                    Logger.warn(f"control-plane node is not a worker-node - skipping it")
+                    continue # skip control-plane node
+            else:
+                worker_nodes.append(common.Node(node_ip, None, None, None, "worker", None))
+
+        k8_cluster_inst = common.k8_cluster(master_node, worker_nodes, mini_kube_cluster)
         k8_cluster_inst.k8_kube_config = environment.kube_config_file
+        assert len(k8_cluster_inst.worker_nodes) > 0, f"Failed to collect worker nodes from k8/cluster"
         if hasattr(environment, "k8_secrets_file"):
             with open(environment.k8_secrets_file) as fp:
                 k8_cluster_inst.k8_secrets = json.load(fp)
-        cleanup_cluster(k8_cluster_inst, release_name, environment)
+        cleanup_cluster(request, k8_cluster_inst, release_name, environment)
         return k8_cluster_inst
     else:
         # Build testbed_info from testbed-yaml file
@@ -283,7 +315,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
 
     images = image_manifest['k8']
     # prepare to download gpu-operator
-    setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'].split("-", 1)[0])
+    setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
     if 'build' in images['gpu-operator']:
         setattr(environment, 'gpu_operator_build', images['gpu-operator']['build'])
     setattr(environment, 'metrics_exporter_version', images['device-metrics-exporter']['version'])
@@ -291,8 +323,6 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
         setattr(environment, 'metrics_exporter_build', images['device-metrics-exporter']['build'])
 
     os.makedirs(environment.download_folder, exist_ok=True)
-    gpu_cluster.k8_master.run_command(f"rm -r -f {environment.download_folder}")
-    gpu_cluster.k8_master.run_command(f"mkdir -p {environment.download_folder}")
     image_info['image_folder'] = environment.download_folder
 
     for artifact, artifact_info in images.items():
@@ -312,13 +342,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
             if not os.path.exists(local_file):
                 pytest.fail(f"Invalid file name or path not found : {local_file}")
             # If not local, upload these files to the master node
-            if not gpu_cluster.k8_master.is_local():
-                # Upload the downloaded files to gpu_cluster.k8_master
-                remote_file = os.path.join(environment.download_folder, os.path.basename(local_file))
-                gpu_cluster.k8_master.put(local_file, remote_file)
-                file_path = remote_file
-            else:
-                file_path = local_file
+            file_path = local_file
 
             if artifact_info['kind'] == 'container':
                 if gpu_cluster.k8_master.is_local_registry_available():
@@ -407,7 +431,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
 
     return image_info
 
-def cleanup_cluster(gpu_cluster, release_name, environment):
+def cleanup_cluster(request, gpu_cluster, release_name, environment):
     global Logger
     Logger.info("Delete any deviceconfig CRs from the cluster")
     def _delete_deviceconfigs(k8_cluster : common.k8_cluster, namespace : str) -> None:
@@ -421,12 +445,10 @@ def cleanup_cluster(gpu_cluster, release_name, environment):
         for namespace in namespaces:
             k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "node-debug-")
             k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "curl-cmd-pod-")
-            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "pytorch-")
+            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "gpu-workload-")
             k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "techsupport-")
             k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "test-runner-manual-trigger-")
 
-    # Init k8 config
-    k8_util.k8_lib_init(gpu_cluster)
     # cleanup
     _delete_deviceconfigs(gpu_cluster, environment.gpu_operator_namespace)
     _delete_debug_pods(gpu_cluster, ["default", environment.gpu_operator_namespace])
@@ -437,4 +459,7 @@ def cleanup_cluster(gpu_cluster, release_name, environment):
         if ret_code != 0:
             k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
         #k8_util.k8_delete_namespace(gpu_cluster, environment.gpu_operator_namespace)
+
+    # Init k8 cluster
+    k8_util.k8_init_cluster(gpu_cluster)
     return

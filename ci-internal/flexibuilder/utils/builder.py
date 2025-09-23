@@ -106,13 +106,25 @@ class BuilderInterface:
             listing = cmn_routines.fetch_page(self.__url_prefix)
             self.__file_names = cmn_routines.get_file_names_from_html(listing)
 
-        def _find_matching_file(self, asset_entry):
+        def _find_matching_file_with_release_tag(self, asset_entry):
             basename = os.path.basename(asset_entry)
             asset_prefix = str(basename)
             if '.tar.gz' in basename:
-                asset_prefix = str(basename).replace(".tar.gz", "")
+                asset_prefix = f"{str(basename).replace('.tar.gz', '')}-{self.__hourly_bld}"
             elif '.tgz' in basename:
-                asset_prefix = str(basename).replace(".tgz", "")
+                asset_prefix = f"{str(basename).replace('.tgz', '')}-{self.__hourly_bld}"
+            for entry in self.__file_names:
+                if asset_prefix in entry:
+                    return entry
+            return None
+
+        def _find_matching_file_with_no_release_tag(self, asset_entry):
+            basename = os.path.basename(asset_entry)
+            asset_prefix = str(basename)
+            if '.tar.gz' in basename:
+                asset_prefix = f"{str(basename).replace('.tar.gz', '')}"
+            elif '.tgz' in basename:
+                asset_prefix = f"{str(basename).replace('.tgz', '')}"
             for entry in self.__file_names:
                 if asset_prefix in entry:
                     return entry
@@ -134,8 +146,12 @@ class BuilderInterface:
                 for idx, entry in enumerate(self.target_spec['artifacts']):
                     Logger.info(f"Artifact-{idx+1}: {entry}")
                     # Download file from self.__url_prefix + artifact-name + prefix/suffix
-                    download_url = f"{self.__url_prefix}/{self._find_matching_file(entry)}"
-                    if download_url:
+                    url_suffix = self._find_matching_file_with_release_tag(entry)
+                    if url_suffix == None:
+                        url_suffix = self._find_matching_file_with_no_release_tag(entry)
+
+                    if url_suffix:
+                        download_url = f"{self.__url_prefix}/{url_suffix}"
                         resp = cmn_routines.download_file(download_url, entry)
                         if resp != types.return_codes.SUCCESS:
                             return resp

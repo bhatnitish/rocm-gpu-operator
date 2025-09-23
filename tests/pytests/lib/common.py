@@ -115,6 +115,8 @@ class cluster_node(object):
             self._gpu_series = 'MI250'
         elif device_id == '0x74a1':
             self._gpu_series = 'MI300X'
+        elif device_id == '0x75a0':
+            self._gpu_series = 'MI350X'
         else:
             self._gpu_series = 'UNKNOWN'
 
@@ -356,12 +358,13 @@ class cluster(object):
 
 class k8_cluster(cluster):
 
-    def __init__(self, master_node = None, nodes = list()):
+    def __init__(self, master_node = None, nodes = list(), mini_kube_cluster = False):
         super().__init__(nodes, TestbedType.K8)
         self._k8_master = None
         self._k8_kube_config = None
         self._k8_secrets = {}
         self._k8_registry = 'docker.io'
+        self._mini_kube_cluster = mini_kube_cluster
         if master_node:
             assert master_node.NodeType == "master"
             self._k8_master = k8_master_node(master_node.IpAddress, master_node.Username, master_node.Password, master_node.Identity)
@@ -369,6 +372,10 @@ class k8_cluster(cluster):
     @property
     def k8_master(self):
         return self._k8_master
+
+    @property
+    def mini_kube_cluster(self):
+        return self._mini_kube_cluster
 
     @property
     def k8_kube_config(self):
@@ -393,6 +400,7 @@ class k8_cluster(cluster):
     @k8_registry.setter
     def k8_registry(self, registry):
         self._k8_registry = registry
+
  
 class standalone_gpu_nodes(cluster):
 

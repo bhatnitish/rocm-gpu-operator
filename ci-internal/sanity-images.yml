@@ -41,7 +41,7 @@ images:
 
         config-manager:
             key         : configManager.image
-            image       : /device-config-manager/docker/obj/device-config-manager-config-manager.tgz
+            image       : /device-config-manager/docker/obj/device-config-manager.tgz
             kind        : container
 
         device-plugin:

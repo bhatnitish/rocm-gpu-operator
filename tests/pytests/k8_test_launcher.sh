@@ -22,6 +22,7 @@ function usage() {
     echo "          --help print help/usage information"
     echo "          --secrets secrets.json file"
     echo "          --amdgpu-driver-spec <driver-version-spec>"
+    echo "          --workload-selection <workload-name>"
     echo "          --image-manifest <path-to-image-manifest>"
     echo "          --module <module-name>. Eq: test_<module_name>.py"
     echo "          --testcase <testcase-name> Eq: def test_<tc_name>"
@@ -39,6 +40,7 @@ TC_MODULE="ALL"
 TC_NAME="ALL"
 ENABLE_DEBUGGING="NA"
 DRIVER_SPEC="NA"
+WORKLOAD_NAME="NA"
 TECH_SUPPORT_TOOL=${TECH_SUPPORT_TOOL:-"${PWD}/techsupport_dump.sh"}
 
 function collect_tech_support() {
@@ -108,6 +110,10 @@ function launch_pytest() {
     then
         CMD_OPT+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
     fi
+    if [[ "${WORKLOAD_NAME}" != "NA" ]];
+    then
+        CMD_OPT+=" --workload-selection ${WORKLOAD_NAME}"
+    fi
     CMD_OPT+=" --image-manifest ${IMAGE_MANIFEST}"
     echo ""
     echo "****** USING FOLLOWING IMAGES FOR THE TEST ******"
@@ -152,6 +158,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --amdgpu-driver-spec)
             DRIVER_SPEC="$2"
+            shift
+        ;;
+        --workload-selection)
+            WORKLOAD_NAME="$2"
             shift
         ;;
 	--debug)

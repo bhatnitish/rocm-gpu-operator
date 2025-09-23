@@ -37,7 +37,7 @@ LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
 
 debug_on_failure = K8Helper.triage
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
     yield

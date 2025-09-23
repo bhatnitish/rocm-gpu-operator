@@ -398,10 +398,10 @@ def _load_images(logger, registry, image_manifest):
                     continue
 
                 loaded_image = loaded_images[0]
-                loaded_image_id = loaded_image.id
                 loaded_image_tag = loaded_image.tags[0]
                 _, image_ver = loaded_image_tag.split('/', 1)
                 image_name, image_tag = image_ver.split(':')
+                logger.info(f"For artifact: {artifact_name}, image-tag: {loaded_image_tag}, derived image-name: {image_name} tag: {image_tag}")
 
                 # Push tag to specified registry
                 tag = image_tag
@@ -419,7 +419,7 @@ def _load_images(logger, registry, image_manifest):
                                 logger.error(f"Error while pushing image {new_image}:{tag}, error: {err_msg}")
                                 successful = False
                                 break
-                            logger.debug(f"{new_image}:{tag} => {line}")
+                            #logger.debug(f"{new_image}:{tag} => {line}")
                     except docker.errors.APIError as de:
                         logger.error(f"Fatal Error: Unable to tag image {image_file}, error : {de}")
                         result = False

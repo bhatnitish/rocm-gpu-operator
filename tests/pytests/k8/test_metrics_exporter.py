@@ -36,7 +36,7 @@ from k8.util import K8Helper
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_metrics_exporter")
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
     yield
@@ -376,7 +376,8 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name,
+                                                                      k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
@@ -512,7 +513,8 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name,
+                                                                      k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
@@ -928,7 +930,8 @@ def test_exporter_servicetype_default_rbac_support(gpu_cluster, deviceconfig_ins
                     f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name,
+                                                                      k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
@@ -1043,7 +1046,8 @@ def test_exporter_servicetype_default_rbac_http(gpu_cluster, deviceconfig_instal
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name,
+                                                                      k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
@@ -1160,7 +1164,8 @@ def test_exporter_clusterip_rbac_internal_port(gpu_cluster, deviceconfig_install
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name,
+                                                                      k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get
@@ -1274,7 +1279,8 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create service-account, error:{ret_stderr}")
 
     # Define ClusterRole: verb=get
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, [("/metrics", "get")])
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name,
+                                                                      k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
     K8Helper.triage(environment, (ret_code == 0), f"Failed to create metrics-reader clusterrole with GET, error:{ret_stderr}")
 
     # Define ClusterRoleBinding: verb=get

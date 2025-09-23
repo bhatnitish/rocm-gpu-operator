@@ -32,7 +32,7 @@ from k8.util import K8Helper
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_node_labeller")
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
     yield
@@ -280,9 +280,9 @@ def test_node_labeller_check_labels(gpu_cluster, deviceconfig_install, environme
         # expected labels list
         exp_label_list = ["amd.com/gpu.family", "amd.com/gpu.device-id", "amd.com/gpu.vram", "amd.com/gpu.simd-count"]
         # get node labels
-        ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl get node {node_name} -o json | jq .metadata.labels")
-        K8Helper.triage(environment, (ret_code == 0), "Failed to get labels for node {node_name}: err: {resp_stderr}")
-        labels_dict = json.loads(resp_stdout)
+        labels = k8_util.k8_get_node_labels(gpu_cluster, node_name)
+        K8Helper.triage(environment, (labels != None), "Failed to get labels for node {node_name}")
+        labels_dict = labels
         Logger.info(f'labels: {labels_dict}') 
         for label in exp_label_list:
             Logger.info(f'Check label: {label}')

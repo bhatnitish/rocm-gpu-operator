@@ -105,6 +105,7 @@ function load_images() {
     echo "    (1) load images into registry : ${REGISTRY}"
     echo "    (2) generate image-manifest-yaml for test"
     echo ""
+
     /gpu-operator/ci-internal/k8_jobd_ctl.py image --load-images --registry $REGISTRY --image-manifest $IMAGE_MANIFEST --testbed $TESTBED_JSON --setup-insecure-registry
     RET=$?
     if [[ "$RET" != "0" ]]

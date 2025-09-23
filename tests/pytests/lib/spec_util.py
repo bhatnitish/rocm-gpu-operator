@@ -241,49 +241,6 @@ device_config_templates = {
 
 device_config_template_default = device_config_template_v1_3_0
 
-
-wl_template = {
-    'apiVersion': 'v1', 
-    'kind': 'Pod', 
-    'metadata': {
-         'name': 'pytorch-gpu-pod-1', 
-         'namespace': 'default',
-         'labels': {
-             'purpose': 'demo-wl'
-         }
-    }, 
-    'spec': {
-        'containers': [
-            {
-                'name': 'pytorch-gpu-container',
-                'image': 'docker.io/rocm/pytorch:latest',
-                'workingDir': '/root',
-                'command': [
-                    '/bin/bash',
-                    '-c',
-                    '--'
-                ],
-                'args': [
-                    'rocm-smi > /tmp/rocm-smi-output; git clone https://github.com/ROCm/pytorch-micro-benchmarking.git; cd pytorch-micro-benchmarking;  python micro_benchmarking_pytorch.py --network resnet50 --compile > /tmp/benchmark-output; sleep infinity & wait'
-                ],
-                'resources': {
-                    'limits': {
-                        'amd.com/gpu': 0
-                    }
-                }
-            }
-        ],
-        'nodeSelector': {
-            'kubernetes.io/hostname': 'node'
-        },
-        'imagePullSecrets': [
-            {
-                'name': 'docker-amdpsdo-auth',
-            }
-        ]
-    }
-}
-
 helm_deployment_template_0 = {
     'node-feature-discovery' : {
         'enabled': DQ('true'),
@@ -574,18 +531,23 @@ def generate_helmchart_deployment_config(gpu_operator_version, images, file_name
         return dump_yaml(file_name, helmchart_values)
     return modifed
 
-def generate_k8_workload_template(file_name, spec = {}):
+def generate_k8_workload_template(wl_template, workload_config, wl_cr_file):
     """
-    Generates a simple workload yaml file based on the wl_template
+    Generates a workload yaml file
     """
     global Logger
-    wl_config = copy.deepcopy(wl_template)
-    wl_config['metadata']['namespace'] = spec.get('namespace', 'default')
-    wl_config['metadata']['name'] = spec.get('pod_name', 'pytorch-gpu-pod-1')
-    wl_config['spec']['containers'][0]['resources']['limits']['amd.com/gpu'] = spec.get('num_gpu', 1)
-    wl_config['spec']['nodeSelector']['kubernetes.io/hostname'] = spec.get('nodeSelector')
+    wl_cr = copy.deepcopy(wl_template)
+    wl_cr['metadata']['namespace'] = workload_config.get('namespace', 'default')
+    wl_cr['metadata']['name'] = workload_config.get('pod_name', 'pytorch-gpu-pod-1')
+    wl_cr['spec']['containers'][0]['resources']['limits']['amd.com/gpu'] = workload_config.get('num_gpu_reqd', 1)
+    wl_cr['spec']['nodeSelector']['kubernetes.io/hostname'] = workload_config.get('nodeSelector')
+    for cntr in wl_cr['spec']['containers']:
+        if len(cntr['args']) > 1:
+            full_args = "".join(cntr['args'])
+            cntr['args'].clear()
+            cntr['args'].append(full_args)
 
-    return dump_yaml(file_name, wl_config)
+    return dump_yaml(wl_cr_file, wl_cr)
 
 def generate_service_account_yaml(file_name, namespace, sa_name):
     """

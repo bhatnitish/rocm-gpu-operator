@@ -61,7 +61,7 @@ metrics_fields = {
 #    K8Helper.triage(environment, condition, message)
 debug_on_failure = K8Helper.triage
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
     yield
@@ -416,7 +416,6 @@ def create_configmap(request, gpu_cluster, deviceconfig_install, environment, fr
                 tcfg['testRunner.image.version'] = tcfg['testRunner.image.version'][6:]
         elif framework == "AGFHC":
             tcfg['testRunner.image.version'] = "agfhc-" + tcfg['testRunner.image.version']
-        tcfg['metricsExporter.config'] = configmap_name
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         #TODO should we be using modify OR create? For cmdline modify is defaulting to create
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
@@ -475,7 +474,11 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster, "test-runner", environment.gpu_operator_namespace)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
 
-    if framework == "AGFHC":
+    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
+    if gpu_series and 'MI2' in gpu_series:
+        new_framework = "RVS"
+        new_recipe = "pebb_single"
+    elif framework == "AGFHC":
         new_framework = "RVS"
         new_recipe = "babel"
     else:
@@ -509,7 +512,7 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     ("RVS", "iet_stress"),
     ("AGFHC", "gfx_lvl1")
 ])
-def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, environment, framework, recipe):
+def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, images, environment, framework, recipe):
     namespace = environment.gpu_operator_namespace
     global Logger
     global LogPrettyPrinter
@@ -518,6 +521,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, envi
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    K8Helper.delete_debug_pods(gpu_cluster, [environment.gpu_operator_namespace, "default"])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series and recipe == "iet_stress":
@@ -545,11 +549,16 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, envi
     local_workload_ctxts = []
 
     verify_gpu_capacity_status(gpu_cluster, environment, worker, 1)
-    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, num_gpu_reqd=init_cap, node_name=worker)
+    params = {
+        "node_name" : worker,
+        "num_gpu_reqd" : init_cap,
+        "workload_selection" : "busybox-workload",
+    }
+    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
     local_workload_ctxts.append(wl_ctxt)
     def _cleanup():
         for ctxt in local_workload_ctxts:
-            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **ctxt)
         k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
         return
 
@@ -596,7 +605,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, envi
     ("RVS", "babel"),
     ("AGFHC", "xgmi_lvl1")
 ])
-def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig_install, environment, recipe, framework):
+def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig_install, images, environment, recipe, framework):
     #recipe = "babel"
     namespace = environment.gpu_operator_namespace
     global Logger
@@ -606,7 +615,12 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    K8Helper.delete_debug_pods(gpu_cluster, [environment.gpu_operator_namespace, "default"])
     gpu_node = gpu_nodes[0]
+    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
+    if gpu_series and 'MI2' in gpu_series:
+        if framework == "AGFHC":
+            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, worker)
 
@@ -628,7 +642,12 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     Logger.info(f"This workload should get created")
     local_workload_ctxts = []
     verify_gpu_capacity_status(gpu_cluster, environment, worker, 1)
-    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, num_gpu_reqd=init_cap, node_name=worker)
+    params = {
+        "node_name" : worker,
+        "num_gpu_reqd" : init_cap,
+        "workload_selection" : "busybox-workload",
+    }
+    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
     local_workload_ctxts.append(wl_ctxt)
     debug_on_failure(environment, wl_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING,
                      f"Workload not in running state, {wl_ctxt}")
@@ -636,7 +655,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
 
     def _cleanup():
         for ctxt in local_workload_ctxts:
-            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=ctxt)
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **ctxt)
         k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, environment.gpu_operator_namespace)
         return
     request.addfinalizer(_cleanup)
@@ -666,7 +685,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     #TODO figure out later
     #k8_util.k8_untaint_node(gpu_cluster, worker)
 
-    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=wl_ctxt)
+    K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **wl_ctxt)
     verify_logs(gpu_cluster, environment, [f"Starting iteration 1 of 1 for test: {recipe}", f"trigger AUTO_UNHEALTHY_GPU_WATCH is trying to run test {recipe}"], since="180s", switch="or")
     verify_logs(gpu_cluster, environment, [f"trigger AUTO_UNHEALTHY_GPU_WATCH is trying to run test {recipe} on device"])
 
@@ -680,14 +699,19 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     ("RVS", "gst_single"),
     ("AGFHC", "dma_lvl1")
 ])
-def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconfig_install, environment, recipe, framework):
+def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconfig_install, images, environment, recipe, framework):
     namespace = environment.gpu_operator_namespace
     global Logger
     global LogPrettyPrinter
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    K8Helper.delete_debug_pods(gpu_cluster, [environment.gpu_operator_namespace, "default"])
     gpu_node = gpu_nodes[0]
+    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
+    if gpu_series and 'MI2' in gpu_series:
+        if framework == "AGFHC":
+            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, worker)
     time.sleep(30)
@@ -701,11 +725,16 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     verify_gpu_capacity_status(gpu_cluster, environment, worker, 1)
 
     local_workload_ctxts = []
-    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, num_gpu_reqd=init_cap, node_name=worker)
+    params = {
+        "node_name" : worker,
+        "num_gpu_reqd" : init_cap,
+        "workload_selection" : "busybox-workload",
+    }
+    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
     local_workload_ctxts.append(wl_ctxt)
     def _delete_workload():
         for ctxt in local_workload_ctxts:
-            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=wl_ctxt)
+            K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **wl_ctxt)
         return
 
     request.addfinalizer(_delete_workload)
@@ -801,10 +830,14 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    K8Helper.delete_debug_pods(gpu_cluster, [environment.gpu_operator_namespace, "default"])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series and recipe == "iet_stress":
-        recipe = "iet_single"
+    if gpu_series and 'MI2' in gpu_series:
+        if recipe == "iet_stress":
+            recipe = "iet_single"
+        elif framework == "AGFHC":
+            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, worker)
     trigger = "MANUAL"
@@ -820,13 +853,18 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
     sa_name = "test-run"
     cluster_role_name = "test-run-cluster-role"
     crb_name = 'test-run-rb'
-    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, num_gpu_reqd=init_cap, node_name=worker)
+    params = {
+        "node_name" : worker,
+        "num_gpu_reqd" : init_cap,
+        "workload_selection" : "busybox-workload",
+    }
+    wl_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
     local_workload_ctxts = []
     local_workload_ctxts.append(wl_ctxt)
     debug_on_failure(environment, wl_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING,
                      f"Workload not in RUNNING state, {wl_ctxt} for healthy={healthy} worker node")
     def _delete_workload():
-       K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, workload_config=wl_ctxt)
+       K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **wl_ctxt)
        return
     request.addfinalizer(_delete_workload)
 
@@ -965,6 +1003,10 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
 
     if not healthy:
         k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, namespace)
+    time.sleep(30)
+
+    debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, namespace) == "healthy",
+                     f"check result of kubectl describe node $NODE_NAME | grep healthy")
     verify_logs(gpu_cluster, environment, ["all GPUs are healthy"])
     verify_events(gpu_cluster, namespace)
 
@@ -983,6 +1025,10 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     gpu_node = gpu_nodes[0]
+    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
+    if gpu_series and 'MI2' in gpu_series:
+        if framework == "AGFHC":
+            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
 
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, worker)

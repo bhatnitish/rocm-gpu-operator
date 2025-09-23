@@ -6,6 +6,7 @@ images:
             default: docker.io
             mirror:
                 enable: no
+                url: registry.test.pensando.io:5000
         packaging:
           gpuctl : disabled
     k8:
@@ -15,70 +16,82 @@ images:
             kind        : container
 
         gpu-operator:
-            location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
-            version     : v1.4.0-beta.0
+            location    : file:///gpu-operator/tests/pytests/gpu-operator-helm-k8s-v1.4.0-v1.4.0-17.tgz
+            version     : v1.4.0-17
             kind        : helm-chart
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
             location    : container://<registry>/amdpsdo/gpu-operator
-            version     : v1.4.0-14
+            version     : v1.4.0-17
             kind        : container
             secret      : docker-amdpsdo-auth
 
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://<registry>/amdpsdo/device-metrics-exporter
-            version     : v1.4.0-20
+            version     : v1.4.0-26
             kind        : container
             secret      : docker-amdpsdo-auth
 
         test-runner:
             key         : testRunner.image
             location    : container://<registry>/amdpsdo/test-runner
-            version     : v1.4.0-20
+            version     : v1.4.0-26
             kind        : container
             secret      : docker-amdpsdo-auth
-        
+
+        test-runner-agfhc:
+            key         : testRunner.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : agfhc-v1.4.0-26
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/amdpsdo/device-config-manager
+            version     : v1.4.0-5
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
         device-plugin:
             key         : devicePlugin.devicePluginImage
             location    : container://<registry>/rocm/k8s-device-plugin
             version     : latest
             kind        : container
-            secret      : docker-amdpsdo-auth
 
         node-labeller:
             key         : devicePlugin.nodeLabellerImage
             location    : container://<registry>/rocm/k8s-device-plugin
             version     : labeller-latest
             kind        : container
-            secret      : docker-amdpsdo-auth
 
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
             location    : container://<registry>/amdpsdo/kernel-module-management-signimage
-            version     : v1.4.0-1
+            version     : v1.4.0-2
             kind        : container
             secret      : docker-amdpsdo-auth
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
             location    : container://<registry>/amdpsdo/kernel-module-management-worker
-            version     : v1.4.0-1
+            version     : v1.4.0-2
             kind        : container
             secret      : docker-amdpsdo-auth
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
             location    : container://<registry>/amdpsdo/kernel-module-management-operator
-            version     : v1.4.0-1
+            version     : v1.4.0-2
             kind        : container
             secret      : docker-amdpsdo-auth
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
             location    : container://<registry>/amdpsdo/kernel-module-management-webhook-server
-            version     : v1.4.0-1
+            version     : v1.4.0-2
             kind        : container
             secret      : docker-amdpsdo-auth
 

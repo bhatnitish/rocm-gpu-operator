@@ -50,33 +50,19 @@ def log_arguments(func):
 
 K8Items = List[dict]
 
-def k8_lib_init(k8_cluster : common.k8_cluster) -> None:
+def k8_lib_init(k8_kube_config : str) -> None:
     global Logger
-    if k8_cluster.k8_kube_config:
-        # Load Kubernetes configuration
-        try:
-            config.load_kube_config(config_file = k8_cluster.k8_kube_config)
-        except config.ConfigException as e:
-            pytest.fail(f"failed to load kube-config, error : {e}")
+    # Load Kubernetes configuration
+    try:
+        config.load_kube_config(config_file = k8_kube_config)
+    except config.ConfigException as e:
+        pytest.fail(f"failed to load kube-config, error : {e}")
 
-        # Build k8_cluster with worker-node information
-        ret_code, k8_nodes = k8_get_nodes(k8_cluster)
-        assert ret_code == 0, f"Failed to collect worker nodes from k8/cluster"
-        for node in k8_nodes:
-            if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
-                if 'node-role.kubernetes.io/worker' in node['metadata']['labels']:
-                    Logger.info(f"control-plane node is also a worker-node")
-                else:
-                    Logger.warn(f"control-plane node is not a worker-node - skipping it")
-                    continue # skip control-plane node
+    # retrieve with worker-node information
+    ret_code, k8_nodes = k8_get_nodes()
+    assert ret_code == 0, f"Failed to collect worker nodes from k8/cluster"
 
-            node_ip = k8_get_node_address(node)
-            Logger.debug(f"Adding {node_ip} worker-node to the cluster")
-            k8_cluster.add_worker_node(node_ip)
-        assert len(k8_cluster.worker_nodes) > 0, f"Failed to collect worker nodes from k8/cluster"
-    else:
-        k8_cluster.k8_master.run_command(f"rm -rf workspace")
-
+def k8_init_cluster(k8_cluster : common.k8_cluster):
     if k8_cluster.k8_secrets:
         # create secrets, but first create the non-default namespace(s) listed in each entry
         namespaces = list(filter(lambda x: x != 'default', map(lambda entry: entry.get('namespace', 'default'), k8_cluster.k8_secrets['secrets'])))
@@ -207,8 +193,7 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
         if values_yaml:
             if not os.path.exists(values_yaml):
                 return -1, "", f"Missing values.yaml : {values_yaml}"
-            if k8_cluster.k8_master.is_local():
-                    cmd.extend(["-f", values_yaml])
+            cmd.extend(["-f", values_yaml])
         Logger.debug(f"helm-install command: {' '.join(cmd)}")
         cmd_resp = subprocess.run(cmd, check=False,
                                   stdout=subprocess.PIPE,
@@ -355,32 +340,24 @@ def is_helm_chart_healthy(k8_cluster : common.k8_cluster, release_name : str, na
             return True
     return False
 
-def k8_get_nodes(k8_cluster : common.k8_cluster) -> (int, str, K8Items):
+def k8_get_nodes() -> (int, str, K8Items):
     """
     API to get nodes from k8 cluster
 
     Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
+    k8_kube_config : path to kube config
 
     Returns:
     list of dict. For example refer to output of 'kubectl get nodes -o json | jq .items'
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            nodes = api.list_node().to_dict()
-            return 0, nodes.get('items', None)
-        except ApiException as e:
-            Logger.error(f"Failed to collect nodes, error : {e}")
-            return -1, None
-    else:
-        cmd = ["kubectl", "get", "nodes", "-ojson"]
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        if ret_code != 0:
-            return ret_code, None
-        k8_nodes_info = json.loads(resp_stdout)
-        return ret_code, k8_nodes_info.get("items", None)
+    api = client.CoreV1Api()
+    try:
+        nodes = api.list_node().to_dict()
+        return 0, nodes.get('items', None)
+    except ApiException as e:
+        Logger.error(f"Failed to collect nodes, error : {e}")
+        return -1, None
 
 def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = True) -> (int, K8Items):
     """
@@ -394,7 +371,7 @@ def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = Tru
     """
     global Logger
     global LogPrettyPrinter
-    ret_code, k8_nodes = k8_get_nodes(k8_cluster)
+    ret_code, k8_nodes = k8_get_nodes()
     if ret_code != 0:
         return ret_code, None
     #Logger.debug(f"Nodes : \n{LogPrettyPrinter.pformat(k8_nodes)}")
@@ -1040,8 +1017,8 @@ def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str,
 
     # Define the main container for the PyTorch workload
     main_container = client.V1Container(
-        name="pytorch-gpu-workload",
-        image="docker.io/rocm/pytorch:latest",
+        name="gpu-workload",
+        image="docker.io/busybox:latest",
         command=["/bin/bash", "-c", "--"],
         args=["sleep 6000"],
         resources=client.V1ResourceRequirements(
@@ -1593,7 +1570,7 @@ def k8_get_node_address(node_info, address_type = "InternalIP"):
 
 def k8_lookup_node_address(k8_cluster, node_name):
     global Logger
-    ret_code, k8_nodes = k8_get_nodes(k8_cluster)
+    ret_code, k8_nodes = k8_get_nodes()
     if ret_code != 0:
         return ret_code, None
 
@@ -1674,7 +1651,7 @@ def k8_get_node_labels(k8_cluster, node_name):
         return node.metadata.labels
     except ApiException as e:
         Logger.error(f"Error getting labels for node '{node_name}': {e}")
-        return -1, "", str(e)
+    return None
 
 @log_arguments
 def k8_label_node(node_name, labels_dict=None, overwrite=True):
@@ -2194,98 +2171,6 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
 
     Returns:
     map of deviceconfig-name => deviceconfig-info
-        {
-            "apiVersion": "amd.com/v1alpha1",
-            "kind": "DeviceConfig",
-            "metadata": {
-                "annotations": {
-                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"amd.com/v1alpha1\",\"kind\":\"DeviceConfig\",\"metadata\":{\"annotations\":{},\"name\":\"gpu-operator\",\"namespace\":\"kube-amd-gpu\"},\"spec\":{\"devicePlugin\":{\"enableNodeLabeller\":true},\"driver\":{\"blacklist\":true,\"enable\":true,\"image\":\"docker.io/yan1996/ubuntu\",\"imageRegistrySecret\":{\"name\":\"driver-image-auth\"},\"version\":\"6.3\"},\"metricsExporter\":{\"config\":{\"name\":\"metric-configmap\"},\"enable\":true,\"nodePort\":32500,\"port\":5000,\"rbacConfig\":{\"disableHttps\":true,\"enable\":false},\"serviceType\":\"NodePort\"},\"selector\":{\"feature.node.kubernetes.io/amd-vgpu\":\"true\"},\"testRunner\":{\"config\":{\"name\":\"test-runner-config\"},\"enable\":true,\"logsLocation\":{\"hostPath\":\"/var/log/amd-test-runner\",\"mountPath\":\"/var/log/amd-test-runner\"}}}}\n"
-                },
-                "creationTimestamp": "2025-03-06T22:08:29Z",
-                "finalizers": [
-                    "amd.node.kubernetes.io/deviceconfig-finalizer"
-                ],
-                "generation": 14,
-                "name": "gpu-operator",
-                "namespace": "kube-amd-gpu",
-                "resourceVersion": "8251885",
-                "uid": "5edf3e5e-f268-4431-81e2-7c8ae2aa40ac"
-            },
-            "spec": {
-                "devicePlugin": {
-                    "enableNodeLabeller": true
-                },
-                "driver": {
-                    "blacklist": true,
-                    "enable": true,
-                    "image": "docker.io/yan1996/ubuntu",
-                    "imageRegistrySecret": {
-                        "name": "driver-image-auth"
-                    },
-                    "version": "6.3"
-                },
-                "metricsExporter": {
-                    "config": {
-                        "name": "metric-configmap"
-                    },
-                    "enable": true,
-                    "nodePort": 32500,
-                    "port": 5000,
-                    "rbacConfig": {
-                        "disableHttps": true,
-                        "enable": false
-                    },
-                    "serviceType": "NodePort"
-                },
-                "selector": {
-                    "feature.node.kubernetes.io/amd-vgpu": "true"
-                },
-                "testRunner": {
-                    "config": {
-                        "name": "test-runner-config"
-                    },
-                    "enable": true,
-                    "logsLocation": {
-                        "hostPath": "/var/log/amd-test-runner",
-                        "mountPath": "/var/log/amd-test-runner"
-                    }
-                }
-            },
-            "status": {
-                "conditions": [
-                    {
-                        "lastTransitionTime": "2025-03-06T22:08:36Z",
-                        "message": "",
-                        "reason": "OperatorReady",
-                        "status": "True",
-                        "type": "Ready"
-                    }
-                ],
-                "devicePlugin": {
-                    "availableNumber": 1,
-                    "desiredNumber": 1,
-                    "nodesMatchingSelectorNumber": 1
-                },
-                "driver": {
-                    "availableNumber": 1,
-                    "desiredNumber": 1,
-                    "nodesMatchingSelectorNumber": 1
-                },
-                "metricsExporter": {
-                    "availableNumber": 1,
-                    "desiredNumber": 1,
-                    "nodesMatchingSelectorNumber": 1
-                },
-                "nodeModuleStatus": {
-                    "aks-gpupool-12247365-vmss000004": {
-                        "containerImage": "docker.io/yan1996/ubuntu:ubuntu-22.04-5.15.0-1079-azure-6.2.4",
-                        "kernelVersion": "5.15.0-1079-azure",
-                        "lastTransitionTime": "2025-03-19 17:00:16 +0000 UTC"
-                    }
-                },
-                "observedGeneration": 14
-            }
-        }
     """
 
     global Logger
@@ -2627,7 +2512,7 @@ def reboot_node(k8_cluster : common.k8_cluster, node_name : str):
     # For now ignore ret_code
     # Check for status to be declared as NotReady
     for _ in range(10):
-        ret_code, k8_nodes = k8_get_nodes(k8_cluster)
+        ret_code, k8_nodes = k8_get_nodes()
         if ret_code != 0:
             return ret_code
 
@@ -2657,7 +2542,7 @@ def reboot_node(k8_cluster : common.k8_cluster, node_name : str):
 
     # Check for status to be declared as Ready
     for _ in range(10):
-        ret_code, k8_nodes = k8_get_nodes(k8_cluster)
+        ret_code, k8_nodes = k8_get_nodes()
         if ret_code != 0:
             return ret_code
 
