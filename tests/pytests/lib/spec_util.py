@@ -436,6 +436,22 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
             if gpu_operator_version >= 'v1.2.0':
                 device_config['spec']['testRunner']['upgradePolicy']['maxUnavailable'] = spec.get('testRunner.upgradePolicy.maxUnavailable', 1)
                 device_config['spec']['testRunner']['upgradePolicy']['upgradeStrategy'] = spec.get('testRunner.upgradePolicy.upgradeStrategy', 'RollingUpdate')
+        elif not skip_sections.get('testRunnerAgfhc', False):
+            if spec.get('testRunnerAgfhc.image.repository', None):
+                img = f"{spec.get('testRunnerAgfhc.image.repository')}:{spec.get('testRunnerAgfhc.image.version')}"
+                device_config['spec']['testRunner']['image'] = img
+            device_config['spec']['testRunner']['enable'] = spec.get('testRunnerAgfhc.enable', False)
+            device_config['spec']['testRunner']['imagePullPolicy'] = spec.get('testRunnerAgfhc.imagePullPolicy', 'IfNotPresent')
+            if spec.get('testRunnerAgfhc.config', None):
+                device_config['spec']['testRunner']['config'] = {
+                        'name' : spec.get('testRunnerAgfhc.config'),
+                }
+            if spec.get('testRunnerAgfhc.image.secret', None):
+                device_config['spec']['testRunner']['imageRegistrySecret'] = {
+                        'name' : spec.get('testRunnerAgfhc.image.secret')
+                }
+            device_config['spec']['testRunner']['upgradePolicy']['maxUnavailable'] = spec.get('testRunnerAgfhc.upgradePolicy.maxUnavailable', 1)
+            device_config['spec']['testRunner']['upgradePolicy']['upgradeStrategy'] = spec.get('testRunnerAgfhc.upgradePolicy.upgradeStrategy', 'RollingUpdate')
         else:
             del device_config['spec']['testRunner']
 

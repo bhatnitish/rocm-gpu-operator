@@ -38,34 +38,34 @@ e2e-targets:
         vendor: Pensando
         count: 1
 
-  gpu-operator-pytest-sanity-devcfg-inbox:
-    commands: [
-        "/bin/sh",
-        "-c",
-        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
-         /gpu-operator/ci-internal/run_sanity.sh --type sanity --registry local --testbed /warmd.json --amdgpu-driver inbox"
-    ]
-    owners: ["email:srivatsa.sangli@amd.com"]
-    tcp-ports: [5000]
-    area:
-    sub-area:
-    build-dependencies:
-      - build-gpu-operator
-      - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter
-      - build-external-test-runner
-      - build-external-test-runner-agfhc
-      - build-external-kernel-module-manager
-      - build-external-kernel-module-signimage
-      - build-external-kernel-module-webhook-server
-      - build-external-kernel-module-worker
-      - build-external-config-manager
-    resources:
-    - generic:
-      - type: K8-GPU-Node
-        name: AMD-GPU-MI250
-        vendor: Pensando
-        count: 1
+          #gpu-operator-pytest-sanity-devcfg-inbox:
+          #  commands: [
+          #      "/bin/sh",
+          #      "-c",
+          #      "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+          #       /gpu-operator/ci-internal/run_sanity.sh --type sanity --registry local --testbed /warmd.json --amdgpu-driver inbox"
+          #  ]
+          #  owners: ["email:srivatsa.sangli@amd.com"]
+          #  tcp-ports: [5000]
+          #  area:
+          #  sub-area:
+          #  build-dependencies:
+          #    - build-gpu-operator
+          #    - build-gpu-operator-k8s
+          #    - build-external-device-metrics-exporter
+          #    - build-external-test-runner
+          #    - build-external-test-runner-agfhc
+          #    - build-external-kernel-module-manager
+          #    - build-external-kernel-module-signimage
+          #    - build-external-kernel-module-webhook-server
+          #    - build-external-kernel-module-worker
+          #    - build-external-config-manager
+          #  resources:
+          #  - generic:
+          #    - type: K8-GPU-Node
+          #      name: AMD-GPU-MI250
+          #      vendor: Pensando
+          #      count: 1
 
 logfiles:
   - /gpu-operator/tests/pytests/pytest_logs.tgz

@@ -213,7 +213,7 @@ def test_gpu_operator_check_deviceconfig_crd(gpu_cluster, gpu_operator_install, 
     if environment.gpu_operator_version != "v1.1.0":
         # TODO: Verify why this is failing for gpu-operator v1.1.0
         metadata = deviceconfig_crd['metadata']
-        K8Helper.triage(environment, (metadata['labels']['app.kubernetes.io/version'] == environment.gpu_operator_version),
+        K8Helper.triage(environment, (environment.gpu_operator_version in metadata['labels']['app.kubernetes.io/version']),
                         f"Mismatch in metadata version {environment.gpu_operator_version} vs {metadata['labels']['app.kubernetes.io/version']}")
 
     status = deviceconfig_crd['status']

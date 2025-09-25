@@ -252,7 +252,7 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
-    def _collect_amd_smi_output(cmd_responses, exporter_pod_name, num_samples = 10):
+    def _collect_amd_smi_output(cmd_responses, exporter_pod_name, num_samples = 10, interval = 1):
         cmd = ["amd-smi", "metric", "--json"]
         for _ in range(num_samples):
             ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
@@ -263,10 +263,10 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
                 Logger.error(f"Cmd {cmd} failed on {exporter_pod_name}, error : {resp_stderr}")
             else:
                 cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\"").replace("False", "\"False\""))
-            time.sleep(1)
+            time.sleep(interval)
         return
 
-    def _collect_gpuctl_output(cmd_responses, exporter_pod_name, num_samples = 10):
+    def _collect_gpuctl_output(cmd_responses, exporter_pod_name, num_samples = 10, interval = 1):
         cmd = ["gpuctl", "show", "gpu", "--json"]
         for _ in range(num_samples):
             ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
@@ -277,10 +277,10 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
                 Logger.error(f"Cmd {cmd} failed on {exporter_pod_name}, error : {resp_stderr}")
             else:
                 cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\"").replace("False", "\"False\""))
-            time.sleep(1)
+            time.sleep(interval)
         return
 
-    def _collect_exporter_metrics(cmd_responses, cluster_node, num_samples = 10):
+    def _collect_exporter_metrics(cmd_responses, cluster_node, num_samples = 10, interval = 1):
         for _ in range(num_samples):
             # Collect 10 exporter_metrics
             ret_code, ret_stdout, ret_stderr = cluster_node.http_get(node_port, "metrics")
@@ -292,10 +292,11 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
                 Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
             else:
                 cmd_responses.append(ret_stdout)
-            time.sleep(1)
+            time.sleep(interval)
         return
 
     num_samples = 10
+    interval = 15
     idle_metrics = {}
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
@@ -319,16 +320,16 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
         smi_metrics = []
         gpuctl_metrics = []
 
-        threads.append(threading.Thread(target = _collect_amd_smi_output, args=(smi_metrics, exporter_pod_name, num_samples)))
-        threads.append(threading.Thread(target = _collect_exporter_metrics, args=(exporter_metrics, cluster_node, num_samples)))
+        threads.append(threading.Thread(target = _collect_amd_smi_output, args=(smi_metrics, exporter_pod_name, num_samples, interval)))
+        threads.append(threading.Thread(target = _collect_exporter_metrics, args=(exporter_metrics, cluster_node, num_samples, interval)))
         if environment.builtin_gpuctl_support:
-            threads.append(threading.Thread(target = _collect_gpuctl_output, args=(gpuctl_metrics, exporter_pod_name, num_samples)))
+            threads.append(threading.Thread(target = _collect_gpuctl_output, args=(gpuctl_metrics, exporter_pod_name, num_samples, interval)))
 
         # Start all the threads
         for thr in threads:
             thr.start()
 
-        time.sleep(num_samples * 1)
+        time.sleep(num_samples * interval)
 
         # Wait for all threads to complete
         for thr in threads:
@@ -398,16 +399,16 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
         smi_metrics = []
         gpuctl_metrics = []
 
-        threads.append(threading.Thread(target = _collect_amd_smi_output, args=(smi_metrics, exporter_pod_name, num_samples)))
-        threads.append(threading.Thread(target = _collect_exporter_metrics, args=(exporter_metrics, cluster_node, num_samples)))
+        threads.append(threading.Thread(target = _collect_amd_smi_output, args=(smi_metrics, exporter_pod_name, num_samples, interval)))
+        threads.append(threading.Thread(target = _collect_exporter_metrics, args=(exporter_metrics, cluster_node, num_samples, interval)))
         if environment.builtin_gpuctl_support:
-            threads.append(threading.Thread(target = _collect_gpuctl_output, args=(gpuctl_metrics, exporter_pod_name, num_samples)))
+            threads.append(threading.Thread(target = _collect_gpuctl_output, args=(gpuctl_metrics, exporter_pod_name, num_samples, interval)))
 
         # Start all the threads
         for thr in threads:
             thr.start()
 
-        time.sleep(num_samples * 1)
+        time.sleep(num_samples * interval)
 
         # Wait for all threads to complete
         for thr in threads:
@@ -601,6 +602,8 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                 m_info_list = list(filter(lambda x: x['labels']['gpu_id'] == str(gpu_id), exporter_metrics[metric_to_test.lower()]))
                 Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
 
+                K8Helper.triage(environment, len(m_info_list) == 1,
+                                f"Found {len(m_info_list)} values for {metric_to_test}, gpu-id: {gpu_id}, info: {gpu_support_info}")
                 metric_info = m_info_list[0]
                 if isinstance(amd_smi_metrics, list):
                     amd_smi_val = _extract_amd_smi_value(amd_smi_metrics[gpu_id], path_to_metric)
