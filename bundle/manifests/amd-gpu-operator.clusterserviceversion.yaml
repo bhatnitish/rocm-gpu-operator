@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
-    createdAt: "2025-09-16T14:02:34Z"
+    createdAt: "2025-09-23T09:03:24Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -669,6 +669,12 @@ spec:
         path: remediationWorkflow.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: Tester image used to run tests and verify if remediation fixed
+          the reported problem.
+        displayName: TesterImage
+        path: remediationWorkflow.testerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:testerImage
       - description: Time to live for argo workflow object and its pods for a failed
           workflow in hours. By default, it is set to 24 hours
         displayName: TtlForFailedWorkflows
