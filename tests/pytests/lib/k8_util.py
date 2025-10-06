@@ -949,7 +949,7 @@ def k8_create_namespace(k8_cluster : common.k8_cluster, namespace : str):
 
 
 @log_arguments
-def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str):
+def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str, framework: str):
     global Logger
     apps_v1 = client.AppsV1Api()
     core_v1 = client.CoreV1Api()
@@ -970,11 +970,16 @@ def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str,
             mount_path="/var/log"
         )
     ]
+    testrunner_image_key = 'testRunner'
+    if framework == "AGFHC":
+        testrunner_image_key += 'Agfhc'
+    repository = images.get(testrunner_image_key + '.image.repository')
+    version = images.get(testrunner_image_key + '.image.version')
 
     # Define initContainer for the test runner
     init_container = client.V1Container(
         name="init-test-runner",
-        image=f"{images.get('testRunner.image.repository')}:{images.get('testRunner.image.version')}",
+        image=f"{repository}:{version}",
         image_pull_policy="IfNotPresent",
         volume_mounts=init_container_volume_mounts,
         resources=client.V1ResourceRequirements(
@@ -1018,8 +1023,8 @@ def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str,
     # Define the main container for the PyTorch workload
     main_container = client.V1Container(
         name="gpu-workload",
-        image="docker.io/busybox:latest",
-        command=["/bin/bash", "-c", "--"],
+        image="busybox",
+        command=["/bin/sh", "-c", "--"],
         args=["sleep 6000"],
         resources=client.V1ResourceRequirements(
             requests={gpu_type: "1"},
@@ -1139,7 +1144,7 @@ def k8_delete_deployment(namespace, deployment_name):
         assert True, f"An unexpected error occurred: {e}"
 
 @log_arguments
-def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker : str, sa_name: str, job_name : str, healthy : bool, schedule : bool, minute : str):
+def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker : str, sa_name: str, job_name : str, framework : str, healthy : bool, schedule : bool, minute : str):
     global Logger
 
     # Pre loaded Load Kubernetes configuration
@@ -1149,6 +1154,11 @@ def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker
     batch_v1_api = client.BatchV1Api()
     gpu_type = k8_get_node_gpu_allocatable(k8_cluster, worker)
     init_cap, alloc = k8_get_node_gpu_capacity(k8_cluster, worker)
+    testrunner_image_key = 'testRunner'
+    if framework == "AGFHC":
+        testrunner_image_key += 'Agfhc'
+    repository = images.get(testrunner_image_key + '.image.repository')
+    version = images.get(testrunner_image_key + '.image.version')
 
     # Define environment variables
     env_vars = [
@@ -1188,7 +1198,7 @@ def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker
         # Define containers
         container = client.V1Container(
             name=container_name,
-            image=f"{images.get('testRunner.image.repository')}:{images.get('testRunner.image.version')}",
+            image=f"{repository}:{version}",
             image_pull_policy="IfNotPresent",
             security_context=client.V1SecurityContext(privileged=True),
             env=env_vars,
@@ -1236,7 +1246,7 @@ def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker
         # Define containers
         container = client.V1Container(
             name=container_name,
-            image=f"{images.get('testRunner.image.repository')}:{images.get('testRunner.image.version')}",
+            image=f"{repository}:{version}",
             image_pull_policy="IfNotPresent",
             security_context=client.V1SecurityContext(privileged=True),
             volume_mounts=volume_mounts,

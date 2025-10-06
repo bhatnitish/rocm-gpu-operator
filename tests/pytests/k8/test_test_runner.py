@@ -429,7 +429,7 @@ def verify_logs(gpu_cluster, environment, log_msg_list, pod_str="test-runner", s
                          f"didn't find any of {log_msg_list} in\n" + LogPrettyPrinter.pformat(stdout.split('\n')))
     else:
         for log_msg in log_msg_list:
-            while log_msg not in stdout and i < 6:
+            while log_msg not in stdout and i < 16:
                 time.sleep(30)
                 i = i + 1
                 ret_code, stdout, stderr = k8_util.k8_get_pod_logs(gpu_cluster, pod_str, namespace, since, container)
@@ -446,6 +446,32 @@ def verify_events(gpu_cluster, namespace, pod_name="test-runner"):
     for event in events[1].items:
         Logger.debug(LogPrettyPrinter.pformat(f"{event.involved_object.name}\n{event.metadata.labels}\n{event.message}"))
     #Logger.debug(LogPrettyPrinter.pformat(gpu_cluster.k8_master.run_command(f"kubectl get events -n {namespace}")))
+
+def update_metrics_exporter(gpu_cluster, deviceconfig_install, environment, configmap_name):
+    # re-configure test-runner
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.config'] = configmap_name
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+def update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name):
+    # re-configure test-runner
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        skip_sections = {}
+        if framework == "RVS":
+            skip_sections['testRunnerAgfhc'] = True
+            tcfg['testRunner.enable'] = True
+            tcfg['testRunner.config'] = configmap_name
+        elif framework == "AGFHC":
+            skip_sections['testRunner'] = True
+            tcfg['testRunnerAgfhc.enable'] = True
+            tcfg['testRunnerAgfhc.config'] = configmap_name
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
+        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+
 
 def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framework, trigger="AUTO_UNHEALTHY_GPU_WATCH"):
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
@@ -470,6 +496,7 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     configmap = {}
     update_test_runner_configmap(new_recipe, worker, configmap, new_framework, trigger)
     configmap_name = create_configmap(request, gpu_cluster, deviceconfig_install, environment, new_framework, configmap)
+    update_test_runner_image(gpu_cluster, deviceconfig_install, environment, new_framework, configmap_name)
 
     verify_logs(gpu_cluster,
                 environment,
@@ -517,21 +544,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, imag
     configmap = {}
     update_test_runner_configmap(recipe, worker, configmap, framework)
     configmap_name = create_configmap(request, gpu_cluster, deviceconfig_install, environment, framework, configmap)
-
-    # re-configure test-runner
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        skip_sections = {}
-        if framework == "RVS":
-            skip_sections['testRunnerAgfhc'] = True
-            tcfg['testRunner.enable'] = True
-            tcfg['testRunner.config'] = configmap_name
-        elif framework == "AGFHC":
-            skip_sections['testRunner'] = True
-            tcfg['testRunnerAgfhc.enable'] = True
-            tcfg['testRunnerAgfhc.config'] = configmap_name
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+    update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     sample_size = random.randint(1,len(metrics_fields.keys())-1)
     error_list = random.sample(metrics_fields.keys(), sample_size)
@@ -634,20 +647,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     configmap = {}
     update_test_runner_configmap(recipe, worker, configmap, framework)
     configmap_name = create_configmap(request, gpu_cluster, deviceconfig_install, environment, framework, configmap)
-    # re-configure test-runner
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        skip_sections = {}
-        if framework == "RVS":
-            skip_sections['testRunnerAgfhc'] = True
-            tcfg['testRunner.enable'] = True
-            tcfg['testRunner.config'] = configmap_name
-        elif framework == "AGFHC":
-            skip_sections['testRunner'] = True
-            tcfg['testRunnerAgfhc.enable'] = True
-            tcfg['testRunnerAgfhc.config'] = configmap_name
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+    update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     sample_size = random.randint(1,len(metrics_fields.keys())-1)
     error_list = random.sample(metrics_fields.keys(), sample_size)
@@ -678,7 +678,6 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
 
 
     framework, recipe = swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framework)
-
     k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
 
 
@@ -737,20 +736,8 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     update_test_runner_configmap(recipe, worker, configmap, framework)
     update_metrics_exporter_configmap(configmap)
     configmap_name = create_configmap(request, gpu_cluster, deviceconfig_install, environment, framework, configmap)
-    # re-configure test-runner
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        skip_sections = {}
-        if framework == "RVS":
-            skip_sections['testRunnerAgfhc'] = True
-            tcfg['testRunner.enable'] = True
-            tcfg['testRunner.config'] = configmap_name
-        elif framework == "AGFHC":
-            skip_sections['testRunner'] = True
-            tcfg['testRunnerAgfhc.enable'] = True
-            tcfg['testRunnerAgfhc.config'] = configmap_name
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+    update_metrics_exporter(gpu_cluster, deviceconfig_install, environment, configmap_name)
+    update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     verify_gpu_capacity_status(gpu_cluster, environment, worker, 1)
 
@@ -875,21 +862,7 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
     configmap = {}
     update_test_runner_configmap(recipe, worker, configmap, framework, trigger)
     configmap_name = create_configmap(request, gpu_cluster, deviceconfig_install, environment, framework, configmap)
-
-    # re-configure test-runner
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        skip_sections = {}
-        if framework == "RVS":
-            skip_sections['testRunnerAgfhc'] = True
-            tcfg['testRunner.enable'] = True
-            tcfg['testRunner.config'] = configmap_name
-        elif framework == "AGFHC":
-            skip_sections['testRunner'] = True
-            tcfg['testRunnerAgfhc.enable'] = True
-            tcfg['testRunnerAgfhc.config'] = configmap_name
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+    update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     job_name = "test-runner-manual-trigger"
     if schedule:
@@ -1020,6 +993,7 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
                                       worker,
                                       sa_name,
                                       job_name,
+                                      framework,
                                       healthy,
                                       schedule,
                                       datetime.datetime.utcnow().minute + 2)
@@ -1087,20 +1061,7 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
     configmap = {}
     update_test_runner_configmap(recipe, worker, configmap, framework, trigger)
     configmap_name = create_configmap(request, gpu_cluster, deviceconfig_install, environment, framework, configmap)
-    # re-configure test-runner
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        skip_sections = {}
-        if framework == "RVS":
-            skip_sections['testRunnerAgfhc'] = True
-            tcfg['testRunner.enable'] = True
-            tcfg['testRunner.config'] = configmap_name
-        elif framework == "AGFHC":
-            skip_sections['testRunner'] = True
-            tcfg['testRunnerAgfhc.enable'] = True
-            tcfg['testRunnerAgfhc.config'] = configmap_name
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg, skip_sections)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(gpu_cluster, cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+    update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     devicecfg_pods = [
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
@@ -1196,7 +1157,7 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
         debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, namespace) == "unhealthy",
                              f"result of kubectl describe node $NODE_NAME | grep unhealthy")
  
-    k8_util.k8_create_pre_test_runner_job(gpu_cluster, namespace, images, sa_name, deployment_name, worker)
+    k8_util.k8_create_pre_test_runner_job(gpu_cluster, namespace, images, sa_name, deployment_name, worker, framework)
 
     time.sleep(10)
 
