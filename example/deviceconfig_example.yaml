@@ -34,11 +34,15 @@ spec:
     # Specify Node Labeller image pull policy
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     nodeLabellerImagePullPolicy: "Always"
-        
+
   # Specify the metrics exporter config
   metricsExporter:
     # To enable/disable the metrics exporter, disabled by default
     enable: True
+    # podAnnotations for metrics exporter
+    podAnnotations: {}
+    # serviceAnnotations for metrics exporter
+    serviceAnnotations: {}
     # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
     serviceType: "NodePort"
     # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
@@ -53,7 +57,7 @@ spec:
     #  # configmap name, example config in example/metricsExporter/config.json
     #  name: configmap-name
 
-  # Specify the testrunner config
+    # Specify the testrunner config
   testRunner:
     # To enable/disable the testrunner, disabled by default
     enable: True
@@ -94,6 +98,6 @@ spec:
     #    value: "value1"
     #    effect: "NoExecute"
 
-  # Specifythe node to be managed by this DeviceConfig Custom Resource
+    # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
