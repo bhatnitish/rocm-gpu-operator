@@ -1819,7 +1819,6 @@ def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
     global Logger
     k8_taint_node(k8_cluster, node_name, False)
 
-
 @log_arguments
 def k8_metrics_error(k8_cluster, counts, error_list, namespace : str):
     """

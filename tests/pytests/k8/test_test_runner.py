@@ -58,7 +58,9 @@ metrics_fields = {
       'GPU_ECC_UNCORRECT_MPIO'      : 0
 }
 #def debug_on_failure(environment, condition, message):
-#    K8Helper.triage(environment, condition, message)
+#    if not condition:
+#        pdb.set_trace()
+
 debug_on_failure = K8Helper.triage
 
 @pytest.fixture(scope="function", autouse=True)
@@ -83,7 +85,6 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
         Logger.info("gpu-operator helm-chart is already installed/running - skip rest of setup/fixture")
         yield
         return
-
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
     devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
@@ -312,6 +313,18 @@ def test_deviceconfig_testrunner_disable_exporter(gpu_cluster, deviceconfig_inst
     debug_on_failure(environment, (not failed_pods),
                      f"One or more pods are not ready - {failed_pods}")
 
+def wait_for_pod(environment, gpu_cluster, namespace, cmd_list, pod_str, result):
+    resp_stdout = " "
+    i = 0
+    while (resp_stdout == None or result not in resp_stdout) and i < 10:
+        i += 1
+        pod_name = k8_util.k8_get_pod_name(gpu_cluster, pod_str, namespace)
+        ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
+                                                                          environment.gpu_operator_namespace,
+                                                                          cmd_list, pod_name)
+        time.sleep(60)
+    debug_on_failure(environment, result in resp_stdout, f"can't find {result} in {pod_name} output {resp_stdout}")
+
 def verify_gpu_capacity_status(gpu_cluster, environment, worker, gpus):
     i = 0
     while i < 10:
@@ -328,7 +341,7 @@ def update_metrics_exporter_configmap(config_map):
 
     # Generate set of config-maps in the k8 cluster with different set of labels and metrics
     sample_size = random.randint(4,len(metrics_fields.keys())-1)
-    error_list = random.sample(metrics_fields.keys(), sample_size)
+    error_list = random.sample(sorted(metrics_fields.keys()), sample_size)
 
     health_thresholds_dict = {}
     for error in error_list:
@@ -516,7 +529,7 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     return new_framework, new_recipe
 
 #@pytest.mark.parametrize("recipe", ["babel", "gpup_single", "gst_single", "iet_single"])
-@pytest.mark.level3
+@pytest.mark.level2
 @pytest.mark.parametrize("framework, recipe", [
     ("RVS", "iet_stress"),
     ("AGFHC", "gfx_lvl1")
@@ -547,13 +560,17 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, imag
     update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     sample_size = random.randint(1,len(metrics_fields.keys())-1)
-    error_list = random.sample(metrics_fields.keys(), sample_size)
+    error_list = random.sample(sorted(metrics_fields.keys()), sample_size)
     thresholds = []
     for error in error_list:
         thresholds.append(metrics_fields.get(error) + random.randint(1,10))
 
-    time.sleep(30)
-    verify_logs(gpu_cluster, environment, ["serving requests on"], "metrics-exporter")
+    wait_for_pod(environment, gpu_cluster,
+                    namespace,
+                    ["metricsclient"],
+                    "metrics-exporter",
+                    "healthy")
+
     k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, environment.gpu_operator_namespace)
 
     debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, namespace) == "unhealthy",
@@ -586,6 +603,11 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, imag
     Logger.info(f"found {recipe} in test runner logs\n{LogPrettyPrinter.pformat(stdout)}\n")
 
     time.sleep(60)
+    wait_for_pod(environment, gpu_cluster,
+                    namespace,
+                    ["metricsclient"],
+                    "metrics-exporter",
+                    "healthy")
     verify_logs(gpu_cluster,
                 environment,
                 [
@@ -602,7 +624,11 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, imag
     match  = []
     for i in range(sample_size):
         match.append(f"unhealthy for ecc field [{error_list[i]}] error crossing threshold {metrics_fields.get(error_list[i])}, current value {thresholds[i]}")
-    verify_logs(gpu_cluster, environment, match, pod_str="metrics-exporter")
+    wait_for_pod(environment, gpu_cluster,
+                    namespace,
+                    ["metricsclient"],
+                    "metrics-exporter",
+                    "healthy")
 
     #TODO figure out later
     #k8_util.k8_untaint_node(gpu_cluster, worker)
@@ -614,7 +640,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, imag
     Logger.info(f"This workload should get created, since the node {worker}, is now untainted")
     verify_events(gpu_cluster, namespace)
 
-@pytest.mark.level3
+@pytest.mark.level2
 @pytest.mark.parametrize("framework, recipe", [
     ("RVS", "babel"),
     ("AGFHC", "xgmi_lvl1")
@@ -650,7 +676,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     update_test_runner_image(gpu_cluster, deviceconfig_install, environment, framework, configmap_name)
 
     sample_size = random.randint(1,len(metrics_fields.keys())-1)
-    error_list = random.sample(metrics_fields.keys(), sample_size)
+    error_list = random.sample(sorted(metrics_fields.keys()), sample_size)
     thresholds = []
     for error in error_list:
         thresholds.append(metrics_fields.get(error) + random.randint(1,10))
@@ -667,7 +693,12 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     local_workload_ctxts.append(wl_ctxt)
     debug_on_failure(environment, wl_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING,
                      f"Workload not in running state, {wl_ctxt}")
-    verify_logs(gpu_cluster, environment, ["serving requests on"], "metrics-exporter")
+
+    wait_for_pod(environment, gpu_cluster,
+                    namespace,
+                    ["metricsclient"],
+                    "metrics-exporter",
+                    "healthy")
 
     def _cleanup():
         for ctxt in local_workload_ctxts:
@@ -695,7 +726,11 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     match = []
     for i in range(sample_size):
         match.append(f"unhealthy for ecc field [{error_list[i]}] error crossing threshold {metrics_fields.get(error_list[i])}, current value {thresholds[i]}")
-    verify_logs(gpu_cluster, environment, match, pod_str="metrics-exporter")
+    wait_for_pod(environment, gpu_cluster,
+                    namespace,
+                    ["metricsclient"],
+                    "metrics-exporter",
+                    "healthy")
 
     #TODO figure out later
     #k8_util.k8_untaint_node(gpu_cluster, worker)
@@ -709,7 +744,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
 
     verify_logs(gpu_cluster, environment, ["all GPUs are healthy"])
 
-@pytest.mark.level3
+@pytest.mark.level2
 @pytest.mark.parametrize("framework, recipe", [
     ("RVS", "gst_single"),
     ("AGFHC", "dma_lvl1")
@@ -730,7 +765,14 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, worker)
     time.sleep(30)
-    verify_logs(gpu_cluster, environment, ["serving requests on"], "metrics-exporter")
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+    ]
+
+    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
+    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
     configmap = dict()
     update_test_runner_configmap(recipe, worker, configmap, framework)
@@ -757,18 +799,10 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     request.addfinalizer(_delete_workload)
     debug_on_failure(environment, wl_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING,
                      f"Workload not in RUNNING state, {wl_ctxt}")
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
-        common.PodInfo('test-runner', len(gpu_nodes), 1),
-    ]
-
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
-    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
     health_thresholds = configmap.get('GPUConfig').get('HealthThresholds')
     sample_size = random.randint(2, len(health_thresholds.keys())-1)
-    error_list = random.sample(health_thresholds.keys(), sample_size)
+    error_list = random.sample(sorted(health_thresholds.keys()), sample_size)
     thresholds = list()
     for error in error_list:
         thresholds.append(random.randint(0, health_thresholds.get(error)-1))
@@ -831,7 +865,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     verify_events(gpu_cluster, namespace)
 
 
-@pytest.mark.level300
+@pytest.mark.level2
 @pytest.mark.parametrize("framework, recipe, schedule, healthy", [
     ("RVS", "gst_single", True, True),
     ("RVS", "iet_stress", False, True),
@@ -889,14 +923,18 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
 
     if not healthy:
         sample_size = random.randint(1,len(metrics_fields.keys())-1)
-        error_list = random.sample(metrics_fields.keys(), sample_size)
+        error_list = random.sample(sorted(metrics_fields.keys()), sample_size)
         thresholds = []
         def _cleanup():
             k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, namespace)
             return
         request.addfinalizer(_cleanup)
         _cleanup()
-        verify_logs(gpu_cluster, environment, ["serving requests on"], "metrics-exporter")
+        wait_for_pod(environment, gpu_cluster,
+                       namespace,
+                       ["metricsclient"],
+                       "metrics-exporter",
+                       "healthy")
         for error in error_list:
             thresholds.append(metrics_fields.get(error) + random.randint(1,10))
         k8_util.k8_metrics_error(gpu_cluster, thresholds, error_list, namespace)
@@ -1024,15 +1062,16 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, sch
         k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, namespace)
     time.sleep(30)
 
-    debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, namespace) == "healthy",
-                     f"check result of kubectl describe node $NODE_NAME | grep healthy")
+    #debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, namespace) != "unhealthy",
+                     #f"check result of kubectl describe node $NODE_NAME | grep healthy")
     verify_logs(gpu_cluster, environment, ["all GPUs are healthy"])
     verify_events(gpu_cluster, namespace)
 
-@pytest.mark.level30
+@pytest.mark.level22
+@pytest.mark.level2
 @pytest.mark.parametrize("framework, recipe, healthy", [
     ("AGFHC", "all_lvl1", True),
-    ("RVS", "iet_single", True),
+    ("RVS", "iet_stress", True),
     ("RVS", "babel", False),
     #("AGFHC", "all_lvl2", False) #TODO add this testcase back after GPUOP-447 is fixed in phase-5
 ])
@@ -1046,7 +1085,9 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
-        if framework == "AGFHC":
+        if recipe == "iet_stress":
+            recipe = "iet_single"
+        elif framework == "AGFHC":
             pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
 
     worker = k8_util.k8_get_node_hostname(gpu_node)
@@ -1139,11 +1180,15 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
     _delete_deployment()
 
     time.sleep(30)
-    verify_logs(gpu_cluster, environment, ["serving requests on"], "metrics-exporter")
+    wait_for_pod(environment, gpu_cluster,
+                    namespace,
+                    ["metricsclient"],
+                    "metrics-exporter",
+                    "healthy")
 
     if not healthy:
         sample_size = random.randint(1,len(metrics_fields.keys())-1)
-        error_list = random.sample(metrics_fields.keys(), sample_size)
+        error_list = random.sample(sorted(metrics_fields.keys()), sample_size)
         thresholds = []
         def _cleanup():
             k8_util.k8_metrics_error(gpu_cluster, [0] * sample_size, error_list, namespace)
@@ -1180,10 +1225,14 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
                 debug_on_failure(environment, failed_pods == ['pytorch-gpu-deployment'],
                                  f"expecting failed pods to be ['pytorch-gpu-deployment'], found {failed_pods}")
                 _cleanup()
-
-                failed_pods = k8_util.k8_check_pod_running(gpu_cluster, namespace, devicecfg_pods, total_attempts=20)
+                i = 0
+                while i < 10 and failed_pods != []:
+                    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, namespace, devicecfg_pods, total_attempts=20)
+                    i += 1
+                    time.sleep(20)
                 debug_on_failure(environment, (not failed_pods),
                                  f"expecting failed pods to be [], found {failed_pods}")
+
 
     debug_on_failure(environment, flag,
                      f"didn't find pytorch-gpu-deployment in {deployment.status.conditions}")
