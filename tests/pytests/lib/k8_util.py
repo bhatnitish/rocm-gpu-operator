@@ -1787,7 +1787,7 @@ def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str, taint_add=Tru
     global Logger
     taint_key = "amd-dcm"
     taint_value = "up"
-    taint_effect = "NoExecute"
+    taint_effect = "NoSchedule"
 
     if k8_cluster.k8_kube_config:
         v1 = client.CoreV1Api()
@@ -1818,6 +1818,98 @@ def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
     """
     global Logger
     k8_taint_node(k8_cluster, node_name, False)
+
+@log_arguments
+def k8_patch_deployment(deployment, namespace, new_toleration, tolerate_add):
+    """Adds a toleration to a single Deployment."""
+    api = client.AppsV1Api()
+    name = deployment.metadata.name
+    Logger.info(f"-> Patching Deployment: {name}")
+    op = "add"
+    if not tolerate_add:
+        op = "remove"
+
+    body = [
+        {"op": op, "path": "/spec/template/spec/tolerations/-", "value": new_toleration.to_dict()}
+    ]
+    try:
+        api.patch_namespaced_deployment(name=name, namespace=namespace, body=body)
+    except ApiException as e:
+        print(f"Could not patch Deployment {name}: {e}")
+
+@log_arguments
+def k8_patch_daemonset(daemonset, namespace, new_toleration, tolerate_add):
+    """Adds a toleration to a single DaemonSet."""
+    api = client.AppsV1Api()
+    name = daemonset.metadata.name
+    Logger.info(f"-> Patching DaemonSet: {name}")
+    op = "add"
+    if not tolerate_add:
+        op = "remove"
+
+    body = [
+        {"op": op, "path": "/spec/template/spec/tolerations/-", "value": new_toleration.to_dict()}
+    ]
+    try:
+        api.patch_namespaced_daemon_set(name=name, namespace=namespace, body=body)
+    except ApiException as e:
+        print(f"Could not patch DaemonSet {name}: {e}")
+
+@log_arguments
+def k8_patch_statefulset(statefulset, namespace, new_toleration, tolerate_add):
+    """Adds a toleration to a single StatefulSet."""
+    api = client.AppsV1Api()
+    name = statefulset.metadata.name
+    Logger.info(f"-> Patching StatefulSet: {name}")
+    op = "add"
+    if not tolerate_add:
+        op = "remove"
+
+
+    body = [
+        {"op": op, "path": "/spec/template/spec/tolerations/-", "value": new_toleration.to_dict()}
+    ]
+    try:
+        api.patch_namespaced_stateful_set(name=name, namespace=namespace, body=body)
+    except ApiException as e:
+        print(f"Could not patch StatefulSet {name}: {e}")
+
+@log_arguments
+def k8_patch_tolerations(k8_cluster : common.k8_cluster, namespace, toleration, tolerate_add=True):
+    """
+    API to add tolerations to all deployments under the particular namespace
+
+    Example: kubectl taint nodes node_name gpu=unhealthy:NoSchedule
+    """
+
+
+    if k8_cluster.k8_kube_config:
+        client_v1 = client.AppsV1Api()
+        new_toleration = client.V1Toleration(
+            key=toleration['key'],
+            operator=toleration['operator'],
+            value=toleration['value'],
+            effect=toleration['effect']
+        )
+
+        # --- Patch Deployments ---
+        #print(f"Patching Deployments in namespace: {namespace}")
+        deployments = client_v1.list_namespaced_deployment(namespace=namespace)
+        for deployment in deployments.items:
+            k8_patch_deployment(deployment, namespace, new_toleration, tolerate_add)
+
+        # --- Patch DaemonSets ---
+        #print(f"Patching DaemonSets in namespace: {namespace}")
+        daemonsets = client_v1.list_namespaced_daemon_set(namespace=namespace)
+        for daemonset in daemonsets.items:
+            k8_patch_daemonset(daemonset, namespace, new_toleration, tolerate_add)
+
+        # --- Patch StatefulSets ---
+        #print(f"Patching StatefulSets in namespace: {namespace}")
+        statefulsets = client_v1.list_namespaced_stateful_set(namespace=namespace)
+        for statefulset in statefulsets.items:
+            k8_patch_statefulset(statefulset, namespace, new_toleration, tolerate_add)
+
 
 @log_arguments
 def k8_metrics_error(k8_cluster, counts, error_list, namespace : str):

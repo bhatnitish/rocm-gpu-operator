@@ -375,19 +375,19 @@ class K8Helper:
             gpu_node = gpu_nodes[0]
             node_name = k8_util.k8_get_node_hostname(gpu_node)
 
-        # check gpu capacity
-        init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
-        K8Helper.triage(environment, int(init_cap) != -1 or int(init_alloc) != -1,
-                        f'Err getting gpu capacity and allocatable values: capacity: {init_cap} allocatable: {init_alloc}')
-
-        # check if the node has allocatable gpus; if not fail
-        K8Helper.triage(environment, init_cap != 0 or init_alloc != 0, f'no gpu available')
-
-        # create a workload requesting one gpu
-        pod_name = f"gpu-workload-{node_name}-{common.generate_8byte_sha(node_name)}"
-
-        #launch
         if op_code == K8Helper.WorkloadOp.START_WORKLOAD:
+            # check gpu capacity
+            init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+            K8Helper.triage(environment, int(init_cap) != -1 or int(init_alloc) != -1,
+                            f'Err getting gpu capacity and allocatable values: capacity: {init_cap} allocatable: {init_alloc}')
+
+            # check if the node has allocatable gpus; if not fail
+            K8Helper.triage(environment, init_cap != 0 or init_alloc != 0, f'no gpu available')
+
+            # create a workload requesting one gpu
+            pod_name = f"gpu-workload-{node_name}-{common.generate_8byte_sha(node_name)}"
+
+            #launch
             Logger.info(f"Create the workload with gpu")
             workload_config.update(
                 {

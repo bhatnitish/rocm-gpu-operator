@@ -719,10 +719,9 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     verify_events(gpu_cluster, namespace)
 
     verify_logs(gpu_cluster, environment,
-               [f'AssociatedWorkload:"pod : pytorch-gpu-pod-1, namespace : {environment.gpu_operator_namespace}'])
-    debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, environment.gpu_operator_namespace) == "unhealthy",
-                     f"result of kubectl describe node $NODE_NAME | grep unhealthy")
-
+                [f"AssociatedWorkload:\"pod : {wl_ctxt['spec']['metadata']['name']}, namespace : {wl_ctxt['spec']['metadata']['namespace']}"])
+    debug_on_failure(environment, k8_util.k8_get_node_health(gpu_cluster, worker, namespace) == "unhealthy",
+                              f"result of kubectl describe node $NODE_NAME | grep unhealthy")
     match = []
     for i in range(sample_size):
         match.append(f"unhealthy for ecc field [{error_list[i]}] error crossing threshold {metrics_fields.get(error_list[i])}, current value {thresholds[i]}")
