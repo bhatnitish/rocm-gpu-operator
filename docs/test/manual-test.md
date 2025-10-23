@@ -138,6 +138,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: POD_UID # Use downward API to pass pod UID to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         - name: NODE_NAME # Use downward API to pass host name to test runner container
           valueFrom:
             fieldRef:
@@ -268,6 +272,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: POD_UID # Use downward API to pass pod UID to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         - name: NODE_NAME # Use downward API to pass host name to test runner container
           valueFrom:
             fieldRef:
@@ -430,6 +438,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -620,6 +632,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: POD_UID # Use downward API to pass pod UID to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         - name: NODE_NAME # Use downward API to pass host name to test runner container
           valueFrom:
             fieldRef:
@@ -780,6 +796,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: POD_UID # Use downward API to pass pod UID to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         - name: NODE_NAME # Use downward API to pass host name to test runner container
           valueFrom:
             fieldRef:
