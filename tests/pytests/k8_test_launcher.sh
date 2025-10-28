@@ -20,6 +20,7 @@ function usage() {
     echo ""
     echo "Usage: $0 [options]"
     echo "          --help print help/usage information"
+    echo "          --app <app-name>. Eq: gpu-operator, network-operator, exporter"
     echo "          --secrets secrets.json file"
     echo "          --amdgpu-driver-spec <driver-version-spec>"
     echo "          --workload-selection <workload-name>"
@@ -35,6 +36,7 @@ function usage() {
 
 IMAGE_MANIFEST="NA"
 SECRETS="NA"
+APP_NAME="NA"
 DEPLOYMENT="k8"
 TC_MODULE="ALL"
 TC_NAME="ALL"
@@ -81,7 +83,7 @@ function launch_pytest() {
     mkdir -p logs
     setup_pyenv
     install_helm_tool
-    local test_sel=${DEPLOYMENT}
+    local test_sel=${DEPLOYMENT}/${APP_NAME}
     local html_file=logs/${test_sel}.html
     local xml_file=logs/${test_sel}.xml
     if [[ "${TC_MODULE}" != "ALL" ]];
@@ -90,9 +92,9 @@ function launch_pytest() {
         then
             html_file=logs/${DEPLOYMENT}_${TC_MODULE}_${TC_NAME}.html
             xml_file=logs/${DEPLOYMENT}_${TC_MODULE}_${TC_NAME}.xml
-            test_sel=${DEPLOYMENT}/test_${TC_MODULE}.py::test_${TC_NAME}
+            test_sel=${DEPLOYMENT}/${APP_NAME}/test_${TC_MODULE}.py::test_${TC_NAME}
         else
-            test_sel=${DEPLOYMENT}/test_${TC_MODULE}.py
+            test_sel=${DEPLOYMENT}/${APP_NAME}/test_${TC_MODULE}.py
             html_file=logs/${test_sel}.html
             xml_file=logs/${test_sel}.xml
         fi
@@ -144,6 +146,10 @@ while [[ $# -gt 0 ]]; do
             IMAGE_MANIFEST="$2"
             shift
         ;;
+	--app)
+	    APP_NAME="$2"
+	    shift
+	;;
 	--module)
 	    TC_MODULE="$2"
 	    shift

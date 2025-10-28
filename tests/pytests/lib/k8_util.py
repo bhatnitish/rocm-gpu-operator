@@ -67,19 +67,17 @@ def k8_init_cluster(k8_cluster : common.k8_cluster):
         # create secrets, but first create the non-default namespace(s) listed in each entry
         namespaces = list(filter(lambda x: x != 'default', map(lambda entry: entry.get('namespace', 'default'), k8_cluster.k8_secrets['secrets'])))
         for namespace in namespaces:
-            ret_code, ret_stdout, ret_stderr = k8_create_namespace(k8_cluster, namespace)
+            ret_code, ret_stdout, ret_stderr = k8_create_namespace(namespace)
             if ret_code != 0:
                 Logger.debug(f"Failed to create namespace {namespace}, error: {ret_stderr}")
 
         for entry in k8_cluster.k8_secrets["secrets"]:
-            ret_code, ret_stdout, ret_stderr = k8_delete_secret(k8_cluster,
-                                                                entry.get("name"),
+            ret_code, ret_stdout, ret_stderr = k8_delete_secret(entry.get("name"),
                                                                 entry.get("type"),
                                                                 entry.get("namespace", "default"))
             if ret_code != 0:
                 Logger.warn(f"secret deletion failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
-            ret_code, ret_stdout, ret_stderr = k8_create_secret(k8_cluster,
-                                                                entry.get("name"),
+            ret_code, ret_stdout, ret_stderr = k8_create_secret(entry.get("name"),
                                                                 entry.get("type"),
                                                                 username = entry.get("username"),
                                                                 password = entry.get("password"),
@@ -187,6 +185,18 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
 
     for key, value in kwargs:
         cmd.extend(["--set", f"{key}={value}"])
+
+    if os.getenv("GPU_DEVICE") == "VF":
+        node_selection = {
+            "feature.node.kubernetes.io/amd-gpu"    : None,
+            "feature.node.kubernetes.io/amd-vgpu"   : "true",
+        }
+    else:
+        node_selection = {
+            "feature.node.kubernetes.io/amd-gpu"    : "true",
+            "feature.node.kubernetes.io/amd-vgpu"   : None,
+        }
+    cmd.extend(["--set-json", f"deviceConfig.spec.selector={json.dumps(node_selection)}"])
 
     if k8_cluster.k8_kube_config:
         cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
@@ -340,6 +350,7 @@ def is_helm_chart_healthy(k8_cluster : common.k8_cluster, release_name : str, na
             return True
     return False
 
+@log_arguments
 def k8_get_nodes() -> (int, str, K8Items):
     """
     API to get nodes from k8 cluster
@@ -359,12 +370,13 @@ def k8_get_nodes() -> (int, str, K8Items):
         Logger.error(f"Failed to collect nodes, error : {e}")
         return -1, None
 
-def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = True) -> (int, K8Items):
+@log_arguments
+def k8_get_gpu_nodes(skip_not_ready : bool = True) -> (int, K8Items):
     """
     API to get nodes from k8 cluster which have 'feature.node.kubernetes.io/amd-gpu : true'
 
     Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
+    skip_not_ready : bool, skip nodes which are not ready
 
     Returns:
     list of dict. For example refer to output of 'kubectl get nodes -o json | jq .items'
@@ -376,9 +388,17 @@ def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = Tru
         return ret_code, None
     #Logger.debug(f"Nodes : \n{LogPrettyPrinter.pformat(k8_nodes)}")
 
+    feature_labels = ['feature.node.kubernetes.io/amd-gpu', 'feature.node.kubernetes.io/amd-vgpu']
+
     k8_gpu_nodes = list()
     for node in k8_nodes:
-        if node['metadata']['labels'].get('feature.node.kubernetes.io/amd-gpu', 'false') != 'true':
+        gpu_node = False
+        for lbl in feature_labels:
+            if lbl in node['metadata']['labels']:
+                if node['metadata']['labels'][lbl] == 'true':
+                    gpu_node = True
+                    break
+        if not gpu_node:
             continue
 
         if skip_not_ready:
@@ -392,19 +412,18 @@ def k8_get_gpu_nodes(k8_cluster : common.k8_cluster, skip_not_ready : bool = Tru
     return ret_code, k8_gpu_nodes
 
 @log_arguments
-def k8_get_node_gpu_capacity(k8_cluster : common.k8_cluster, node_name : str) -> (int, int):
+def k8_get_node_gpu_capacity(node_name : str) -> (int, int):
     """
     API to get the node's status.capacity and status.allocatable values of gpu
 
     Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
     node_name  : name of the node
 
     Returns:
     gpu_capacity
     gpu_allocatable
     """
-    ret_code, gpu_nodes = k8_get_gpu_nodes(k8_cluster)
+    ret_code, gpu_nodes = k8_get_gpu_nodes()
     filtered_list = list(filter(lambda x: x['metadata']['name'] == node_name, gpu_nodes))
     assert len(filtered_list) == 1, f"No such cluster-node exists : {node_name}"
     node = filtered_list[0]
@@ -413,24 +432,8 @@ def k8_get_node_gpu_capacity(k8_cluster : common.k8_cluster, node_name : str) ->
     return(int(gpu_capacity), int(gpu_allocatable))
 
 @log_arguments
-def k8_get_node_gpu_alloc_requests(k8_cluster, node_name):
-    ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(f"kubectl describe node {node_name} | \
-                                             awk '/Allocated resources/,/gpu/'")
-    assert ret_code == 0, "Failed to get kubectl describe node output for node {node_name}"
-    output = resp_stdout.strip().splitlines()
-    requests = -1
-    limit = -1
-    for entry in output:
-        if 'amd.com/gpu' in entry:
-            entry = entry.split()
-            requests = entry[1]
-            limit = entry[2]
-
-    return(requests, limit)
-    
-
-def k8_get_node_gpu_allocatable(k8_cluster: common.k8_cluster, node_name: str) -> str:
-    ret_code, gpu_nodes = k8_get_gpu_nodes(k8_cluster)
+def k8_get_node_gpu_allocatable(node_name: str) -> str:
+    ret_code, gpu_nodes = k8_get_gpu_nodes()
     filtered_list = list(filter(lambda x: x['metadata']['name'] == node_name, gpu_nodes))
     assert len(filtered_list) == 1, f"No such cluster-node exists: {node_name}"
 
@@ -443,40 +446,26 @@ def k8_get_node_gpu_allocatable(k8_cluster: common.k8_cluster, node_name: str) -
 
 
 @log_arguments
-def k8_get_pods(k8_cluster, namespace, node_name = None):
+def k8_get_pods(namespace, node_name = None):
     """
     API to get all pods for a given namespace from a k8 cluster
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        try:
-            api = client.CoreV1Api()
-            if namespace:
-                pod_info = api.list_namespaced_pod(namespace = namespace).to_dict()
-            else:
-                pod_info = api.list_pod_for_all_namespaces().to_dict()
-            if node_name:
-                return 0, list(filter(lambda x: x['spec']['node_name'] == node_name, pod_info['items']))
-            return 0, pod_info['items']
-        except ApiException as e:
-            Logger.error(f"Failed to list all pods for give namespace {namespace} error : {e}")
-            return -1, None
-    else:
-        cmd = ["kubectl", "get", "pods"]
+    try:
+        api = client.CoreV1Api()
         if namespace:
-            cmd.extend(["--namespace", f"{namespace}"])
+            pod_info = api.list_namespaced_pod(namespace = namespace).to_dict()
         else:
-            cmd.append("-A")
-
-        cmd.append("-ojson")
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        if ret_code != 0:
-            return ret_code, None
-        k8_pod_info = json.loads(resp_stdout)
-        return ret_code, k8_pod_info.get("items", None)
+            pod_info = api.list_pod_for_all_namespaces().to_dict()
+        if node_name:
+            return 0, list(filter(lambda x: x['spec']['node_name'] == node_name, pod_info['items']))
+        return 0, pod_info['items']
+    except ApiException as e:
+        Logger.error(f"Failed to list all pods for give namespace {namespace} error : {e}")
+        return -1, None
 
 @log_arguments
-def k8_get_endpoints(k8_cluster, namespace):
+def k8_get_endpoints(namespace):
     """
     API to get endpoints from a k8 cluster for a given namespace and filtered by service-name
     """
@@ -484,43 +473,19 @@ def k8_get_endpoints(k8_cluster, namespace):
     global LogPrettyPrinter
     ret_values = defaultdict(list)
     ret_code = -1
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            k8_endpoint_info = api.list_endpoints_for_all_namespaces().to_dict()
-            Logger.debug(f"List Endpoints, resp:\n{LogPrettyPrinter.pformat(k8_endpoint_info)}")
-            endpoints = list(filter(lambda x: x['metadata']['namespace'] == namespace, k8_endpoint_info.get("items", list())))
-            ret_code = 0
-        except ApiException as e:
-            Logger.error(f"Failed to collect endpoints, error: {e}")
-            return -1, None
-        for item in endpoints:
-            service_name = item["metadata"]["name"]
-            subset_infos = item.get("subsets", [])
-            if subset_infos:
-                for subset in subset_infos:
-                    port = subset['ports'][0]['port']
-                    for address in subset['addresses']:
-                        ip_address = address['ip']
-                        host = address['node_name']
-                        ret_values[service_name].append((host, ip_address, port))
-    else:
-        cmd = ["kubectl", "get", "endpoints"]
-        if namespace:
-            cmd.extend(["--namespace", f"{namespace}"])
-        else:
-            cmd.append("-A")
-
-        cmd.append("-ojson")
-
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        if ret_code != 0:
-            return ret_code, None
-        k8_endpoint_info = json.loads(resp_stdout)
-
-        for item in k8_endpoint_info.get("items", []):
-            service_name = item["metadata"]["name"]
-            subset_infos = item.get("subsets", [])
+    api = client.CoreV1Api()
+    try:
+        k8_endpoint_info = api.list_endpoints_for_all_namespaces().to_dict()
+        Logger.debug(f"List Endpoints, resp:\n{LogPrettyPrinter.pformat(k8_endpoint_info)}")
+        endpoints = list(filter(lambda x: x['metadata']['namespace'] == namespace, k8_endpoint_info.get("items", list())))
+        ret_code = 0
+    except ApiException as e:
+        Logger.error(f"Failed to collect endpoints, error: {e}")
+        return -1, None
+    for item in endpoints:
+        service_name = item["metadata"]["name"]
+        subset_infos = item.get("subsets", [])
+        if subset_infos:
             for subset in subset_infos:
                 port = subset['ports'][0]['port']
                 for address in subset['addresses']:
@@ -530,112 +495,102 @@ def k8_get_endpoints(k8_cluster, namespace):
     return ret_code, ret_values
 
 @log_arguments
-def k8_create_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) -> (int, str, str):
+def k8_create_deviceconfig_cr(cr_spec : dict) -> (int, str, str):
     """
     API to create custom-resource on a K8 cluster.
     """
     global Logger
 
-    if k8_cluster.k8_kube_config:
-        custom_objects_api = client.CustomObjectsApi()
-        # Read cr_file and derive: group, version, plural and name
-        group, version = cr_spec['apiVersion'].split('/')
-        plural = cr_spec['kind'].lower() + 's'
-        namespace = cr_spec['metadata']['namespace']
-        try:
-            _ = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
-        except ApiException as e:
-            Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        cr_file = os.path.join("logs", "deviceconfig_cr.yaml")
-        spec_util.dump_yaml(cr_file, cr_spec)
-
-        if not os.path.exists(cr_file):
-            return -1, "", f"Missing cr_file : {cr_file}"
-
-        cmd = ["kubectl", "apply", "-f"]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"{cr_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(cr_file))
-            k8_cluster.k8_master.put(cr_file, remote_file)
-            cmd.append(remote_file)
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    custom_objects_api = client.CustomObjectsApi()
+    # Read cr_file and derive: group, version, plural and name
+    group, version = cr_spec['apiVersion'].split('/')
+    plural = cr_spec['kind'].lower() + 's'
+    namespace = cr_spec['metadata']['namespace']
+    try:
+        _ = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
+    except ApiException as e:
+        Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_modify_deviceconfig_cr(k8_cluster : common.k8_cluster, cr_spec : dict) -> (int, str, str):
+def k8_modify_deviceconfig_cr(cr_spec : dict) -> (int, str, str):
     """
     API to modify custom-resource on a K8 cluster.
     """
     global Logger
 
-    if k8_cluster.k8_kube_config:
-        custom_objects_api = client.CustomObjectsApi()
-        # Read cr_file and derive: group, version, plural and name
-        group, version = cr_spec['apiVersion'].split('/')
-        plural = cr_spec['kind'].lower() + 's'
-        namespace = cr_spec['metadata']['namespace']
-        devcfg_name = cr_spec['metadata']['name']
-        try:
-            devcfg_obj = custom_objects_api.get_namespaced_custom_object(group = group, version = version, namespace = namespace, 
-                                                                         plural = plural, name = devcfg_name)
-            # Modify devcfg_obj['spec']
-            devcfg_obj['spec'] = cr_spec['spec']
-            custom_objects_api.replace_namespaced_custom_object(group = group, version = version, namespace = namespace, 
-                                                                plural = plural, name = devcfg_name, body=devcfg_obj)
-        except ApiException as e:
-            Logger.error(f"Failed to modify deviceconfig {devcfg_name}\n{devcfg_obj}\n Exception: {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        return k8_create_deviceconfig_cr(k8_cluster, cr_spec)
+    custom_objects_api = client.CustomObjectsApi()
+    # Read cr_file and derive: group, version, plural and name
+    group, version = cr_spec['apiVersion'].split('/')
+    plural = cr_spec['kind'].lower() + 's'
+    namespace = cr_spec['metadata']['namespace']
+    devcfg_name = cr_spec['metadata']['name']
+    try:
+        devcfg_obj = custom_objects_api.get_namespaced_custom_object(group = group, version = version, namespace = namespace, 
+                                                                     plural = plural, name = devcfg_name)
+        # Modify devcfg_obj['spec']
+        devcfg_obj['spec'] = cr_spec['spec']
+        custom_objects_api.replace_namespaced_custom_object(group = group, version = version, namespace = namespace, 
+                                                            plural = plural, name = devcfg_name, body=devcfg_obj)
+    except ApiException as e:
+        Logger.error(f"Failed to modify deviceconfig {devcfg_name}\n{devcfg_obj}\n Exception: {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_apply_cr(k8_cluster : common.k8_cluster, cr_spec : dict, cr_file : str) -> (int, str, str):
+def k8_apply_cr(cr_spec : dict, cr_file : str) -> (int, str, str):
     """
     API to create custom-resource on a K8 cluster.
     """
     global Logger
 
-    if k8_cluster.k8_kube_config:
-        namespace = cr_spec.get('metadata').get('namespace')
-        api = client.CoreV1Api()
-        try:
-            result = api.create_namespaced_pod(namespace, body=cr_spec)
-        except ApiException as e:
-            assert True, f"Failed to start pod\n{cr_spec}\n{str(e)}\n{result}"
-            return -1, "", str(e)
-        return 0, "", ""
-
-    else:
-        if not os.path.exists(cr_file):
-            return -1, "", f"Missing cr_file : {cr_file}"
-
-        cmd = ["kubectl", "apply", "-f"]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"{cr_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(cr_file))
-            k8_cluster.k8_master.put(cr_file, remote_file)
-            cmd.append(remote_file)
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    namespace = cr_spec.get('metadata').get('namespace')
+    api = client.CoreV1Api()
+    try:
+        result = api.create_namespaced_pod(namespace, body=cr_spec)
+    except ApiException as e:
+        assert True, f"Failed to start pod\n{cr_spec}\n{str(e)}\n{result}"
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, namespace : str, name : str) -> (int, str, str):
+def k8_delete_deviceconfig_cr(namespace : str, name : str) -> (int, str, str):
     """
     API to delete deviceconfig CR with given name and namespace
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        custom_objects_api = client.CustomObjectsApi()
-        group = 'amd.com'
-        version = 'v1alpha1'
-        plural = 'deviceconfigs'
-        # check if it exists:
+    custom_objects_api = client.CustomObjectsApi()
+    group = 'amd.com'
+    version = 'v1alpha1'
+    plural = 'deviceconfigs'
+    # check if it exists:
+    found = False
+    try:
+        cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
+                                                                   namespace = namespace, plural = plural)
+        for item in cr_list["items"]:
+            if name == item["metadata"]["name"]:
+                found = True
+    except ApiException as e:
+        Logger.error(f"Failed to query deviceconfig CR, error: {e}")
+
+    if not found:
+        Logger.error(f"DeviceConfig {name} does not exists")
+        return 0, "", ""
+    try:
+        custom_objects_api.delete_namespaced_custom_object(group=group,
+                                                           version=version,
+                                                           namespace=namespace,
+                                                           plural=plural,
+                                                           name=name,
+                                                           body=client.V1DeleteOptions())
+    except ApiException as e:
+        Logger.error(f"Failed to delete deviceconfig CR, error: {e}")
+        return -1, "", str(e)
+
+    # Wait till resources are removed
+    for _ in range(10):
         found = False
         try:
             cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
@@ -647,67 +602,24 @@ def k8_delete_deviceconfig_cr(k8_cluster : common.k8_cluster, namespace : str, n
             Logger.error(f"Failed to query deviceconfig CR, error: {e}")
 
         if not found:
-            Logger.error(f"DeviceConfig {name} does not exists")
-            return 0, "", ""
-        try:
-            custom_objects_api.delete_namespaced_custom_object(group=group,
-                                                               version=version,
-                                                               namespace=namespace,
-                                                               plural=plural,
-                                                               name=name,
-                                                               body=client.V1DeleteOptions())
-        except ApiException as e:
-            Logger.error(f"Failed to delete deviceconfig CR, error: {e}")
-            return -1, "", str(e)
-
-        # Wait till resources are removed
-        for _ in range(10):
-            found = False
-            try:
-                cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
-                                                                           namespace = namespace, plural = plural)
-                for item in cr_list["items"]:
-                    if name == item["metadata"]["name"]:
-                        found = True
-            except ApiException as e:
-                Logger.error(f"Failed to query deviceconfig CR, error: {e}")
-
-            if not found:
-                break
-            time.sleep(5)
-        return 0, "", ""
-    else:
-        cmd = ["kubectl", "delete", "deviceconfig", name, "-n", namespace]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+            break
+        time.sleep(5)
+    return 0, "", ""
 
 @log_arguments
-def k8_delete_cr(k8_cluster, cr_spec, cr_file):
+def k8_delete_cr(cr_spec, cr_file):
     """
     API to delete CR with given spec (dict)
     """
     global Logger
 
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            api.delete_namespaced_pod(name=cr_spec.get('metadata').get('name'),
-                                      namespace=cr_spec.get('metadata').get('namespace'))
-        except ApiException as e:
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        if not os.path.exists(cr_file):
-            return  -1, "", f"Missing cr_file : {cr_file}"
-
-        cmd = ["kubectl", "delete", "-f"]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"{cr_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(cr_file))
-            k8_cluster.k8_master.put(cr_file, remote_file)
-            cmd.append(remote_file)
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    api = client.CoreV1Api()
+    try:
+        api.delete_namespaced_pod(name=cr_spec.get('metadata').get('name'),
+                                  namespace=cr_spec.get('metadata').get('namespace'))
+    except ApiException as e:
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
 def k8_create_rules_from_endpoint_list(endpoint_verbs : List):
@@ -726,12 +638,11 @@ def k8_create_rules_from_verbs(resources, verbs, api_groups=[""]):
     )
 
 @log_arguments
-def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : str, rules : List) -> (int, str, str):
+def k8_create_cluster_role(cluster_role_name : str, rules : List) -> (int, str, str):
     """
     API to create a cluster-role with specific endpoint and corresponding verb
 
     Parameters:
-    k8_cluster : instance of common.k8_cluster
     cluster_role_name : name of cluster-role
     endpoint_verbs : list of tuple of (endpoint, verb)
 
@@ -741,40 +652,25 @@ def k8_create_cluster_role(k8_cluster : common.k8_cluster, cluster_role_name : s
     stderr (str) : stderr
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.RbacAuthorizationV1Api()
+    api = client.RbacAuthorizationV1Api()
 
-        cluster_role = client.V1ClusterRole(
-                api_version="rbac.authorization.k8s.io/v1",
-                kind = "ClusterRole",
-                metadata = client.V1ObjectMeta(name=cluster_role_name),
-                rules=rules)
-        try:
-            api_response = api.create_cluster_role(cluster_role)
-            return 0, "", ""
-        except ApiException as e:
-            return -1, "", str(e)
-    else:
-        # Build yaml file
-        cr_file = os.path.join("logs", f"cluster_role_{cluster_role_name}.yaml")
-        spec_util.generate_cluster_role_spec(cr_file, cluster_role_name, endpoint_verbs)
-        cmd = ["kubectl", "apply", "-f"]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"{cr_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(cr_file))
-            k8_cluster.k8_master.put(cr_file, remote_file)
-            cmd.append(remote_file)
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    cluster_role = client.V1ClusterRole(
+            api_version="rbac.authorization.k8s.io/v1",
+            kind = "ClusterRole",
+            metadata = client.V1ObjectMeta(name=cluster_role_name),
+            rules=rules)
+    try:
+        api_response = api.create_cluster_role(cluster_role)
+        return 0, "", ""
+    except ApiException as e:
+        return -1, "", str(e)
 
 @log_arguments
-def k8_create_role_binding(k8_cluster : common.k8_cluster, crb_name : str,  namespace : str, cluster_role_name : str, sa_name : str) -> (int, str, str):
+def k8_create_role_binding(crb_name : str,  namespace : str, cluster_role_name : str, sa_name : str) -> (int, str, str):
     """
     API to create cluster-role-binding
 
     Parameters:
-    k8_cluster : instance of common.k8_cluster
     crb_name : cluster-role-binding name
     namespace : reader namespace
     cluster_role_name : cluster-role name
@@ -786,175 +682,137 @@ def k8_create_role_binding(k8_cluster : common.k8_cluster, crb_name : str,  name
     str : stderr
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        cluster_role_binding = client.V1ClusterRoleBinding(
-                api_version = "rbac.authorization.k8s.io/v1",
-                kind = "ClusterRoleBinding",
-                metadata=client.V1ObjectMeta(name=crb_name),
-                subjects=[
-                    client.RbacV1Subject(
-                        kind="ServiceAccount",
-                        name=sa_name,
-                        namespace=namespace)
-                ],
-                role_ref=client.V1RoleRef(
-                    kind="ClusterRole",
-                    name=cluster_role_name,
-                    api_group="rbac.authorization.k8s.io")
-        )
-        api = client.RbacAuthorizationV1Api()
-        try:
-            # Create the ClusterRoleBinding
-            api_response = api.create_cluster_role_binding(cluster_role_binding)
-            return 0, "", ""
-        except ApiException as e:
-            return -1, "", str(e)
-    else:
-        cr_file = os.path.join("logs", "metrics-reader-get-crb.yaml")
-        spec_util.generate_clusterrolebinding_yaml(cr_file, crb_name, namespace, cluster_role_name, sa_name)
-        cmd = ["kubectl", "apply", "-f"]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"{cr_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(cr_file))
-            k8_cluster.k8_master.put(cr_file, remote_file)
-            cmd.append(remote_file)
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    cluster_role_binding = client.V1ClusterRoleBinding(
+            api_version = "rbac.authorization.k8s.io/v1",
+            kind = "ClusterRoleBinding",
+            metadata=client.V1ObjectMeta(name=crb_name),
+            subjects=[
+                client.RbacV1Subject(
+                    kind="ServiceAccount",
+                    name=sa_name,
+                    namespace=namespace)
+            ],
+            role_ref=client.V1RoleRef(
+                kind="ClusterRole",
+                name=cluster_role_name,
+                api_group="rbac.authorization.k8s.io")
+    )
+    api = client.RbacAuthorizationV1Api()
+    try:
+        # Create the ClusterRoleBinding
+        api_response = api.create_cluster_role_binding(cluster_role_binding)
+        return 0, "", ""
+    except ApiException as e:
+        return -1, "", str(e)
 
 @log_arguments
-def k8_delete_pod(k8_cluster : common.k8_cluster, pod_name : str, namespace : str, force : bool = False):
+def k8_delete_pod(pod_name : str, namespace : str, force : bool = False):
     """
     API to delete a pod
     """
     global Logger
     global LogPrettyPrinter
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            resp = api.delete_namespaced_pod(pod_name, namespace)
-            #Logger.debug(f"Successfully delete pod, resp:\n{LogPrettyPrinter.pformat(resp)}")
-            return 0, "", ""
-        except ApiException as e:
-            Logger.error(f"Failed to delete pod, error: {e}")
-            return -1, "", str(e)
-    else:
-        cmd = f"kubectl delete pod {pod_name} -n {namespace}"
-        return k8_cluster.k8_master.run_command(cmd)
+    api = client.CoreV1Api()
+    try:
+        resp = api.delete_namespaced_pod(pod_name, namespace)
+        #Logger.debug(f"Successfully delete pod, resp:\n{LogPrettyPrinter.pformat(resp)}")
+        return 0, "", ""
+    except ApiException as e:
+        Logger.error(f"Failed to delete pod, error: {e}")
+        return -1, "", str(e)
 
 @log_arguments
-def k8_delete_all_pods(k8_cluster : common.k8_cluster, namespace : str):
+def k8_delete_all_pods(namespace : str):
     """
     API to delete all pods in a given namespace
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        ret_code, pods = k8_get_pods(k8_cluster, namespace)
-        if ret_code != 0:
-            return ret_code, "", f"Failed to get all pods for given namespace {namespace}"
-        for pod in pods:
-            k8_delete_pod(k8_cluster, pod['metadata']['name'], namespace)
-        return 0, "", ""
-    else:
-        cmd = f"kubectl delete pods --all -n {namespace}"
-        return k8_cluster.k8_master.run_command(cmd)
+    ret_code, pods = k8_get_pods(namespace)
+    if ret_code != 0:
+        return ret_code, "", f"Failed to get all pods for given namespace {namespace}"
+    for pod in pods:
+        k8_delete_pod(pod['metadata']['name'], namespace)
+    return 0, "", ""
 
 @log_arguments
-def k8_delete_all_pods_with_prefix(k8_cluster : common.k8_cluster, namespace : str, pod_name_prefix: str) -> int:
+def k8_delete_all_pods_with_prefix(namespace : str, pod_name_prefix: str) -> int:
     """
     API to delete all pods with given name prefix
     """
     global Logger
     global LogPrettyPrinter
     ret_code = 0
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
+    api = client.CoreV1Api()
 
-        delete_list = []
-        try:
-            pods = api.list_namespaced_pod(namespace = namespace)
-            for pod in pods.items:
-                if pod.metadata.name.startswith(pod_name_prefix):
-                    delete_list.append(pod.metadata.name)
-        except ApiException as e:
-            Logger.error(f"Failed to get all pods from namespace {namespace}, error: {e}")
-            return -1
+    delete_list = []
+    try:
+        pods = api.list_namespaced_pod(namespace = namespace)
+        for pod in pods.items:
+            if pod.metadata.name.startswith(pod_name_prefix):
+                delete_list.append(pod.metadata.name)
+    except ApiException as e:
+        Logger.error(f"Failed to get all pods from namespace {namespace}, error: {e}")
+        return -1
 
-        Logger.info(f"Deleting following pods from the cluster : {delete_list}")
-        for pod_name in delete_list:
-            ret_code, ret_stdout, ret_stderr = k8_delete_pod(k8_cluster, pod_name, namespace, force = True)
-            if ret_code != 0:
-                Logger.error(f"Failed to delete pod {pod_name}, error {ret_stderr}")
+    Logger.info(f"Deleting following pods from the cluster : {delete_list}")
+    for pod_name in delete_list:
+        ret_code, ret_stdout, ret_stderr = k8_delete_pod(pod_name, namespace, force = True)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete pod {pod_name}, error {ret_stderr}")
     return ret_code
 
 @log_arguments
-def k8_get_namespaces(k8_cluster : common.k8_cluster):
+def k8_get_namespaces():
     """
     API to get all namespaces in a given k8 cluster
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            k8_namespace_info = api.list_namespace().to_dict()
-        except ApiException as e:
-            Logger.error(f"Failed to collect namespaces, error : {e}")
-            return -1, None
-    else:
-        cmd = f"kubectl get namespaces -ojson"
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(cmd)
-        if ret_code != 0:
-            return ret_code, None
-        k8_namespace_info = json.loads(resp_stdout)
+    api = client.CoreV1Api()
+    try:
+        k8_namespace_info = api.list_namespace().to_dict()
+    except ApiException as e:
+        Logger.error(f"Failed to collect namespaces, error : {e}")
+        return -1, None
     return 0, k8_namespace_info.get("items", list())
 
 @log_arguments
-def k8_delete_namespace(k8_cluster : common.k8_cluster, namespace : str):
+def k8_delete_namespace(namespace : str):
     """
     API to delete namespace in a given k8 cluster
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            api_response = api.delete_namespace(name = namespace, body=client.V1DeleteOptions())
-            Logger.debug("k8_delete_namespace::api_response : {api_response}")
-            return 0, "", ""
-        except ApiException as e:
-            Logger.error(f"Failed to delete namespace, error : {e}")
-            return -1, "", str(e)
-    else:
-        cmd = f"kubectl delete namespace {namespace}"
-        return k8_cluster.k8_master.run_command(cmd)
+    api = client.CoreV1Api()
+    try:
+        api_response = api.delete_namespace(name = namespace, body=client.V1DeleteOptions())
+        Logger.debug("k8_delete_namespace::api_response : {api_response}")
+        return 0, "", ""
+    except ApiException as e:
+        Logger.error(f"Failed to delete namespace, error : {e}")
+        return -1, "", str(e)
 
 @log_arguments
-def k8_create_namespace(k8_cluster : common.k8_cluster, namespace : str):
+def k8_create_namespace(namespace : str):
     """
     API to create a namespace
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        msg_body = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
-        try:
-            api_response = api.create_namespace(body = msg_body)
-            Logger.debug("k8_create_namespace::api_response : {api_response}")
-            return 0, "", ""
-        except ApiException as e:
-            Logger.error(f"Failed to create namespace, error : {e}")
-            return -1, "", str(e)
-    else:
-        cmd = f"kubectl create namespace {namespace}"
-        return k8_cluster.k8_master.run_command(cmd)
-
+    api = client.CoreV1Api()
+    msg_body = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
+    try:
+        api_response = api.create_namespace(body = msg_body)
+        Logger.debug("k8_create_namespace::api_response : {api_response}")
+        return 0, "", ""
+    except ApiException as e:
+        Logger.error(f"Failed to create namespace, error : {e}")
+        return -1, "", str(e)
 
 @log_arguments
-def k8_create_pre_test_runner_job(k8_cluster: common.k8_cluster, namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str, framework: str):
+def k8_create_pre_test_runner_job(namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str, framework: str):
     global Logger
     apps_v1 = client.AppsV1Api()
     core_v1 = client.CoreV1Api()
-    gpu_type = k8_get_node_gpu_allocatable(k8_cluster, worker)
-    init_cap, alloc = k8_get_node_gpu_capacity(k8_cluster, worker)
+    gpu_type = k8_get_node_gpu_allocatable(worker)
+    init_cap, alloc = k8_get_node_gpu_capacity(worker)
 
     # Define deployment metadata
     labels = {"purpose": "demo-pytorch-amdgpu"}
@@ -1144,7 +1002,7 @@ def k8_delete_deployment(namespace, deployment_name):
         assert True, f"An unexpected error occurred: {e}"
 
 @log_arguments
-def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker : str, sa_name: str, job_name : str, framework : str, healthy : bool, schedule : bool, minute : str):
+def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_name: str, job_name : str, framework : str, healthy : bool, schedule : bool, minute : str):
     global Logger
 
     # Pre loaded Load Kubernetes configuration
@@ -1152,8 +1010,8 @@ def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker
     # Create an instance of the BatchV1Api, which is used for Jobs
 
     batch_v1_api = client.BatchV1Api()
-    gpu_type = k8_get_node_gpu_allocatable(k8_cluster, worker)
-    init_cap, alloc = k8_get_node_gpu_capacity(k8_cluster, worker)
+    gpu_type = k8_get_node_gpu_allocatable(worker)
+    init_cap, alloc = k8_get_node_gpu_capacity(worker)
     testrunner_image_key = 'testRunner'
     if framework == "AGFHC":
         testrunner_image_key += 'Agfhc'
@@ -1315,106 +1173,81 @@ def k8_create_test_runner_job(k8_cluster, namespace : str, images : dict, worker
 
 
 @log_arguments
-def k8_get_job_status(k8_cluster : common.k8_cluster, namespace : str, job_name):
+def k8_get_job_status(namespace : str, job_name):
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.BatchV1Api()
-        v1 = client.CoreV1Api()
-        try:
-            time.sleep(2)
-            api_response = api.list_namespaced_job(namespace=namespace)
-            Logger.debug(f"k8_get_job::api_response : {api_response}")
-            result = ""
-            if len(api_response.items) != 0:
-                item = api_response.items[-1]
-                if item.status.succeeded == None:
-                    result = "Unknown"
-                elif item.status.active == None and item.status.succeeded == "1":
-                    result = "Succeeded"
-                elif item.status.active == "1":
-                    result = "Active"
-            else:
-                return "Incomplete"
-            Logger.debug(f"Status of job is {result} and full status is {item.status}")
-            label_selector = f"job-name={job_name}"
-            pods = v1.list_pod_for_all_namespaces(label_selector=label_selector)
-            Logger.debug("k8_get_job::list of pods assoc with job: {job_name}:\n{pods}")
-                #Pending, Running, Succeeded
-            if len(pods.items) == 0:
-                return "Completed"
-            if pods.items[-1].status.phase:
-                return pods.items[-1].status.phase
-            return result
-        except ApiException as e:
-            Logger.error(f"Failed to get job, error : {e}")
+    api = client.BatchV1Api()
+    v1 = client.CoreV1Api()
+    try:
+        time.sleep(2)
+        api_response = api.list_namespaced_job(namespace=namespace)
+        Logger.debug(f"k8_get_job::api_response : {api_response}")
+        result = ""
+        if len(api_response.items) != 0:
+            item = api_response.items[-1]
+            if item.status.succeeded == None:
+                result = "Unknown"
+            elif item.status.active == None and item.status.succeeded == "1":
+                result = "Succeeded"
+            elif item.status.active == "1":
+                result = "Active"
+        else:
+            return "Incomplete"
+        Logger.debug(f"Status of job is {result} and full status is {item.status}")
+        label_selector = f"job-name={job_name}"
+        pods = v1.list_pod_for_all_namespaces(label_selector=label_selector)
+        Logger.debug("k8_get_job::list of pods assoc with job: {job_name}:\n{pods}")
+            #Pending, Running, Succeeded
+        if len(pods.items) == 0:
             return "Completed"
-    else:
-        cmd = f"kubectl get job -n {namespace} | tail -1" + " | awk '{print $2}'"
-        ret_code, stdout, stderr = k8_cluster.k8_master.run_command(cmd)
-        Logger.info(f"running job:\n{stdout}")
-        return stdout.split('/')[0]
+        if pods.items[-1].status.phase:
+            return pods.items[-1].status.phase
+        return result
+    except ApiException as e:
+        Logger.error(f"Failed to get job, error : {e}")
+        return "Completed"
 
 @log_arguments
-def k8_delete_job(k8_cluster : common.k8_cluster, namespace : str, job_name : str):
+def k8_delete_job(namespace : str, job_name : str):
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.BatchV1Api()
-        v1 = client.CoreV1Api()
-        try:
-            label_selector = f"job-name={job_name}"
-            pods = v1.list_pod_for_all_namespaces(label_selector=label_selector)
-            for pod in pods.items:
-                k8_delete_pod(k8_cluster, pod.metadata.name, namespace, True)
-            api_response = api.delete_namespaced_job(namespace=namespace, name=job_name)
-            Logger.debug("k8_get_job::api_response : {api_response}")
-            return True
-        except ApiException as e:
-            return -1, "", str(e)
-    else:
-        cmd = f"kubectl delete job -n {namespace} {job_name} | tail -1" + " | awk '{print $2}'"
-        ret_code, stdout, stderr = k8_cluster.k8_master.run_command(cmd)
-        Logger.info(f"Deleting job:\n{stdout}")
-        return stdout.split('/')[0]
+    api = client.BatchV1Api()
+    v1 = client.CoreV1Api()
+    try:
+        label_selector = f"job-name={job_name}"
+        pods = v1.list_pod_for_all_namespaces(label_selector=label_selector)
+        for pod in pods.items:
+            k8_delete_pod(pod.metadata.name, namespace, True)
+        api_response = api.delete_namespaced_job(namespace=namespace, name=job_name)
+        Logger.debug("k8_get_job::api_response : {api_response}")
+        return True
+    except ApiException as e:
+        return -1, "", str(e)
 
 @log_arguments
-def k8_get_cron_job_status(k8_cluster : common.k8_cluster, namespace : str, job_name):
+def k8_get_cron_job_status(namespace : str, job_name):
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.BatchV1Api()
-        try:
-            api_response = api.list_namespaced_cron_job(namespace=namespace)
-            Logger.debug("k8_get_cron_job::api_response : {api_response}")
-            return api_response.items[-1].metadata.name == job_name
-        except ApiException as e:
-            Logger.error(f"Failed to get cron job, error : {e}")
-            return False
-    else:
-        cmd = f"kubectl get cronjob -n {namespace} | tail -1 | " + "awk '{print $NF}'"
-        ret_code, stdout, stderr = k8_cluster.k8_master.run_command(cmd)
-        Logger.info(f"was scheduled :\n{stdout}")
-        return "No resources found in" not in stderr
+    api = client.BatchV1Api()
+    try:
+        api_response = api.list_namespaced_cron_job(namespace=namespace)
+        Logger.debug("k8_get_cron_job::api_response : {api_response}")
+        return api_response.items[-1].metadata.name == job_name
+    except ApiException as e:
+        Logger.error(f"Failed to get cron job, error : {e}")
+        return False
 
 @log_arguments
-def k8_delete_cron_job(k8_cluster : common.k8_cluster, namespace : str, job_name : str):
+def k8_delete_cron_job(namespace : str, job_name : str):
     global Logger
-    if k8_cluster.k8_kube_config:
-        api = client.BatchV1Api()
-        try:
-            api_response = api.delete_namespaced_cron_job(namespace=namespace, name=job_name)
-            Logger.debug("k8_get_job::api_response : {api_response}")
-        except ApiException as e:
-            return -1, "", str(e)
-    else:
-        cmd = f"kubectl delete cronjob -n {namespace} {job_name} | tail -1" + " | awk '{print $2}'"
-        ret_code, stdout, stderr = k8_cluster.k8_master.run_command(cmd)
-        Logger.info(f"Deleting job:\n{stdout}")
-        return stdout.split('/')[0]
-
+    api = client.BatchV1Api()
+    try:
+        api_response = api.delete_namespaced_cron_job(namespace=namespace, name=job_name)
+        Logger.debug("k8_get_job::api_response : {api_response}")
+    except ApiException as e:
+        return -1, "", str(e)
 
 @log_arguments
-def k8_check_pod_status(k8_cluster : common.k8_cluster, namespace : str, pod_list : List) -> Dict:
+def k8_check_pod_status(namespace : str, pod_list : List) -> Dict:
     pod_status = dict()
-    ret_code, k8_pod_list = k8_get_pods(k8_cluster, namespace)
+    ret_code, k8_pod_list = k8_get_pods(namespace)
     assert ret_code == 0, "Error while getting all pods from k8-cluster"
     for pod_info in pod_list:
         sel_pods = list(filter(lambda x: pod_info.PodName in x['metadata'].get('name', None), k8_pod_list))
@@ -1425,7 +1258,7 @@ def k8_check_pod_status(k8_cluster : common.k8_cluster, namespace : str, pod_lis
 
 
 @log_arguments
-def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
+def k8_check_pod_running(namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
     """
     API to check if ALL of given list of PODs are running
     """
@@ -1454,7 +1287,7 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
     failed_pods = list()
     for x in range(total_attempts):
         failed_pods.clear()
-        ret_code, k8_pod_list = k8_get_pods(k8_cluster, namespace)
+        ret_code, k8_pod_list = k8_get_pods(namespace)
         assert ret_code == 0, "Error while getting all pods from k8-cluster"
         for pod_info in pod_list:
             if not _is_pod_present_and_match_status(k8_pod_list, pod_info.PodName, pod_info.NumInstances, pod_info.ContainerCount, 'Running'):
@@ -1469,7 +1302,7 @@ def k8_check_pod_running(k8_cluster : common.k8_cluster, namespace : str, pod_li
     return failed_pods
 
 @log_arguments
-def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
+def k8_check_pod_terminated(namespace : str, pod_list : List, sleep_time : int = 10, total_attempts : int = 10):
     """
     API to check if ALL of given list of PODs are terminated
     """
@@ -1488,7 +1321,7 @@ def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod
     running_pods = list()
     for x in range(total_attempts):
         running_pods.clear()
-        ret_code, k8_pod_list = k8_get_pods(k8_cluster, namespace)
+        ret_code, k8_pod_list = k8_get_pods(namespace)
         assert ret_code == 0, "Error while getting all pods from k8-cluster"
 
         for pod_info in pod_list:
@@ -1504,45 +1337,31 @@ def k8_check_pod_terminated(k8_cluster : common.k8_cluster, namespace : str, pod
     return running_pods
 
 @log_arguments
-def k8_create_configmap(k8_cluster : common.k8_cluster, namespace : str, configmap_name : str, configmap_json_file : str):
+def k8_create_configmap(namespace : str, configmap_name : str, configmap_json_file : str):
     """
     API to create configmap in a k8-cluster
 
     Example: kubectl create configmap -n kube-amd-gpu exporter-config --from-file=config.json
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        with open(configmap_json_file) as fp:
-            data = json.load(fp)
-        api = client.CoreV1Api()
-        config_map = client.V1ConfigMap(
-                api_version = "v1",
-                kind = "ConfigMap",
-                metadata = client.V1ObjectMeta(name=configmap_name, namespace=namespace),
-                data = {"config.json" : json.dumps(data)}
-            )
-        try:
-            api_response = api.create_namespaced_config_map(namespace, config_map)
-        except ApiException as e:
-            Logger.error(f"Failed to create configmap, error : {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        if not os.path.exists(configmap_json_file):
-            return -1, "", f"Missing configmap_json_file : {configmap_json_file}"
-
-        cmd = ["kubectl", "create", "configmap", "--namespace", namespace, configmap_name]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"--from-file={configmap_json_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(configmap_json_file))
-            k8_cluster.k8_master.put(configmap_json_file, remote_file)
-            cmd.append(f"--from-file={remote_file}")
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    with open(configmap_json_file) as fp:
+        data = json.load(fp)
+    api = client.CoreV1Api()
+    config_map = client.V1ConfigMap(
+            api_version = "v1",
+            kind = "ConfigMap",
+            metadata = client.V1ObjectMeta(name=configmap_name, namespace=namespace),
+            data = {"config.json" : json.dumps(data)}
+        )
+    try:
+        api_response = api.create_namespaced_config_map(namespace, config_map)
+    except ApiException as e:
+        Logger.error(f"Failed to create configmap, error : {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configmap_name : str):
+def k8_delete_configmap(namespace : str, configmap_name : str):
     """
     API to create configmap in a k8-cluster
 
@@ -1550,24 +1369,13 @@ def k8_delete_configmap(k8_cluster : common.k8_cluster, namespace : str, configm
     """
     global Logger
 
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            api_response = api.delete_namespaced_config_map(configmap_name, namespace)
-        except ApiException as e:
-            Logger.debug(f"Failed to delete config-map, error : {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        cmd = ["kubectl", "delete", "configmap", "--namespace", namespace, configmap_name]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
-
-@log_arguments
-def k8_crictl_run_command(cluster_node, container_name, command):
-    """
-    API to run/inspect a container using crictl tool
-    """
-    pass
+    api = client.CoreV1Api()
+    try:
+        api_response = api.delete_namespaced_config_map(configmap_name, namespace)
+    except ApiException as e:
+        Logger.debug(f"Failed to delete config-map, error : {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 def k8_get_node_address(node_info, address_type = "InternalIP"):
     assert 'status' in node_info, f"k8 node missing status section, {node_info}"
@@ -1578,7 +1386,7 @@ def k8_get_node_address(node_info, address_type = "InternalIP"):
             return addr.get("address", None)
     assert f"Missing address-type : {address_type} in k8 node, {node_info}"
 
-def k8_lookup_node_address(k8_cluster, node_name):
+def k8_lookup_node_address(node_name):
     global Logger
     ret_code, k8_nodes = k8_get_nodes()
     if ret_code != 0:
@@ -1600,60 +1408,54 @@ def k8_get_node_hostname(node_info, address_type = "Hostname"):
     assert f"Missing address-type : {address_type} in k8 node, {node_info}"
 
 @log_arguments
-def k8_cordon_node(k8_cluster, node_name : str):
+def k8_cordon_node(node_name : str):
     """
     API to cordon node
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        try:
-            v1 = client.CoreV1Api()
-            patch_body = {"spec": {"unschedulable": True}}
-            api_response = v1.patch_node(name=node_name, body=patch_body)
-            return 0, api_response
-        except ApiException as e:
-            Logger.error(f"Failed cordon node {node_name}: {e}")
-            return -1, None
+    try:
+        v1 = client.CoreV1Api()
+        patch_body = {"spec": {"unschedulable": True}}
+        api_response = v1.patch_node(name=node_name, body=patch_body)
+        return 0, api_response
+    except ApiException as e:
+        Logger.error(f"Failed cordon node {node_name}: {e}")
+        return -1, None
     return -1, None
 
 @log_arguments
-def k8_uncordon_node(k8_cluster, node_name):
+def k8_uncordon_node(node_name):
     """
     API to uncodon node
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        try:
-            v1 = client.CoreV1Api()
-            patch_body = {"spec": {"unschedulable": False}}
-            api_response = v1.patch_node(name=node_name, body=patch_body)
-            return 0, api_response
-        except ApiException as e:
-            Logger.error(f"Failed cordon node {node_name}: {e}")
-            return -1, None
+    try:
+        v1 = client.CoreV1Api()
+        patch_body = {"spec": {"unschedulable": False}}
+        api_response = v1.patch_node(name=node_name, body=patch_body)
+        return 0, api_response
+    except ApiException as e:
+        Logger.error(f"Failed cordon node {node_name}: {e}")
+        return -1, None
     return -1, None
 
 @log_arguments
-def k8_delete_cluster_role(k8_cluster, cluster_role_name):
+def k8_delete_cluster_role(cluster_role_name):
     """
     API to delete cluster-role
 
     Example: kubectl delete clusterrole metrics
     """
-    if k8_cluster.k8_kube_config:
-        rbac_api = client.RbacAuthorizationV1Api()
-        try:
-            api_response = rbac_api.delete_cluster_role(cluster_role_name)
-        except ApiException as e:
-            Logger.debug(f"Failed to delete cluster-role {cluster_role_name}, error {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        cmd = ["kubectl", "delete", "clusterrole", cluster_role_name]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    rbac_api = client.RbacAuthorizationV1Api()
+    try:
+        api_response = rbac_api.delete_cluster_role(cluster_role_name)
+    except ApiException as e:
+        Logger.debug(f"Failed to delete cluster-role {cluster_role_name}, error {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_get_node_labels(k8_cluster, node_name):
+def k8_get_node_labels(node_name):
     global Logger
     v1 = client.CoreV1Api()
     try:
@@ -1686,7 +1488,7 @@ def k8_label_node(node_name, labels_dict=None, overwrite=True):
         return False
 
 @log_arguments
-def k8_get_events(k8_cluster, namespace : str, pod_name=None):
+def k8_get_events(namespace : str, pod_name=None):
     """
     API to
 
@@ -1694,42 +1496,29 @@ def k8_get_events(k8_cluster, namespace : str, pod_name=None):
     """
     global Logger
     global LogPrettyPrinter
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        field_selector = None
-        if pod_name:
-            field_selector = f"involvedObject.kind=Pod,involvedObject.name={pod_name}"
-        try:
-            events = api.list_namespaced_event(namespace=namespace, field_selector=field_selector)
-        except ApiException as e:
-            Logger.error(f"Failed to get events from {namespace}, field_selector={field_selector}, error : {e}")
-            return -1, "", str(e)
-        return 0, events, ""
-    else:
-        cmd = f"kubectl events --namespace {namespace} --output json"
-        if pod_name:
-            cmd = cmd + f" --for pod/{pod_name}"
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(cmd)
-        assert ret_code == 0, f"Failed to get proper response with {cmd}, output : {resp_stdout}\ngot error : {resp_stderr}"
-        try:
-            events = json.loads(resp_stdout)
-            return events
-        except json.JSONDecodeError:
-            Logger.error(f"Invalid JSON string:\n{resp_stdout}")
-            assert True, f"got error {resp_stderr}"
+    api = client.CoreV1Api()
+    field_selector = None
+    if pod_name:
+        field_selector = f"involvedObject.kind=Pod,involvedObject.name={pod_name}"
+    try:
+        events = api.list_namespaced_event(namespace=namespace, field_selector=field_selector)
+    except ApiException as e:
+        Logger.error(f"Failed to get events from {namespace}, field_selector={field_selector}, error : {e}")
+        return -1, "", str(e)
+    return 0, events, ""
 
 @log_arguments
-def k8_get_pod_name(k8_cluster, pod_str : str, namespace : str, node_name : str = None):
-    ret_code, pods = k8_get_pods(k8_cluster, namespace, node_name = node_name)
+def k8_get_pod_name(pod_str : str, namespace : str, node_name : str = None):
+    ret_code, pods = k8_get_pods(namespace, node_name = node_name)
     assert ret_code == 0, f"Failed to get pod names in namespace {namespace}"
     for pod in pods:
         if pod.get('metadata') != None and pod_str in pod.get('metadata').get('name'):
             return pod['metadata']['name']
 
 @log_arguments
-def k8_get_container_logs(k8_cluster, pod_str, namespace, container):
+def k8_get_container_logs(pod_str, namespace, container):
     global Logger
-    pod_name = k8_get_pod_name(k8_cluster, pod_str, namespace)
+    pod_name = k8_get_pod_name(pod_str, namespace)
     api = client.CoreV1Api()
     logs = ""
 
@@ -1744,41 +1533,27 @@ def k8_get_container_logs(k8_cluster, pod_str, namespace, container):
     return logs
 
 @log_arguments
-def k8_get_pod_logs(k8_cluster, pod_str : str, namespace : str, since="180s", container = None):
+def k8_get_pod_logs(pod_str : str, namespace : str, since="180s", container = None):
     if container != None:
-        logs = k8_get_container_logs(k8_cluster, pod_str, namespace, container)
+        logs = k8_get_container_logs(pod_str, namespace, container)
         return 0, logs, ""
 
-    pod_name = k8_get_pod_name(k8_cluster, pod_str, namespace)
-    if k8_cluster.k8_kube_config: 
-        api = client.CoreV1Api()
-        try:
-            logs = api.read_namespaced_pod_log(
-                name=pod_name,
-                namespace=namespace,
-                since_seconds=int(since[:-1]),
-                _return_http_data_only=True
-            )
-            return 0, logs, ""
-        except client.ApiException as e:
-            Logger.error(f"Error getting container logs: {e}")
-            return 0, "", str(e)
-    else:
-        cmd = ["kubectl", "logs", pod_name, "--namespace", namespace, f"--since={since}"]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    pod_name = k8_get_pod_name(pod_str, namespace)
+    api = client.CoreV1Api()
+    try:
+        logs = api.read_namespaced_pod_log(
+            name=pod_name,
+            namespace=namespace,
+            since_seconds=int(since[:-1]),
+            _return_http_data_only=True
+        )
+        return 0, logs, ""
+    except client.ApiException as e:
+        Logger.error(f"Error getting container logs: {e}")
+        return 0, "", str(e)
 
 @log_arguments
-def k8_get_test_runner_worker_logs(k8_cluster):
-    cmd = ["ls", "-lart", "/var/log/amd-test-runner"]
-
-    worker_logs_dict = dict()
-    for wn in k8_cluster.worker_nodes:
-        ret_code, resp_stdout, resp_stderr = wn.run_command(" ".join(cmd), timeout = 60)
-        worker_logs_dict[wn.hostname] = resp_stdout
-    return worker_logs_dict
-
-@log_arguments
-def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str, taint_add=True):
+def k8_taint_node(node_name : str, taint_add=True):
     """
     API to taint node
 
@@ -1789,35 +1564,30 @@ def k8_taint_node(k8_cluster : common.k8_cluster, node_name : str, taint_add=Tru
     taint_value = "up"
     taint_effect = "NoSchedule"
 
-    if k8_cluster.k8_kube_config:
-        v1 = client.CoreV1Api()
-        node = v1.read_node(name=node_name)
-        new_taint = client.V1Taint(key=taint_key, value=taint_value, effect=f"{taint_effect}")
+    v1 = client.CoreV1Api()
+    node = v1.read_node(name=node_name)
+    new_taint = client.V1Taint(key=taint_key, value=taint_value, effect=f"{taint_effect}")
 
-        node.spec.taints = []
-        if taint_add:
-            node.spec.taints = [new_taint]
+    node.spec.taints = []
+    if taint_add:
+        node.spec.taints = [new_taint]
 
-        # Update the node object with the modified taints
-        try:
-            v1.patch_node(name=node_name, body=node)
-            Logger.info(f"Node '{node_name}' successfully tainted with {taint_key}={taint_value}:{taint_effect}, taint={taint_add}")
-        except client.ApiException as e:
-            Logger.error(f"Error tainting node: {e}")
-
-    else:
-        cmd = ["kubectl", "taint", "nodes", node_name, f"{taint_key}={taint_value}:{taint_effect}{taint_add}"]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    # Update the node object with the modified taints
+    try:
+        v1.patch_node(name=node_name, body=node)
+        Logger.info(f"Node '{node_name}' successfully tainted with {taint_key}={taint_value}:{taint_effect}, taint={taint_add}")
+    except client.ApiException as e:
+        Logger.error(f"Error tainting node: {e}")
 
 @log_arguments
-def k8_untaint_node(k8_cluster : common.k8_cluster, node_name : str):
+def k8_untaint_node(node_name : str):
     """
     API to untaint node
 
     Example: kubectl untaint nodes node_name gpu=unhealthy:NoSchedule
     """
     global Logger
-    k8_taint_node(k8_cluster, node_name, False)
+    k8_taint_node(node_name, False)
 
 @log_arguments
 def k8_patch_deployment(deployment, namespace, new_toleration, tolerate_add):
@@ -1875,44 +1645,42 @@ def k8_patch_statefulset(statefulset, namespace, new_toleration, tolerate_add):
         print(f"Could not patch StatefulSet {name}: {e}")
 
 @log_arguments
-def k8_patch_tolerations(k8_cluster : common.k8_cluster, namespace, toleration, tolerate_add=True):
+def k8_patch_tolerations(namespace, toleration, tolerate_add=True):
     """
     API to add tolerations to all deployments under the particular namespace
 
     Example: kubectl taint nodes node_name gpu=unhealthy:NoSchedule
     """
 
+    client_v1 = client.AppsV1Api()
+    new_toleration = client.V1Toleration(
+        key=toleration['key'],
+        operator=toleration['operator'],
+        value=toleration['value'],
+        effect=toleration['effect']
+    )
 
-    if k8_cluster.k8_kube_config:
-        client_v1 = client.AppsV1Api()
-        new_toleration = client.V1Toleration(
-            key=toleration['key'],
-            operator=toleration['operator'],
-            value=toleration['value'],
-            effect=toleration['effect']
-        )
+    # --- Patch Deployments ---
+    #print(f"Patching Deployments in namespace: {namespace}")
+    deployments = client_v1.list_namespaced_deployment(namespace=namespace)
+    for deployment in deployments.items:
+        k8_patch_deployment(deployment, namespace, new_toleration, tolerate_add)
 
-        # --- Patch Deployments ---
-        #print(f"Patching Deployments in namespace: {namespace}")
-        deployments = client_v1.list_namespaced_deployment(namespace=namespace)
-        for deployment in deployments.items:
-            k8_patch_deployment(deployment, namespace, new_toleration, tolerate_add)
+    # --- Patch DaemonSets ---
+    #print(f"Patching DaemonSets in namespace: {namespace}")
+    daemonsets = client_v1.list_namespaced_daemon_set(namespace=namespace)
+    for daemonset in daemonsets.items:
+        k8_patch_daemonset(daemonset, namespace, new_toleration, tolerate_add)
 
-        # --- Patch DaemonSets ---
-        #print(f"Patching DaemonSets in namespace: {namespace}")
-        daemonsets = client_v1.list_namespaced_daemon_set(namespace=namespace)
-        for daemonset in daemonsets.items:
-            k8_patch_daemonset(daemonset, namespace, new_toleration, tolerate_add)
-
-        # --- Patch StatefulSets ---
-        #print(f"Patching StatefulSets in namespace: {namespace}")
-        statefulsets = client_v1.list_namespaced_stateful_set(namespace=namespace)
-        for statefulset in statefulsets.items:
-            k8_patch_statefulset(statefulset, namespace, new_toleration, tolerate_add)
+    # --- Patch StatefulSets ---
+    #print(f"Patching StatefulSets in namespace: {namespace}")
+    statefulsets = client_v1.list_namespaced_stateful_set(namespace=namespace)
+    for statefulset in statefulsets.items:
+        k8_patch_statefulset(statefulset, namespace, new_toleration, tolerate_add)
 
 
 @log_arguments
-def k8_metrics_error(k8_cluster, counts, error_list, namespace : str):
+def k8_metrics_error(counts, error_list, namespace : str):
     """
     API to artificially set health threshold
     kubectl exec -n kube-amd-gpu metrics-exporter -c metrics-exporter-container -- sh -c 'cat > /tmp/ecc.json <<EOF
@@ -1928,214 +1696,149 @@ def k8_metrics_error(k8_cluster, counts, error_list, namespace : str):
     }
     EOF'
     """
-    if k8_cluster.k8_kube_config: 
-        pod_name = k8_get_pod_name(k8_cluster, "metrics-exporter", namespace)
-        api = client.CoreV1Api()
-        ecc = {
-            "ID": "0",
-            "Fields": error_list,
-            "Counts": counts,
-        }
-        ecc_json = json.dumps(ecc)
-        cmds = ["metricsclient",
-                "rm -f /tmp/ecc.json",
-                f"echo '{ecc_json}' > /tmp/ecc.json",
-                "cat /tmp/ecc.json",
-                "metricsclient -ecc-file-path /tmp/ecc.json"]
-        try:
-            for cmd in cmds:
-                resp = stream.stream(
-                    api.connect_get_namespaced_pod_exec,
-                    name=pod_name,
-                    namespace=namespace,
-                    container="metrics-exporter-container",
-                    command=["sh", "-c", cmd],
-                    stdin=False,
-                    stdout=True,
-                    stderr=True,
-                    tty=False
-                )
-                Logger.info(f"executed on metrics-exporter:\n{cmd}\n\n")
-                Logger.info(f"response from metrics-exporter:\n{resp}")
-        except ApiException as e:
-            assert True, f"Failed with str(e) while trying to exec {cmd} on {pod_name}"
-    else:
-        pod_name = k8_get_pod_name(k8_cluster, "metrics-exporter", namespace)
-        exec_cmd = ["kubectl", "exec", "-n", namespace, pod_name, "-c", "metrics-exporter-container", "--", "sh", "-c"]
-        exec_cmd = " ".join(exec_cmd)
-
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join([exec_cmd, "metricsclient"]))
-        errors = ",\n\t\t".join(error_list)
-    
-        cmd = [" ".join([exec_cmd, "'cat", ">", "/tmp/ecc.json", "<<EOF"]),
-              '{',
-              '\t"ID": "0",',
-              '\t"Fields": [',
-              f'\t\t{errors}',
-              '\t],',
-              '\t"Counts" : [',
-              f'\t\t{", ".join([str(x) for x in counts])}',
-              '\t]',
-              '}',
-              "EOF'"]
-        cmd = "\n".join(cmd)
-        Logger.info(f"executing the command=======\n{cmd}\n")
-        ret_code, resp_stdout, resp_stderr= k8_cluster.k8_master.run_command(cmd)
-        assert ret_code == 0, f"sent \n{cmd}\n and got output {resp_stdout} with error {resp_stderr}"
-        cmd = [exec_cmd, '"metricsclient', '-ecc-file-path', '/tmp/ecc.json"']
-        status = k8_cluster.k8_master.run_command(" ".join(cmd))
-        Logger.info(f"Status of: {cmd}\nmetricsclient: {status}")
+    pod_name = k8_get_pod_name("metrics-exporter", namespace)
+    api = client.CoreV1Api()
+    ecc = {
+        "ID": "0",
+        "Fields": error_list,
+        "Counts": counts,
+    }
+    ecc_json = json.dumps(ecc)
+    cmds = ["metricsclient",
+            "rm -f /tmp/ecc.json",
+            f"echo '{ecc_json}' > /tmp/ecc.json",
+            "cat /tmp/ecc.json",
+            "metricsclient -ecc-file-path /tmp/ecc.json"]
+    try:
+        for cmd in cmds:
+            resp = stream.stream(
+                api.connect_get_namespaced_pod_exec,
+                name=pod_name,
+                namespace=namespace,
+                container="metrics-exporter-container",
+                command=["sh", "-c", cmd],
+                stdin=False,
+                stdout=True,
+                stderr=True,
+                tty=False
+            )
+            Logger.info(f"executed on metrics-exporter:\n{cmd}\n\n")
+            Logger.info(f"response from metrics-exporter:\n{resp}")
+    except ApiException as e:
+        assert True, f"Failed with str(e) while trying to exec {cmd} on {pod_name}"
 
 @log_arguments
-def k8_get_node_health(k8_cluster, node_name : str, namespace : str):
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        node: client.V1Node = api.read_node(name=node_name)
-        if node.metadata and node.metadata.annotations:
-            gpu_state_annotation_key = "metricsexporter.amd.com/gpu.0.state" # Correct annotation key
-            if gpu_state_annotation_key in node.metadata.annotations:
-                state = node.metadata.annotations[gpu_state_annotation_key]
-                Logger.info(f"Found GPU state for node '{node_name}': {state}")
-                return state
-            else:
-                return "unhealthy"
-                # You might want to inspect node.status.conditions here too for 'Unhealthy'
-                # or related conditions that kubectl describe shows.
+def k8_get_node_health(node_name : str, namespace : str):
+    api = client.CoreV1Api()
+    node: client.V1Node = api.read_node(name=node_name)
+    if node.metadata and node.metadata.annotations:
+        gpu_state_annotation_key = "metricsexporter.amd.com/gpu.0.state" # Correct annotation key
+        if gpu_state_annotation_key in node.metadata.annotations:
+            state = node.metadata.annotations[gpu_state_annotation_key]
+            Logger.info(f"Found GPU state for node '{node_name}': {state}")
+            return state
         else:
             return "unhealthy"
-
-        if node.status and node.status.conditions:
-            Logger.debug("Node conditions:")
-            for condition in node.status.conditions:
-                # Node condition types typically include "Ready", "MemoryPressure", "DiskPressure", "PIDPressure", "NetworkUnavailable"
-                Logger.debug(f"  Type: {condition.type}, Status: {condition.status}, Reason: {condition.reason}, Message: {condition.message}")
-                if condition.type == "Ready" and condition.status == "False":
-                    Logger.debug(f"Node '{node_name}' is not Ready. Reason: {condition.reason}, Message: {condition.message}")
-
-        return None
+            # You might want to inspect node.status.conditions here too for 'Unhealthy'
+            # or related conditions that kubectl describe shows.
     else:
-        cmd = ["kubectl", "describe", "node", node_name, "|", "grep", "unhealthy"]
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        state = resp_stdout.split('=')[-1].strip()
-        assert "metricsexporter.amd.com.gpu.0.state=" in resp_stdout, f"expected response with GPU state, instead got {ret_code, resp_stdout, resp_stderr}"
-        return state
+        return "unhealthy"
+
+    if node.status and node.status.conditions:
+        Logger.debug("Node conditions:")
+        for condition in node.status.conditions:
+            # Node condition types typically include "Ready", "MemoryPressure", "DiskPressure", "PIDPressure", "NetworkUnavailable"
+            Logger.debug(f"  Type: {condition.type}, Status: {condition.status}, Reason: {condition.reason}, Message: {condition.message}")
+            if condition.type == "Ready" and condition.status == "False":
+                Logger.debug(f"Node '{node_name}' is not Ready. Reason: {condition.reason}, Message: {condition.message}")
+
+    return None
 
 @log_arguments
-def k8_delete_cluster_role_binding(k8_cluster, cluster_role_name):
+def k8_delete_cluster_role_binding(cluster_role_name):
     """
     API to delete cluster-role
 
     Example: kubectl delete clusterrole metrics
     """
-    if k8_cluster.k8_kube_config:
-        rbac_api = client.RbacAuthorizationV1Api()
-        try:
-            api_response = rbac_api.delete_cluster_role_binding(cluster_role_name)
-        except ApiException as e:
-            Logger.debug(f"Failed to delete cluster-role-binding {cluster_role_name}, error {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        cmd = ["kubectl", "delete", "clusterrolebinding", cluster_role_name]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    rbac_api = client.RbacAuthorizationV1Api()
+    try:
+        api_response = rbac_api.delete_cluster_role_binding(cluster_role_name)
+    except ApiException as e:
+        Logger.debug(f"Failed to delete cluster-role-binding {cluster_role_name}, error {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_create_service_account(k8_cluster : common.k8_cluster, sa_name : str, namespace : str) -> None:
+def k8_create_service_account(sa_name : str, namespace : str) -> None:
     """
     API to create service-account
 
     Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
     sa_name : name of service-account
     namespace : namespace to create SA
     """
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
+    api = client.CoreV1Api()
 
-        sa = client.V1ServiceAccount(
-                metadata = client.V1ObjectMeta(name = sa_name)
-             )
-        try:
-            api_response = api.create_namespaced_service_account(namespace = namespace, body = sa)
-        except ApiException as ae:
-            return -1, "", str(ae)
-        return 0, "", ""
-    else: 
-        sa_file = os.path.join("logs", f"{sa_name}.yaml")
-        spec_util.generate_service_account_yaml(sa_file, namespace, sa_name)
-
-        cmd = ["kubectl", "apply", "-f"]
-        if k8_cluster.k8_master.is_local():
-            cmd.append(f"{sa_file}")
-        else:
-            k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-            remote_file = os.path.join("workspace", os.path.basename(sa_file))
-            k8_cluster.k8_master.put(sa_file, remote_file)
-            cmd.append(remote_file)
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    sa = client.V1ServiceAccount(
+            metadata = client.V1ObjectMeta(name = sa_name)
+         )
+    try:
+        api_response = api.create_namespaced_service_account(namespace = namespace, body = sa)
+    except ApiException as ae:
+        return -1, "", str(ae)
+    return 0, "", ""
 
 @log_arguments
-def k8_delete_service_account(k8_cluster : common.k8_cluster, sa_name : str, namespace : str) -> (int, str, str):
+def k8_delete_service_account(sa_name : str, namespace : str) -> (int, str, str):
     """
     API to delete service-account
 
     Example: kubectl delete serviceaccount exporter-client
     """
-    if k8_cluster.k8_kube_config:
-        api = client.CoreV1Api()
-        try:
-            api_response = api.delete_namespaced_service_account(sa_name, namespace)
-        except ApiException as e:
-            Logger.debug(f"Failed to delete service-account {sa_name} error : {e}")
-            return -1, "", str(e)
-        return 0, "", ""
-    else:
-        cmd = ["kubectl", "delete", "serviceaccount", sa_name, "--namespace", namespace]
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
+    api = client.CoreV1Api()
+    try:
+        api_response = api.delete_namespaced_service_account(sa_name, namespace)
+    except ApiException as e:
+        Logger.debug(f"Failed to delete service-account {sa_name} error : {e}")
+        return -1, "", str(e)
+    return 0, "", ""
 
 @log_arguments
-def k8_create_token(k8_cluster : common.k8_cluster, namespace : str, sa_name : str, duration : str) -> (int, str, str):
+def k8_create_token(namespace : str, sa_name : str, duration : str) -> (int, str, str):
     """
     API to create token
 
     Example
     kubectl create token --namespace metrics-reader exporter-client --duration 1h
     """
-    if k8_cluster.k8_kube_config:
-        duration_in_seconds = 0
-        if not duration[-1].isdigit():
-            if duration[-1].lower() == 's':
-                duration_in_seconds = int(duration[:-1])
-            elif duration[-1].lower() == 'm':
-                duration_in_seconds = int(duration[:-1]) * 60
-            elif duration[-1].lower() == 'h':
-                duration_in_seconds = int(duration[:-1]) * 60 * 60
-            elif duration[-1].lower() == 'd':
-                duration_in_seconds = int(duration[:-1]) * 60 * 60 * 24
-        token_request = client.AuthenticationV1TokenRequest(
-                spec=client.V1TokenRequestSpec(audiences = ['https://kubernetes.default.svc',
-                                                            'https://kubernetes.default.svc.cluster.local'],
-                                               expiration_seconds = duration_in_seconds))
-        api = client.CoreV1Api()
-        try:
-            api_response = api.create_namespaced_service_account_token(name = sa_name, 
-                                                                       namespace = namespace,
-                                                                       body = token_request)
-            Logger.debug(f"Created token: {api_response}")
-            return api_response.status.token
-        except ApiException as e:
-            Logger.error(f"Failed to create token for sa-account : {sa_name}, error: {e}")
-        return None
-    else:
-        cmd = ["kubectl", "create", "token", "--namespace", namespace, sa_name, "--duration", duration, "--output", "json"]
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        assert ret_code == 0, f"Failed to create token for service-account : {sa_name}, error : {resp_stderr}"
-        k8_token_info = json.loads(resp_stdout)
-        token_value = k8_token_info['status']['token']
-        return token_value
+    duration_in_seconds = 0
+    if not duration[-1].isdigit():
+        if duration[-1].lower() == 's':
+            duration_in_seconds = int(duration[:-1])
+        elif duration[-1].lower() == 'm':
+            duration_in_seconds = int(duration[:-1]) * 60
+        elif duration[-1].lower() == 'h':
+            duration_in_seconds = int(duration[:-1]) * 60 * 60
+        elif duration[-1].lower() == 'd':
+            duration_in_seconds = int(duration[:-1]) * 60 * 60 * 24
+    token_request = client.AuthenticationV1TokenRequest(
+            spec=client.V1TokenRequestSpec(audiences = ['https://kubernetes.default.svc',
+                                                        'https://kubernetes.default.svc.cluster.local'],
+                                           expiration_seconds = duration_in_seconds))
+    api = client.CoreV1Api()
+    try:
+        api_response = api.create_namespaced_service_account_token(name = sa_name, 
+                                                                   namespace = namespace,
+                                                                   body = token_request)
+        Logger.debug(f"Created token: {api_response}")
+        return api_response.status.token
+    except ApiException as e:
+        Logger.error(f"Failed to create token for sa-account : {sa_name}, error: {e}")
+    return None
 
 @log_arguments
-def k8_create_secret(k8_cluster : common.k8_cluster, secret_name : str,
+def k8_create_secret(secret_name : str,
                      secret_type : str, **kwargs) -> (int, str, str):
     """
     API to create a secret in kubernetes cluster
@@ -2143,130 +1846,83 @@ def k8_create_secret(k8_cluster : common.k8_cluster, secret_name : str,
     global Logger
     namespace = kwargs.get('namespace', 'default')
     server = kwargs.get('server', "https://index.docker.io/v1/")
-    if k8_cluster.k8_kube_config:
-        v1 = client.CoreV1Api()
+    v1 = client.CoreV1Api()
 
-        if secret_type == "docker-registry":
-            # Prepare the Docker config JSON structure
-            username = kwargs.get('username')
-            password = kwargs.get('password')
-            docker_config = {
-                "auths": {
-                    server: {
-                        "username": username,
-                        "password": password,
-                        "email": "",
-                        "auth": base64.b64encode(f"{username}:{password}".encode()).decode()
-                    }
+    if secret_type == "docker-registry":
+        # Prepare the Docker config JSON structure
+        username = kwargs.get('username')
+        password = kwargs.get('password')
+        docker_config = {
+            "auths": {
+                server: {
+                    "username": username,
+                    "password": password,
+                    "email": "",
+                    "auth": base64.b64encode(f"{username}:{password}".encode()).decode()
                 }
             }
+        }
 
-            docker_config_json = json.dumps(docker_config).encode()
+        docker_config_json = json.dumps(docker_config).encode()
 
-            # Kubernetes expects this data base64 encoded in a secret under the key ".dockerconfigjson"
-            secret_data = {
-                ".dockerconfigjson": base64.b64encode(docker_config_json).decode()
-            }
+        # Kubernetes expects this data base64 encoded in a secret under the key ".dockerconfigjson"
+        secret_data = {
+            ".dockerconfigjson": base64.b64encode(docker_config_json).decode()
+        }
 
-            secret = client.V1Secret(
+        secret = client.V1Secret(
+            metadata=client.V1ObjectMeta(name=secret_name),
+            data=secret_data,
+            type="kubernetes.io/dockerconfigjson"
+        )
+    elif secret_type == "generic":
+        data = {}
+        for key, value in kwargs:
+            if key == 'namespace':
+                continue
+            data[key] = value
+        secret = client.V1Secret(
                 metadata=client.V1ObjectMeta(name=secret_name),
-                data=secret_data,
-                type="kubernetes.io/dockerconfigjson"
-            )
-        elif secret_type == "generic":
-            data = {}
-            for key, value in kwargs:
-                if key == 'namespace':
-                    continue
-                data[key] = value
-            secret = client.V1Secret(
-                    metadata=client.V1ObjectMeta(name=secret_name),
-                    string_data=data,
-                    type="Opaque")
-        errmsg = ""
-        retval = 0
-        try:
-            v1.create_namespaced_secret(namespace=namespace, body=secret)
-        except ApiException as e:
-            retval = 1
-            if e.status == 409:
-                errmsg = f"Secret '{secret_name}' already exists in namespace '{namespace}'."
-            else:
-                errmsg = f"Exception when creating secret: {e}"
-        return retval, "", errmsg
-    else:
-        create_cmd = ["kubectl", "create", "secret"]
-        create_cmd.extend(["-n", namespace])
-        if secret_type == "docker-registry":
-            username = kwargs.get('username')
-            password = kwargs.get('password')
-            create_cmd.extend(["docker-registry", secret_name])
-            create_cmd.extend([f"--docker-username={username}", f"--docker-password={password}"])
-        elif secret_type == "generic":
-            create_cmd.extend(["generic", secret_name])
-            for key, value in kwargs:
-                if key == 'namespace':
-                    continue
-                create_cmd.extend([f"--from-literal={key}={value}"])
+                string_data=data,
+                type="Opaque")
+    errmsg = ""
+    retval = 0
+    try:
+        v1.create_namespaced_secret(namespace=namespace, body=secret)
+    except ApiException as e:
+        retval = 1
+        if e.status == 409:
+            errmsg = f"Secret '{secret_name}' already exists in namespace '{namespace}'."
         else:
-            return 1, "", f"Unknown secret type {secret_type} - Abort"
-
-        # Create
-        ret_code, ret_stdout, ret_stderr = k8_cluster.k8_master.run_command(" ".join(create_cmd))
-        return ret_code, ret_stdout, ret_stderr
+            errmsg = f"Exception when creating secret: {e}"
+    return retval, "", errmsg
 
 @log_arguments
-def k8_delete_secret(k8_cluster : common.k8_cluster, secret_name : str, secret_type : str, namespace : str = "default") -> (int, str, str):
+def k8_delete_secret(secret_name : str, secret_type : str, namespace : str = "default") -> (int, str, str):
     """
     API to delete a secret in kubernetes cluster
     """
     global Logger
-    if k8_cluster.k8_kube_config:
-        v1 = client.CoreV1Api()
-        errmsg = ""
-        retval = 0
-        try:
-            api_response = v1.delete_namespaced_secret(name = secret_name, 
-                                                       namespace = namespace,
-                                                       body=client.V1DeleteOptions())
-        except ApiException as e:
-            if e.status != 404:
-                retval = 1
-                errmsg = f"Exception when deleting secret {secret_name}, err: {e}"
-        return retval, "", errmsg
-    else:
-        delete_cmd = ["kubectl", "delete", "secret"]
-        delete_cmd.extend(["-n", namespace])
-        delete_cmd.append(secret_name)
-
-        # Delete first
-        ret_code, ret_stdout, ret_stderr = k8_cluster.k8_master.run_command(" ".join(delete_cmd))
-        if ret_code != 0:
-            Logger.error(f"secret delete failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
-        return ret_code, ret_stdout, ret_stderr
+    v1 = client.CoreV1Api()
+    errmsg = ""
+    retval = 0
+    try:
+        api_response = v1.delete_namespaced_secret(name = secret_name, 
+                                                   namespace = namespace,
+                                                   body=client.V1DeleteOptions())
+    except ApiException as e:
+        if e.status != 404:
+            retval = 1
+            errmsg = f"Exception when deleting secret {secret_name}, err: {e}"
+    return retval, "", errmsg
 
 @log_arguments
-def crictl_cleanup_images(k8_cluster):
-    """
-    API to prune images on all nodes
-    Cmd: crictl rmi --prune
-    """
-    cmd = ["sudo", "crictl", "rmi", "--prune"]
-    ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-    assert ret_code == 0, f"Failed prune images from master node, error: {resp_stderr}"
-    for wn in k8_cluster.worker_nodes:
-        ret_code, resp_stdout, resp_stderr = wn.run_command(" ".join(cmd), timeout = 60)
-        assert ret_code == 0, f"Failed prune images from worker node {wn.ip_address}, error: {resp_stderr}"
-    return
-
-@log_arguments
-def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, deviceconfig_name : str = None) -> Dict:
+def k8_get_deviceconfigs_info(namespace : str, deviceconfig_name : str = None) -> Dict:
     """
     API to get deviceconfig information
 
     Parameters:
 
-    k8_cluster : instance of lib.common.k8_cluster
     namespace : name-space
     deviceconfig_name : name of the deviceconfigs
 
@@ -2277,47 +1933,24 @@ def k8_get_deviceconfigs_info(k8_cluster : common.k8_cluster, namespace : str, d
     global Logger
     global LogPrettyPrinter
     ret_values = {}
-    if k8_cluster.k8_kube_config:
-        api = client.CustomObjectsApi()
-        try:
-            k8_deviceconfig_info = api.list_custom_object_for_all_namespaces(version = "v1alpha1", group = "amd.com", resource_plural = "deviceconfigs")
-        except ApiException as e:
-            Logger.debug(f"Failed to list deviceconfigs for namespace {namespace}, error: {e}")
-            return ret_values
+    api = client.CustomObjectsApi()
+    try:
+        k8_deviceconfig_info = api.list_custom_object_for_all_namespaces(version = "v1alpha1", group = "amd.com", resource_plural = "deviceconfigs")
+    except ApiException as e:
+        Logger.debug(f"Failed to list deviceconfigs for namespace {namespace}, error: {e}")
+        return ret_values
 
-        Logger.debug(f"Status of DeviceConfig CR\n{LogPrettyPrinter.pformat(k8_deviceconfig_info)}")
-        for item in k8_deviceconfig_info.get('items', []):
-            ret_values[item.get('metadata').get('name')] = item
-    else:
-        cmd = ["kubectl", "get", "deviceconfigs"]
-        if deviceconfig_name:
-            cmd.append(deviceconfig_name)
-        if namespace:
-            cmd.extend(["--namespace", namespace])
-        else:
-            cmd.extend([" -A"])
-        cmd.append("-o json")
-
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        if ret_code != 0:
-            Logger.error(f"Failed to list deviceconfigs for namespace {namespace} error : {ret_code}, {resp_stdout}, {resp_stderr}")
-            return ret_values
-
-        k8_deviceconfig_info = json.loads(resp_stdout)
-        if deviceconfig_name:
-            ret_values[k8_deviceconfig_info.get('metadata').get('name')] = k8_deviceconfig_info
-        else:
-            for item in k8_deviceconfig_info['items']:
-                ret_values[item.get('metadata').get('name')] = item
+    Logger.debug(f"Status of DeviceConfig CR\n{LogPrettyPrinter.pformat(k8_deviceconfig_info)}")
+    for item in k8_deviceconfig_info.get('items', []):
+        ret_values[item.get('metadata').get('name')] = item
     return ret_values
 
 @log_arguments
-def k8_lookup_crd(k8_cluster : common.k8_cluster, crd_name : str) -> Dict:
+def k8_lookup_crd(crd_name : str) -> Dict:
     """
     API to retrieve DeviceConfig CRD information post gpu-operator installation
 
     Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
     crd_name : The name of crd to lookup/filter
 
     Returns:
@@ -2327,24 +1960,13 @@ def k8_lookup_crd(k8_cluster : common.k8_cluster, crd_name : str) -> Dict:
     global Logger
     global LogPrettyPrinter
     
-    if k8_cluster.k8_kube_config:
-        api = client.ApiextensionsV1Api()
+    api = client.ApiextensionsV1Api()
 
-        try:
-            crd_list = api.list_custom_resource_definition().to_dict()
-        except ApiException as e:
-            Logger.error(f"Error retrieving CRDs from cluster, error: {e}")
-            return None
-    else:
-        #  kubectl get crd deviceconfigs.amd.com -n kube-amd-gpu  -o json
-        cmd = ["kubectl", "get" "crd"]
-        cmd.append("-o json")
-
-        ret_code, resp_stdout, resp_stderr = k8_cluster.k8_master.run_command(" ".join(cmd))
-        if ret_code != 0:
-            Logger.error(f"Failed to list CRDs error : {ret_code}, {resp_stdout}, {resp_stderr}")
-            return None
-        crd_list = json.loads(resp_stdout)
+    try:
+        crd_list = api.list_custom_resource_definition().to_dict()
+    except ApiException as e:
+        Logger.error(f"Error retrieving CRDs from cluster, error: {e}")
+        return None
 
     for crd in crd_list.get('items', None):
         if crd['metadata']['name'] == crd_name:
@@ -2360,68 +1982,67 @@ def k8_run_curl_cmd(k8_cluster : common.k8_cluster, args : List, retry = 10) -> 
 
     global Logger
     global LogPrettyPrinter
-    if k8_cluster.k8_kube_config:
-        pod_name = f"curl-cmd-pod-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
-        namespace = "default"
+    pod_name = f"curl-cmd-pod-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
+    namespace = "default"
 
-        curl_pod_manifest = client.V1Pod(
-            api_version="v1",
-            kind="Pod",
-            metadata=client.V1ObjectMeta(name=pod_name),
-            spec=client.V1PodSpec(
-                restart_policy="Never",
-                containers=[
-                    client.V1Container(
-                        name="curl-container",
-                        image=f"{k8_cluster.k8_registry}/curlimages/curl",
-                        command=["curl"],
-                        args=args
-                    )
-                ]
-            )
+    curl_pod_manifest = client.V1Pod(
+        api_version="v1",
+        kind="Pod",
+        metadata=client.V1ObjectMeta(name=pod_name),
+        spec=client.V1PodSpec(
+            restart_policy="Never",
+            containers=[
+                client.V1Container(
+                    name="curl-container",
+                    image=f"{k8_cluster.k8_registry}/curlimages/curl",
+                    command=["curl"],
+                    args=args
+                )
+            ]
         )
+    )
 
-        v1 = client.CoreV1Api()
-        for _ in range(retry):
-            try:
-                v1.create_namespaced_pod(body=curl_pod_manifest, namespace=namespace)
-                Logger.debug(f"Pod : {pod_name} created. Waiting for completion...")
+    v1 = client.CoreV1Api()
+    for _ in range(retry):
+        try:
+            v1.create_namespaced_pod(body=curl_pod_manifest, namespace=namespace)
+            Logger.debug(f"Pod : {pod_name} created. Waiting for completion...")
 
-                cmd_complete = False
-                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
-                for _ in range(20):
-                    Logger.debug(f"Pod : {pod_name} current status : {pod_status.status.phase}")
-                    if pod_status.status.phase in ["Succeeded", "Failed"]:
-                        cmd_complete = True
-                        break
-                    time.sleep(10)
-                    pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
-
-                exit_code = -1
-                if pod_status.status.container_statuses:
-                    for container_status in pod_status.status.container_statuses:
-                        if container_status.name == "curl-container" and container_status.state.terminated:
-                            exit_code = container_status.state.terminated.exit_code
-                            break
-                else:
-                    Logger.debug("No container statuses found in the pod_status.")
-
+            cmd_complete = False
+            pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+            for _ in range(20):
+                Logger.debug(f"Pod : {pod_name} current status : {pod_status.status.phase}")
                 if pod_status.status.phase in ["Succeeded", "Failed"]:
-                    # Retrieve logs from the completed Pod
-                    pod_logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
-                    Logger.debug(f"Response of curl-command {args}\n{LogPrettyPrinter.pformat(pod_logs)}")
-                    return exit_code, pod_logs, ""
-                else:
-                    Logger.warn(f"Unexpected curl-command POD Status\n{LogPrettyPrinter.pformat(pod_status)}")
+                    cmd_complete = True
+                    break
+                time.sleep(10)
+                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+
+            exit_code = -1
+            if pod_status.status.container_statuses:
+                for container_status in pod_status.status.container_statuses:
+                    if container_status.name == "curl-container" and container_status.state.terminated:
+                        exit_code = container_status.state.terminated.exit_code
+                        break
+            else:
+                Logger.debug("No container statuses found in the pod_status.")
+
+            if pod_status.status.phase in ["Succeeded", "Failed"]:
+                # Retrieve logs from the completed Pod
+                pod_logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+                Logger.debug(f"Response of curl-command {args}\n{LogPrettyPrinter.pformat(pod_logs)}")
+                return exit_code, pod_logs, ""
+            else:
+                Logger.warn(f"Unexpected curl-command POD Status\n{LogPrettyPrinter.pformat(pod_status)}")
+        except ApiException as e:
+            Logger.error(f"Failed to create pod: {pod_name}, error: {e}")
+        finally:
+            # Clean up: Delete the Pod
+            try:
+                v1.delete_namespaced_pod(name=pod_name, namespace=namespace, body=client.V1DeleteOptions())
             except ApiException as e:
-                Logger.error(f"Failed to create pod: {pod_name}, error: {e}")
-            finally:
-                # Clean up: Delete the Pod
-                try:
-                    v1.delete_namespaced_pod(name=pod_name, namespace=namespace, body=client.V1DeleteOptions())
-                except ApiException as e:
-                    Logger.error(f"Failed to delete pod: {pod_name}, error: {e}")
-            time.sleep(20)
+                Logger.error(f"Failed to delete pod: {pod_name}, error: {e}")
+        time.sleep(20)
     return -1, "", ""
 
 @log_arguments
@@ -2441,122 +2062,120 @@ def run_command_on_node(k8_cluster : common.k8_cluster, node_name : str, cmd : L
     """
     global Logger
     global LogPrettyPrinter
-    if k8_cluster.k8_kube_config:
-        v1 = client.CoreV1Api()
-        pod_name = f"node-debug-{node_name}-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
-        namespace = "default"
+    v1 = client.CoreV1Api()
+    pod_name = f"node-debug-{node_name}-{common.generate_8byte_sha('gpu-operator/metrics-exporter')}"
+    namespace = "default"
 
-        full_cmd = []
-        if not skip_chroot:
-            chroot_cmd = ["chroot", "/host"]
-            full_cmd.extend(chroot_cmd)
-        full_cmd.extend(cmd)
+    full_cmd = []
+    if not skip_chroot:
+        chroot_cmd = ["chroot", "/host"]
+        full_cmd.extend(chroot_cmd)
+    full_cmd.extend(cmd)
 
-        # Define the debug pod
-        debug_pod_manifest = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": pod_name,
-                "namespace": namespace,
-                "labels": {
-                    "app": "node-debugger",
-                    "node": node_name
-                }
-            },
-            "spec": {
-                "nodeName": node_name,  # Target the specific node
-                "restartPolicy": "Never", # Ensure it doesn't restart after command completes
-                "hostPID": True,         # Allows access to host process IDs
-                "hostNetwork": True,     # Allows access to host network namespace
-                "hostIPC": True,         # Allows access to host IPC namespace
-                "containers": [
-                    {
-                        "name": "debugger",
-                        "image": f"{k8_cluster.k8_registry}/ubuntu",
-                        "command": full_cmd,
-                        "securityContext": {
-                            "privileged": True # Essential for full host access
-                        },
-                        "volumeMounts": [
-                            {
-                                "name": "host-root",
-                                "mountPath": "/host",
-                                "mountPropagation": "Bidirectional"
-                            }
-                        ]
-                    }
-                ],
-                "volumes": [
-                    {
-                        "name": "host-root",
-                        "hostPath": {
-                            "path": "/",
-                            "type": "Directory"
-                        }
-                    }
-                ]
+    # Define the debug pod
+    debug_pod_manifest = {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": pod_name,
+            "namespace": namespace,
+            "labels": {
+                "app": "node-debugger",
+                "node": node_name
             }
+        },
+        "spec": {
+            "nodeName": node_name,  # Target the specific node
+            "restartPolicy": "Never", # Ensure it doesn't restart after command completes
+            "hostPID": True,         # Allows access to host process IDs
+            "hostNetwork": True,     # Allows access to host network namespace
+            "hostIPC": True,         # Allows access to host IPC namespace
+            "containers": [
+                {
+                    "name": "debugger",
+                    "image": f"{k8_cluster.k8_registry}/ubuntu",
+                    "command": full_cmd,
+                    "securityContext": {
+                        "privileged": True # Essential for full host access
+                    },
+                    "volumeMounts": [
+                        {
+                            "name": "host-root",
+                            "mountPath": "/host",
+                            "mountPropagation": "Bidirectional"
+                        }
+                    ]
+                }
+            ],
+            "volumes": [
+                {
+                    "name": "host-root",
+                    "hostPath": {
+                        "path": "/",
+                        "type": "Directory"
+                    }
+                }
+            ]
         }
+    }
 
-        for _ in range(retry):
-            try:
-                v1.create_namespaced_pod(body=debug_pod_manifest, namespace=namespace)
-                Logger.debug(f"Creating debug pod {pod_name} on node '{node_name}'...")
+    for _ in range(retry):
+        try:
+            v1.create_namespaced_pod(body=debug_pod_manifest, namespace=namespace)
+            Logger.debug(f"Creating debug pod {pod_name} on node '{node_name}'...")
 
-                # Wait for the pod to complete
-                start_time = time.time()
-                while True:
-                    pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
-                    if pod_status.status.phase in ["Succeeded", "Failed"]:
-                        Logger.info(f"Pod {pod_name} finished with status: {pod_status.status.phase}")
+            # Wait for the pod to complete
+            start_time = time.time()
+            while True:
+                pod_status = v1.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+                if pod_status.status.phase in ["Succeeded", "Failed"]:
+                    Logger.info(f"Pod {pod_name} finished with status: {pod_status.status.phase}")
+                    break
+                if time.time() - start_time > timeout_seconds:
+                    Logger.error(f"Pod {pod_name} timed out after {timeout_seconds} seconds.")
+                    return -1, f"Pod {pod_name} timed out after {timeout_seconds} seconds."
+                time.sleep(5)
+
+            # Get container status to check exit code
+            exit_code = -1
+            if pod_status.status.container_statuses:
+                for container_status in pod_status.status.container_statuses:
+                    if container_status.name == "debugger" and container_status.state.terminated:
+                        exit_code = container_status.state.terminated.exit_code
                         break
-                    if time.time() - start_time > timeout_seconds:
-                        Logger.error(f"Pod {pod_name} timed out after {timeout_seconds} seconds.")
-                        return -1, f"Pod {pod_name} timed out after {timeout_seconds} seconds."
-                    time.sleep(5)
+            else:
+                Logger.debug("No container statuses found in the pod.")
 
-                # Get container status to check exit code
-                exit_code = -1
-                if pod_status.status.container_statuses:
-                    for container_status in pod_status.status.container_statuses:
-                        if container_status.name == "debugger" and container_status.state.terminated:
-                            exit_code = container_status.state.terminated.exit_code
-                            break
-                else:
-                    Logger.debug("No container statuses found in the pod.")
-
-                # Get logs
+            # Get logs
+            logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+            Logger.debug(f"Logs from {pod_name}:\n{LogPrettyPrinter.pformat(logs)}")
+            return exit_code, logs
+        except client.ApiException as e:
+            Logger.error(f"Kubernetes API Error: {e}")
+            # Attempt to get logs if pod was created but failed
+            try:
                 logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
-                Logger.debug(f"Logs from {pod_name}:\n{LogPrettyPrinter.pformat(logs)}")
-                return exit_code, logs
-            except client.ApiException as e:
-                Logger.error(f"Kubernetes API Error: {e}")
-                # Attempt to get logs if pod was created but failed
-                try:
-                    logs = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
-                    Logger.info(f"Logs (before error): {logs}")
-                except Exception as log_e:
-                    Logger.error(f"Could not retrieve logs after API error: {log_e}")
-                return -1, f"Kubernetes API Error: {e}"
-            except Exception as e:
-                Logger.error(f"An unexpected error occurred: {e}")
-                return -1, f"An unexpected error occurred: {e}"
-            finally:
-                # Delete the pod
-                Logger.debug(f"Deleting pod {pod_name}...")
-                v1.delete_namespaced_pod(name=pod_name, namespace=namespace,
-                                         body=client.V1DeleteOptions(propagation_policy='Foreground',
-                                                                     grace_period_seconds=0))
+                Logger.info(f"Logs (before error): {logs}")
+            except Exception as log_e:
+                Logger.error(f"Could not retrieve logs after API error: {log_e}")
+            return -1, f"Kubernetes API Error: {e}"
+        except Exception as e:
+            Logger.error(f"An unexpected error occurred: {e}")
+            return -1, f"An unexpected error occurred: {e}"
+        finally:
+            # Delete the pod
+            Logger.debug(f"Deleting pod {pod_name}...")
+            v1.delete_namespaced_pod(name=pod_name, namespace=namespace,
+                                     body=client.V1DeleteOptions(propagation_policy='Foreground',
+                                                                 grace_period_seconds=0))
     return
 
 @log_arguments
-def exec_command_in_pod(k8_cluster : common.k8_cluster, namespace : str, cmds : List, pod_name : str, container_name : str = None):
+def exec_command_in_pod(namespace : str, cmds : List, pod_name : str, container_name : str = None):
     """
     Exec a command inside a specific container within a Kubernetes pod.
 
     Args:
-        k8_cluster (common.k8_cluster): k8 Cluster
         namespace (str): The namespace of the pod.
         cmds (list): A list of strings representing the command and its arguments.
                         For example: ["ls", "-l", "/tmp"]
@@ -2606,7 +2225,7 @@ def reboot_node(k8_cluster : common.k8_cluster, node_name : str):
         k8_cluster (common.k8_cluster): k8 Cluster
         node_name (str): name of the node.
     """
-    ret_code, _ = k8_cordon_node(k8_cluster, node_name)
+    ret_code, _ = k8_cordon_node(node_name)
     if ret_code != 0:
         return ret_code
     ret_code, _ = run_command_on_node(k8_cluster, node_name, ["systemctl", "reboot"], timeout_seconds = 30)
@@ -2669,7 +2288,7 @@ def reboot_node(k8_cluster : common.k8_cluster, node_name : str):
         Logger.error(f"Node {node_name} failed to come online - fatal error")
         return -1
     Logger.info(f"Node {node_name} is up")
-    ret_code, _ = k8_uncordon_node(k8_cluster, node_name)
+    ret_code, _ = k8_uncordon_node(node_name)
     if ret_code != 0:
         Logger.error(f"Failed to uncordon node - {node_name}")
         return ret_code

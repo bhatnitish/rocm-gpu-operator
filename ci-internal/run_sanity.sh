@@ -6,6 +6,7 @@ function usage() {
     echo ""
     echo "Usage: $0 [options]"
     echo "          --help print help/usage information"
+    echo "          --app <app-name> Eg: gpu-operator, exporter, network-operator"
     echo "          --type <selection: sanity|compat>"
     echo "          --registry <selection: local|master|global>"
     echo "          --testbed /path/to/testbed.json, default /warmd.json"
@@ -21,6 +22,7 @@ AMDGPU_DRIVER="deviceconfig"
 IMAGE_MANIFEST="/tmp/images.yaml"
 GLOBAL_REGISTRY="registry.test.pensando.io:5000"
 TYPE="NA"
+APP_NAME="NA"
 
 REGISTRY=""
 
@@ -35,7 +37,7 @@ function upload_reports() {
         final_report="${TARGET_ID}.html"
         sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "rm -rf /var/www/html/${TARGET_NAME}/${TARGET_ID}"
         sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "mkdir -p /var/www/html/${TARGET_NAME}/${TARGET_ID}"
-        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/k8.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
+        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/k8/${APP_NAME}.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
 
         echo "Links:"
         echo "Consolidated report       : http://10.11.18.6/${TARGET_NAME}/${TARGET_ID}/${final_report}"
@@ -148,7 +150,7 @@ function launch_pytest() {
     echo "Launching k8_test_launcher"
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
-    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS}"
+    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
     if [[ "${AMDGPU_DRIVER}" == "inbox" ]];
     then
         CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
@@ -171,6 +173,10 @@ function launch_pytest() {
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --app)
+            APP_NAME="$2"
+            shift
+        ;;
         --type)
             TYPE="$2"
             shift

@@ -24,6 +24,11 @@ images:
             version     : v1.3.0
             kind        : container
 
+        exporter:
+            location    : repo://rocm.github.io/device-metrics-exporter:device-metrics-exporter-charts
+            version     : v1.3.0
+            kind        : helm-chart
+
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://<registry>/rocm/device-metrics-exporter

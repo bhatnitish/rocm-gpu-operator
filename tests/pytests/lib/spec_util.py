@@ -28,7 +28,6 @@ from ruamel.yaml import comments
 from ruamel.yaml import scalarstring
 from pathlib import Path
 from collections import defaultdict
-import lib.k8_util as k8_util
 
 Logger = logging.getLogger("lib.specutil")
 yaml = YAML()
@@ -647,7 +646,7 @@ def generate_clusterrolebinding_yaml(file_name, crb_name, namespace, cluster_rol
     }
     return dump_yaml(file_name, crb_spec)
 
-def build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, amdgpu_driver_spec):
+def build_deviceconfigs_by_hostname(init_test_config, gpu_nodes, ctxt_name, amdgpu_driver_spec):
     global Logger
     test_configs = {}
     for idx, node in enumerate(gpu_nodes):
@@ -665,18 +664,32 @@ def build_deviceconfigs_by_hostname(init_test_config, gpu_cluster, gpu_nodes, ct
         test_configs[f"{ctxt_name}_{idx}"] = local_test_config
     return test_configs
 
-def build_deviceconfig_cr_template(init_test_config, gpu_cluster, gpu_nodes, ctxt_name, amdgpu_driver_spec):
+def build_deviceconfig_cr_template(init_test_config, gpu_nodes, ctxt_name, amdgpu_driver_spec):
     global Logger
 
+    selectors = set()
+    for idx, node in enumerate(gpu_nodes):
+        if 'feature.node.kubernetes.io/amd-vgpu' in node['metadata']['labels']:
+            selectors.add('vgpu')
+        elif 'feature.node.kubernetes.io/amd-gpu' in node['metadata']['labels']:
+            selectors.add('gpu')
+
     test_configs = {}
-    local_test_config = copy.deepcopy(init_test_config)
-    if amdgpu_driver_spec["driver-deployment"] == "inbox":
-        local_test_config['driver.enable'] = False
-        local_test_config['driver.version'] = "0.0"
-        local_test_config['driver.blacklist'] = False
-    else:
-        local_test_config['driver.version'] = amdgpu_driver_spec["default-version"]
-        local_test_config['driver.blacklist'] = True
-    local_test_config['metadata.name'] = f'deviceconfig-clusterwide'
-    test_configs[ctxt_name] = local_test_config
+    for sel in selectors:
+        local_test_config = copy.deepcopy(init_test_config)
+        if amdgpu_driver_spec["driver-deployment"] == "inbox":
+            local_test_config['driver.enable'] = False
+            local_test_config['driver.version'] = "0.0"
+            local_test_config['driver.blacklist'] = False
+        else:
+            local_test_config['driver.version'] = amdgpu_driver_spec["default-version"]
+            local_test_config['driver.blacklist'] = True
+        if sel == 'vgpu':
+            local_test_config['selector.field'] = 'feature.node.kubernetes.io/amd-vgpu'
+            local_test_config['selector.value'] = DQ('true')
+        else:
+            local_test_config['selector.field'] = 'feature.node.kubernetes.io/amd-gpu'
+            local_test_config['selector.value'] = DQ('true')
+        local_test_config['metadata.name'] = f'devcfg-clusterwide-{sel}'
+        test_configs[ctxt_name] = local_test_config
     return test_configs

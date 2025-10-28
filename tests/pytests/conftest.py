@@ -68,13 +68,6 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-            "--skip-kube-config",
-            action = "store",
-            default = False,
-            help = "Skip K8 kube config to connect to cluster"
-    )
-
-    parser.addoption(
             "--secrets-json",
             action = "store",
             default = None,
@@ -435,19 +428,19 @@ def cleanup_cluster(request, gpu_cluster, release_name, environment):
     global Logger
     Logger.info("Delete any deviceconfig CRs from the cluster")
     def _delete_deviceconfigs(k8_cluster : common.k8_cluster, namespace : str) -> None:
-        device_cfg_info = k8_util.k8_get_deviceconfigs_info(k8_cluster, namespace, None)
+        device_cfg_info = k8_util.k8_get_deviceconfigs_info(namespace, None)
 
         for devcfg_name, _ in device_cfg_info.items():
-            k8_util.k8_delete_deviceconfig_cr(k8_cluster, namespace, devcfg_name)
+            k8_util.k8_delete_deviceconfig_cr(namespace, devcfg_name)
         return
 
     def _delete_debug_pods(k8_cluster : common.k8_cluster, namespaces) -> None:
         for namespace in namespaces:
-            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "node-debug-")
-            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "curl-cmd-pod-")
-            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "gpu-workload-")
-            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "techsupport-")
-            k8_util.k8_delete_all_pods_with_prefix(k8_cluster, namespace, "test-runner-manual-trigger-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "node-debug-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "curl-cmd-pod-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "gpu-workload-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "techsupport-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "test-runner-manual-trigger-")
 
     # cleanup
     _delete_deviceconfigs(gpu_cluster, environment.gpu_operator_namespace)
@@ -458,7 +451,7 @@ def cleanup_cluster(request, gpu_cluster, release_name, environment):
                                                                   environment.gpu_operator_namespace)
         if ret_code != 0:
             k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-        #k8_util.k8_delete_namespace(gpu_cluster, environment.gpu_operator_namespace)
+        #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
 
     # Init k8 cluster
     k8_util.k8_init_cluster(gpu_cluster)

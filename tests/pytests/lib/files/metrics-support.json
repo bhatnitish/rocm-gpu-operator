@@ -4,7 +4,7 @@
             "name" : "GPU_PACKAGE_POWER",
             "gpu-support" : [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "amd-smi" : "power.socket_power",
                     "gpu-agent" : "stats.PackagePower"
                 }
@@ -34,7 +34,7 @@
             "name": "GPU_JUNCTION_TEMPERATURE",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.temperature.junction_temperature",
                     "amd-smi": "temperature.hotspot"
                 }
@@ -44,7 +44,7 @@
             "name": "GPU_MEMORY_TEMPERATURE",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.temperature.memory_temperature",
                     "amd-smi": "temperature.mem"
                 }
@@ -55,7 +55,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.temperature.hbm_temperature[i]",
                     "amd-smi": "temp.hbm[i]"
                 }
@@ -65,7 +65,7 @@
             "name": "GPU_GFX_ACTIVITY",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.gfx_activity",
                     "amd-smi": "usage.gfx_activity"
                 }
@@ -75,7 +75,7 @@
             "name": "GPU_UMC_ACTIVITY",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.umc_activity",
                     "amd-smi": "usage.umc_activity"
                 }
@@ -86,7 +86,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.vcn_activity",
                     "amd-smi": "usage.vcn_activity"
                 }
@@ -97,7 +97,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.jpeg_activity[i]",
                     "amd-smi": "usage.jpeg_activity"
                 }
@@ -108,7 +108,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.pcie_status->speed",
                     "amd-smi": "pcie.speed"
                 }
@@ -119,7 +119,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.pcie_status->max_speed",
                     "amd-smi": "pcie.max_pcie_speed"
                 }
@@ -130,7 +130,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.pcie_status->bandwidth",
                     "amd-smi": "pcie.bandwidth"
                 }
@@ -141,7 +141,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.energy_consumed",
                     "amd-smi": "energy.total_energy_consumption"
                 }
@@ -152,7 +152,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->pcie_stats.replay_count",
                     "amd-smi": "pcie.pcie_replay_count"
                 }
@@ -163,7 +163,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->pcie_stats.recovery_count",
                     "amd-smi": "pcie.l0_to_recovery_count"
                 }
@@ -174,7 +174,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->pcie_stats.replay_rollover_count",
                     "amd-smi": "pcie.replay_roll_over_count"
                 }
@@ -185,7 +185,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->pcie_stats.nack_sent_count",
                     "amd-smi": "pcie.nak_sent_count"
                 }
@@ -196,7 +196,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->pcie_stats.nack_received_count",
                     "amd-smi": "pcie.nak_received_count"
                 }
@@ -207,7 +207,7 @@
             "label" : "clock_type",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status",
                     "amd-smi": "clock.gfx_{idx}.clk"
                 }
@@ -218,7 +218,7 @@
             "label" : "clock_type",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] MEMORY",
                     "amd-smi": "clock.dclk_{idx}.clk"
                 }
@@ -229,7 +229,7 @@
             "label" : "clock_type",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] VIDEO",
                     "amd-smi": "clock.socclk_{idx}.clk"
                 }
@@ -240,7 +240,7 @@
             "label" : "clock_type",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.fclk_{idx}.clk"
                 }
@@ -251,7 +251,7 @@
             "label" : "clock_type",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.mem_{idx}.clk"
                 }
@@ -262,7 +262,7 @@
             "label" : "clock_type",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.vclk_{idx}.clk"
                 }
@@ -273,7 +273,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.power_usage",
                     "amd-smi": "gpu_metrics.average_socket_power"
                 }
@@ -284,7 +284,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.power_usage",
                     "amd-smi": "gpu_metrics.average_socket_power"
                 }
@@ -294,7 +294,7 @@
             "name": "GPU_TOTAL_VRAM",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.vramstatus.size",
                     "amd-smi": "mem_usage.total_vram"
                 }
@@ -304,7 +304,7 @@
             "name": "GPU_USED_VRAM",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.used_vram",
                     "amd-smi": "mem_usage.used_vram"
                 }
@@ -314,7 +314,7 @@
             "name": "GPU_FREE_VRAM",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.free_vram",
                     "amd-smi": "mem_usage.free_vram"
                 }
@@ -324,7 +324,7 @@
             "name": "GPU_TOTAL_VISIBLE_VRAM",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.total_visible_vram",
                     "amd-smi": "mem_usage.total_visible_vram"
                 }
@@ -334,7 +334,7 @@
             "name": "GPU_USED_VISIBLE_VRAM",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.used_visible_vram",
                     "amd-smi": "mem_usage.used_visible_vram"
                 }
@@ -344,7 +344,7 @@
             "name": "GPU_FREE_VISIBLE_VRAM",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.free_visible_vram",
                     "amd-smi": "mem_usage.free_visible_vram"
                 }
@@ -354,7 +354,7 @@
             "name": "GPU_TOTAL_GTT",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.total_gtt",
                     "amd-smi": "mem_usage.total_gtt"
                 }
@@ -364,7 +364,7 @@
             "name": "GPU_USED_GTT",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.used_gtt",
                     "amd-smi": "mem_usage.used_gtt"
                 }
@@ -374,7 +374,7 @@
             "name": "GPU_FREE_GTT",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.vram_usage.free_gtt",
                     "amd-smi": "mem_usage.free_gtt"
                 }
@@ -385,7 +385,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.current_accumulated_counter",
                     "amd-smi": "metrics_info.accumulation_counter"
                 }
@@ -396,7 +396,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.processor_hot_residency_accumulated",
                     "amd-smi": "metrics_info.prochot_residency_acc"
                 }
@@ -407,7 +407,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.ppt_residency_accumulated",
                     "amd-smi": "metrics_info.ppt_residency_acc"
                 }
@@ -418,7 +418,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.socket_thermal_residency_accumulated",
                     "amd-smi": "metrics_info.socket_thm_residency_acc"
                 }
@@ -429,7 +429,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.vr_thermal_residency_accumulated",
                     "amd-smi": "metrics_info.vr_thm_residency_acc"
                 }
@@ -439,7 +439,7 @@
             "name": "GPU_VIOLATION_HBM_THERMAL_RESIDENCY_ACCUMULATED",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.hbm_thermal_residency_accumulated",
                     "amd-smi": "throttle.hbm_thermal_accumulated"
                 }
@@ -449,7 +449,7 @@
             "name": "GPU_GFX_BUSY_INSTANTANEOUS",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.gfx_busy_inst",
                     "amd-smi": "usage.gfx_busy_inst"
                 }
@@ -459,7 +459,7 @@
             "name": "GPU_VCN_BUSY_INSTANTANEOUS",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.vcn_busy_inst",
                     "amd-smi": "usage.vcn_busy_inst"
                 }
@@ -470,7 +470,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.jpeg_busy_inst",
                     "amd-smi": "usage.jpeg_busy_inst.xcp_[partition_id]"
                 }
@@ -481,7 +481,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -492,7 +492,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -503,7 +503,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -514,7 +514,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -525,7 +525,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -536,7 +536,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -547,7 +547,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -558,7 +558,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -569,7 +569,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -580,7 +580,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -591,7 +591,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -602,7 +602,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -613,7 +613,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -624,7 +624,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -635,7 +635,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -646,7 +646,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -657,7 +657,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -668,7 +668,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -679,7 +679,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -690,7 +690,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -701,7 +701,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -712,7 +712,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -723,7 +723,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -734,7 +734,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -745,7 +745,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -756,7 +756,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -767,7 +767,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -778,7 +778,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -789,7 +789,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -801,7 +801,7 @@
             "gpu-support": [
                 {
                     "gpu-agent" : "",
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "amd-smi" : ""
                 }
             ]
@@ -811,7 +811,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -822,7 +822,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -833,7 +833,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -844,7 +844,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -855,7 +855,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -866,7 +866,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -877,7 +877,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -888,7 +888,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -899,7 +899,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -910,7 +910,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -921,7 +921,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -932,7 +932,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -943,7 +943,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -954,7 +954,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -965,7 +965,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -976,7 +976,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -987,7 +987,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -998,7 +998,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1009,7 +1009,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1020,7 +1020,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1031,7 +1031,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1042,7 +1042,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1053,7 +1053,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1064,7 +1064,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1075,7 +1075,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1086,7 +1086,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1097,7 +1097,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1108,7 +1108,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1119,7 +1119,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1130,7 +1130,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1141,7 +1141,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1152,7 +1152,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1163,7 +1163,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1174,7 +1174,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1185,7 +1185,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1196,7 +1196,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1207,7 +1207,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1218,7 +1218,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1229,7 +1229,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1240,7 +1240,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1251,7 +1251,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1262,7 +1262,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1273,7 +1273,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1284,7 +1284,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1295,7 +1295,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1306,7 +1306,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1317,7 +1317,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1328,7 +1328,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1339,7 +1339,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1350,7 +1350,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1361,7 +1361,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1372,7 +1372,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1383,7 +1383,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1394,7 +1394,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1405,7 +1405,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1416,7 +1416,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1427,7 +1427,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1438,7 +1438,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1449,7 +1449,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1460,7 +1460,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1471,7 +1471,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1482,7 +1482,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1493,7 +1493,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1504,7 +1504,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1515,7 +1515,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1526,7 +1526,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1537,7 +1537,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI250", "MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI250", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }
@@ -1566,11 +1566,11 @@
             ]
         },
         {
-            "name" : "GPU_PCIE_BIDIRECTIONAL_BANDWIDTH",
+            "name" : "PCIE_BIDIRECTIONAL_BANDWIDTH",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI300", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
                     "amd-smi" : ""
                 }

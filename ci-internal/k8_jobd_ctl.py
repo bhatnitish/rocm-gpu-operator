@@ -609,10 +609,8 @@ def _generate_report(logger):
     from pathlib import Path
     import prettytable
 
-    path_expr = os.path.join("logs", "*.xml")
-
     test_results = dict()
-    for report_xml in  glob.iglob(path_expr, recursive = True):
+    for report_xml in  glob.iglob("logs/**/*.xml", recursive = True):
         testsuite_name = Path(report_xml).stem
         with open(report_xml) as xml_file:
             tb_result_data = xmltodict.parse(xml_file.read())
@@ -636,7 +634,7 @@ def _generate_report(logger):
         module_name = ""
         module_statistics = dict()
         for idx, test in enumerate(results['testsuites']['testsuite']['testcase']):
-            mod_name = test['@classname'][len(ts_name) + 1:]
+            mod_name = test['@classname']
             row_entry = []
             if module_name != mod_name:
                 module_name = mod_name
@@ -668,7 +666,7 @@ def _generate_report(logger):
         print("")
 
         summary_table = prettytable.PrettyTable()
-        summary_table.field_names = ["Test Module", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Total Time"]
+        summary_table.field_names = ["Test Module", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Skip %", "Total Time"]
         summary_table.hrules = prettytable.prettytable.HRuleStyle.FRAME
         summary_table.max_table_width = 140
         summary_table.align['Test Module'] = 'l'
@@ -681,10 +679,11 @@ def _generate_report(logger):
         for module_name, stats in module_statistics.items():
             total = stats['tm_pass_count'] + stats['tm_fail_count'] + stats['tm_skip_count']
             success = float(stats['tm_pass_count'] * 100.0/total)
+            skip = float(stats['tm_skip_count'] * 100.0/total)
             failure = float(stats['tm_fail_count'] * 100.0/total)
             module_time = stats['module_time']
             summary_table.add_row([module_name, stats['tm_pass_count'], stats['tm_skip_count'], stats['tm_fail_count'], total,
-                                   f"{success:.2f}", f"{failure:.2f}", f"{module_time/60:.2f}m"])
+                                   f"{success:.2f}", f"{failure:.2f}", f"{skip:.2f}", f"{module_time/60:.2f}m"])
             ts_testcases += total
             ts_success += stats['tm_pass_count']
             ts_failures += stats['tm_fail_count']
@@ -698,15 +697,16 @@ def _generate_report(logger):
 
     summary_table = prettytable.PrettyTable()
     summary_table.title = "Overall Status"
-    summary_table.field_names = ["Testsuite", "Modules", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Total Time"]
+    summary_table.field_names = ["Testsuite", "Modules", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Skipped %", "Total Time"]
 
     for ts_name, stats in ts_statistcs.items():
         total_time = stats[4]
         total = stats[1] + stats[2] + stats[3]
         success = float(stats[1] * 100.0/total)
+        skip = float(stats[2] * 100.0/total)
         failure = float(stats[3] * 100.0/total)
         summary_table.add_row([ts_name, stats[0], stats[1], stats[2], stats[3], total,
-                                f"{success:.2f}", f"{failure:.2f}", f"{total_time/60:.2f}m"])
+                                f"{success:.2f}", f"{failure:.2f}", f"{skip:.2f}", f"{total_time/60:.2f}m"])
     print("")
     print(summary_table)
     print(f"Test Result: {final_status}")

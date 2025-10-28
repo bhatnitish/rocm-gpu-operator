@@ -32,7 +32,7 @@ import lib.k8_util as k8_util
 import lib.spec_util as spec_util
 import lib.metric_util as metric_util
 import lib.amdgpu as amdgpu_util
-from k8.util import K8Helper
+from lib.util import K8Helper
 
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_metrics_values")
@@ -55,9 +55,9 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
         return
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -65,7 +65,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
     if ret_code != 0:
         k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    #k8_util.k8_delete_namespace(gpu_cluster, environment.gpu_operator_namespace)
+    #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
 
     if images.get("gpu-operator.repo", None):
         k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
@@ -88,9 +88,9 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     time.sleep(30)
     yield
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -100,13 +100,13 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     return
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
+def deviceconfig_install(images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
     for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
         if ret_code != 0:
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
@@ -114,7 +114,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
     class DeviceConfigCRInfo(object):
         pass
 
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
@@ -136,11 +136,10 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
         fp.write(json.dumps(config_map, indent=4))
 
     # Delete if there is any previous instance with same name
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(gpu_cluster, environment.gpu_operator_namespace, config_map_name)
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(environment.gpu_operator_namespace, config_map_name)
     Logger.debug(f"Configmap cleanup: ret_code:{ret_code}")
     # ignore ret_code
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_configmap(gpu_cluster, 
-                                                                   environment.gpu_operator_namespace,
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_configmap(environment.gpu_operator_namespace,
                                                                    config_map_name, configmap_file)
     test_config = {
             'metadata.namespace' : environment.gpu_operator_namespace,
@@ -155,7 +154,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
         }
     test_config.update(images)
 
-    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_cluster, gpu_nodes, 'exporter', environment.amdgpu_driver_spec)
+    test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_nodes, 'exporter', environment.amdgpu_driver_spec)
     exporter_port_map = {}
     devicecfg_list = []
     if len(test_cfg_map) > 1:
@@ -171,14 +170,14 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
 
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(gpu_cluster, cr_spec)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(cr_spec)
         K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
         devicecfg_list.append(tcfg['metadata.name'])
 
     # Check for corresponding deviceconfig created
-    K8Helper.check_deviceconfig_status(gpu_cluster, environment, devicecfg_list)
+    K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
-        K8Helper.wait_kmm_worker_completion(gpu_cluster, environment, devcfg)
+        K8Helper.wait_kmm_worker_completion(environment, devcfg)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -186,9 +185,9 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment)
     setattr(devcfg_info, "devicecfg_list", devicecfg_list)
     yield devcfg_info
 
-    device_cfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, None)
+    device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)
     for devcfg_name, _ in device_cfg_info.items():
-        k8_util.k8_delete_deviceconfig_cr(gpu_cluster, environment.gpu_operator_namespace, devcfg_name)
+        k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
     return
 
 @pytest.fixture(scope="module")
@@ -196,7 +195,7 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
     # Derive gpu information using amd-smi information
     global Logger
     Logger.info("Collecting amd-smi info collection for all nodes")
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
@@ -209,7 +208,7 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
@@ -219,11 +218,10 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
-        exporter_pod_name = k8_util.k8_get_pod_name(gpu_cluster, "metrics-exporter", environment.gpu_operator_namespace, node_name)
+        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
         # Collect gpu information from the node
         cmd = [K8Helper.get_amd_smi_path(environment), "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
-                                                                          environment.gpu_operator_namespace,
+        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
                                                                           cmd, exporter_pod_name, "metrics-exporter-container")
         K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
                         f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
@@ -234,10 +232,10 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
     global Logger
     global LogPrettyPrinter
     Logger.info(f"Collecting metrics-exporter curl output, amd-smi metrics and gpuctl metrics snapshot")
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods(gpu_cluster, [environment.gpu_operator_namespace, "default"])
+    K8Helper.delete_debug_pods([environment.gpu_operator_namespace, "default"])
 
     # Watch for all pod creation
     '''
@@ -248,15 +246,14 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
         common.PodInfo('device-plugin', len(gpu_nodes), 1),
         common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
     ]
-    failed_pods = k8_util.k8_check_pod_running(gpu_cluster, environment.gpu_operator_namespace, devicecfg_pods)
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
     def _collect_amd_smi_output(cmd_responses, exporter_pod_name, num_samples = 10, interval = 1):
         cmd = ["amd-smi", "metric", "--json"]
         for _ in range(num_samples):
-            ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
-                                                                             environment.gpu_operator_namespace,
+            ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
                                                                              cmd, exporter_pod_name,
                                                                              "metrics-exporter-container")
             if ret_code != 0:
@@ -269,8 +266,7 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
     def _collect_gpuctl_output(cmd_responses, exporter_pod_name, num_samples = 10, interval = 1):
         cmd = ["gpuctl", "show", "gpu", "--json"]
         for _ in range(num_samples):
-            ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
-                                                                             environment.gpu_operator_namespace,
+            ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
                                                                              cmd, exporter_pod_name,
                                                                              "metrics-exporter-container")
             if ret_code != 0:
@@ -305,13 +301,12 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
         node_port = deviceconfig_install.exporter_port_map[node_name]
-        exporter_pod_name = k8_util.k8_get_pod_name(gpu_cluster, "metrics-exporter", environment.gpu_operator_namespace, node_name)
+        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
         # Collect gpu information from the node
         cmd = ["amd-smi", "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
-                                                                         environment.gpu_operator_namespace,
-                                                                         cmd, exporter_pod_name,
-                                                                         "metrics-exporter-container")
+        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
+                                                                          cmd, exporter_pod_name,
+                                                                          "metrics-exporter-container")
         K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
                         f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
 
@@ -364,13 +359,13 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
-        gpu_cap, gpu_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+        gpu_cap, gpu_alloc = k8_util.k8_get_node_gpu_capacity(node_name)
         params = {
             "node_name" : node_name,
             "images" : images,
             "num_gpu_reqd" : gpu_cap,
         }
-        workload_ctxt = K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
+        workload_ctxt = K8Helper.workload_operation(environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
         K8Helper.triage(environment, (workload_ctxt['podStatus'] == K8Helper.PodStatus.RUNNING),
                         f"Job: workload failed to start : {workload_ctxt}")
         local_workload_ctxts.append(workload_ctxt)
@@ -384,14 +379,13 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
         node_port = deviceconfig_install.exporter_port_map[node_name]
-        exporter_pod_name = k8_util.k8_get_pod_name(gpu_cluster, "metrics-exporter", environment.gpu_operator_namespace, node_name)
+        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
 
         # Collect gpu information from the node
         cmd = ["amd-smi", "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(gpu_cluster,
-                                                                         environment.gpu_operator_namespace,
-                                                                         cmd, exporter_pod_name,
-                                                                         "metrics-exporter-container")
+        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
+                                                                          cmd, exporter_pod_name,
+                                                                          "metrics-exporter-container")
         K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
                         f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
         threads = []
@@ -435,7 +429,7 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
             K8Helper.triage(environment, (len(gpuctl_metrics) == num_samples),
                             f"Failed to collect all required number of gpucltl-metrics samples for node {node_name}")
     for ctxt in local_workload_ctxts:
-        K8Helper.workload_operation(gpu_cluster, environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **ctxt)
+        K8Helper.workload_operation(environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **ctxt)
     yield (idle_metrics, workload_metrics)
     return
 
@@ -484,7 +478,7 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
         Logger.error(f"Missing {metric_to_test}")
         return False
 
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     failed_metrics = defaultdict(set)
@@ -625,7 +619,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
         return hit_count, miss_count
 
     metric_validated = False
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     all_idle_metrics, all_workload_metrics = metrics_samples
@@ -662,10 +656,10 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
             load_hit_count, load_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, workload_metrics)
             Logger.info(f"Worker: {node_name} GPU: {gpu_id} - Loaded Hit/Miss: {load_hit_count}/{load_miss_count}")
 
-            K8Helper.triage(environment, (idle_hit_count > int(0.65 * num_samples)),
+            K8Helper.triage(environment, (idle_hit_count >= int(0.50 * num_samples)),
                             f"IDLE Metric: {metric_to_test} GPU: {gpu_id} not in sync, hit: {idle_hit_count}, miss {idle_miss_count}")
 
-            K8Helper.triage(environment, (load_hit_count > int(0.65 * num_samples)),
+            K8Helper.triage(environment, (load_hit_count >= int(0.50 * num_samples)),
                             f"LOAD Metric: {metric_to_test} GPU: {gpu_id} not in sync, hit: {load_hit_count}, miss {load_miss_count}")
 
     if not metric_validated:

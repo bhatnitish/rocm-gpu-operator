@@ -57,7 +57,7 @@ class K8Helper:
         return "/opt/rocm/bin/amd-smi"
 
     @staticmethod
-    def wait_for_upgrade_completion_status(gpu_cluster, environment, devicecfg_list, gpu_nodes):
+    def wait_for_upgrade_completion_status(environment, devicecfg_list, gpu_nodes):
         # Check for kmm-worker-{gpu-node-name}-test-deviceconfig PODs to be started and completed
         global Logger
         if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
@@ -69,7 +69,7 @@ class K8Helper:
         for _ in range(10):
             pending_nodes = set(map(lambda x: x['metadata']['name'], gpu_nodes))
             for devcfg in devicecfg_list:
-                devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
+                devcfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, devcfg)
                 K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
                                 f"Failed to collect status of deviceconfig {devcfg}")
 
@@ -94,7 +94,7 @@ class K8Helper:
         if not upgrade_complete:
             Logger.error("Failed to complete upgrade-process for all nodes")
             for devcfg in devicecfg_list:
-                devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
+                devcfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, devcfg)
                 K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
                                 f"Failed to collect status of deviceconfig {devcfg}")
 
@@ -105,7 +105,7 @@ class K8Helper:
         Logger.info("Upgrade complete for all nodes")
 
     @staticmethod
-    def wait_for_upgrade_completion_label(gpu_cluster, environment, devicecfg_list):
+    def wait_for_upgrade_completion_label(environment, devicecfg_list):
         # Check for kmm-worker-{gpu-node-name}-test-deviceconfig PODs to be started and completed
         global Logger
         if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
@@ -116,13 +116,13 @@ class K8Helper:
         upgrade_complete = False
         for _ in range(10):
             # TODO: Check for label change for each node
-            # ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+            # ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
             pass
 
         if not upgrade_complete:
             Logger.error("Failed to complete upgrade-process for all nodes")
             for devcfg in devicecfg_list:
-                devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
+                devcfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, devcfg)
                 K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
                                 f"Failed to collect status of deviceconfig {devcfg}")
 
@@ -133,14 +133,14 @@ class K8Helper:
         Logger.info("Upgrade complete for all nodes")
 
     @staticmethod
-    def wait_kmm_worker_completion(gpu_cluster, environment, devcfg_name):
+    def wait_kmm_worker_completion(environment, devcfg_name):
         # Check for kmm-worker-{gpu-node-name}-test-deviceconfig PODs to be started and completed
         global Logger
         if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
             Logger.info("Using inbox amdgpu driver - skip kmm verification")
             return
 
-        ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+        ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
         K8Helper.triage(environment, ret_code == 0, "Error while getting gpu-nodes from k8-cluster")
         K8Helper.triage(environment, len(gpu_nodes), "No nodes with AMD/GPU found in the cluster")
 
@@ -152,7 +152,7 @@ class K8Helper:
         time.sleep(20)
         for _ in range(5):
             build_pod_status.clear()
-            status_info = k8_util.k8_check_pod_status(gpu_cluster, environment.gpu_operator_namespace, build_pods)
+            status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, build_pods)
             Logger.debug(f"build pod status: {status_info}")
 
             for pod_name, status in status_info.items():
@@ -187,7 +187,7 @@ class K8Helper:
         time.sleep(20)
         for _ in range(5):
             kmm_pod_status.clear()
-            status_info = k8_util.k8_check_pod_status(gpu_cluster, environment.gpu_operator_namespace, kmm_worker_pods)
+            status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, kmm_worker_pods)
             Logger.debug(f"kmm-worker status: {status_info}")
 
             for pod_name, status in status_info.items():
@@ -215,7 +215,7 @@ class K8Helper:
         label_missing = set()
         for _ in range(5):
             label_missing.clear()
-            ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+            ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
             K8Helper.triage(environment, ret_code == 0, "Error while getting gpu-nodes from k8-cluster")
             K8Helper.triage(environment, len(gpu_nodes), "No nodes with AMD/GPU found in the cluster")
 
@@ -236,9 +236,9 @@ class K8Helper:
 
     # Check for corresponding deviceconfig created
     @staticmethod
-    def check_deviceconfig_status(gpu_cluster, environment, devicecfg_list):
+    def check_deviceconfig_status(environment, devicecfg_list):
         for devcfg in devicecfg_list:
-            devcfg_info = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace, devcfg)
+            devcfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, devcfg)
             K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
                             f"Failed to collect status of deviceconfig {devcfg}")
             #status_info = devcfg_info[devcfg].get('status')
@@ -253,7 +253,7 @@ class K8Helper:
     def check_node_driver_version(gpu_cluster, config_version, rocm_version, environment):
         global Logger
         global LogPrettyPrinter
-        devcfg_map = k8_util.k8_get_deviceconfigs_info(gpu_cluster, environment.gpu_operator_namespace)
+        devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
         for devcfg_name, devcfg_info in devcfg_map.items():
             devcfg_driver_version = devcfg_info.get('spec').get('driver').get('version')
             Logger.info(f'Configured Version: {devcfg_driver_version}') 
@@ -261,7 +261,7 @@ class K8Helper:
                             f"Expected config_version: {config_version}, device_config: {devcfg_driver_version}")
 
         # check the worker node driver version
-        ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+        ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
         for node in gpu_nodes:
             node_name = k8_util.k8_get_node_hostname(node)
             version_module_label = f"kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.{devcfg_name}"
@@ -360,7 +360,7 @@ class K8Helper:
             pytest.fail(message)
 
     @staticmethod
-    def _rocm_workload_handler(gpu_cluster, environment, wl_template, op_code, **kwargs):
+    def _rocm_workload_handler(environment, wl_template, op_code, **kwargs):
         """
         create the workload pod requesting gpu(s)
         """
@@ -370,14 +370,14 @@ class K8Helper:
 
         if node_name == None:
             # Take one node with gpu
-            ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
+            ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
             K8Helper.triage(environment, ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster")
             gpu_node = gpu_nodes[0]
             node_name = k8_util.k8_get_node_hostname(gpu_node)
 
         if op_code == K8Helper.WorkloadOp.START_WORKLOAD:
             # check gpu capacity
-            init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(gpu_cluster, node_name)
+            init_cap, init_alloc = k8_util.k8_get_node_gpu_capacity(node_name)
             K8Helper.triage(environment, int(init_cap) != -1 or int(init_alloc) != -1,
                             f'Err getting gpu capacity and allocatable values: capacity: {init_cap} allocatable: {init_alloc}')
 
@@ -398,13 +398,13 @@ class K8Helper:
             wl_file = os.path.join(environment.logdir, f"{pod_name}.yaml")
             Logger.debug(f"New workload specification : {workload_config}")
             cr_spec = spec_util.generate_k8_workload_template(wl_template['spec'], workload_config, wl_file)
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(gpu_cluster, cr_spec, wl_file)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_apply_cr(cr_spec, wl_file)
 
             workload_pods = [
                 common.PodInfo(pod_name, 1, 1),
             ]
             for _ in range(10):
-                status_info = k8_util.k8_check_pod_status(gpu_cluster, cr_spec['metadata']['namespace'], workload_pods)
+                status_info = k8_util.k8_check_pod_status(cr_spec['metadata']['namespace'], workload_pods)
                 Logger.debug(f"workload pod status: {status_info}")
                 for pod_name, status in status_info.items():
                     if pod_name == workload_config['pod_name']:
@@ -425,7 +425,7 @@ class K8Helper:
         elif op_code == K8Helper.WorkloadOp.STOP_WORKLOAD:
             # delete the workload
             Logger.info(f"Delete the first workload with gpu")
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(gpu_cluster, workload_config['spec'], None)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(workload_config['spec'], None)
             if ret_code != 0:
                 Logger.warn(f"Failed to delete workload : {workload_config}")
             workload_config['podStatus'] = K8Helper.PodStatus.UNKNOWN
@@ -433,7 +433,7 @@ class K8Helper:
         return None
 
     @staticmethod
-    def _test_runner_job_handler(gpu_cluster, environment, op_code, **kwargs):
+    def _test_runner_job_handler(environment, op_code, **kwargs):
         """
         create the test-runner job on gpu(s)
         """
@@ -454,7 +454,7 @@ class K8Helper:
 
             configmap = {}
             K8Helper.update_test_runner_configmap(recipe, worker, configmap, framework, trigger)
-            create_configmap(request, gpu_cluster, deviceconfig_install, environment, framework, configmap)
+            create_configmap(request, deviceconfig_install, environment, framework, configmap)
 
             namespace = environment.gpu_operator_namespace
             sa_name = "test-run"
@@ -462,7 +462,7 @@ class K8Helper:
             crb_name = 'test-run-rb'
 
             # Create ServiceAccount
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(gpu_cluster, sa_name, namespace)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(sa_name, namespace)
             debug_on_failure(environment, (ret_code == 0),
                              f"Failed to create service-account, error:{ret_stderr}")
 
@@ -485,22 +485,21 @@ class K8Helper:
                 )
             )
             # Define ClusterRole: verb=get
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(gpu_cluster, cluster_role_name, rules)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(cluster_role_name, rules)
             debug_on_failure(environment, (ret_code == 0),
                              f"Failed to create test_runner clusterrole with GET, error:{ret_stderr}")
 
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(gpu_cluster, crb_name, namespace, cluster_role_name, sa_name)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(crb_name, namespace, cluster_role_name, sa_name)
             debug_on_failure(environment, (ret_code == 0),
                                       f"Failed to create test_runner clusterrole with verbs, error:{ret_stderr}")
             # Create token for ServiceAccount
-            token = k8_util.k8_create_token(gpu_cluster, namespace, sa_name, "1h")
+            token = k8_util.k8_create_token(namespace, sa_name, "1h")
             debug_on_failure(environment, token != None,
                              f"Failed to create token for the service-account : {sa_name}")
             Logger.info(f"TOKEN={token}")
 
             # Create Job
-            k8_util.k8_create_test_runner_job(gpu_cluster,
-                                              namespace,
+            k8_util.k8_create_test_runner_job(namespace,
                                               images,
                                               node_name,
                                               sa_name,
@@ -519,7 +518,7 @@ class K8Helper:
                 })
 
             for _ in range(5):
-                status_info = k8_util.k8_check_pod_status(gpu_cluster, namespace, workload_pods)
+                status_info = k8_util.k8_check_pod_status(namespace, workload_pods)
                 Logger.debug(f"test-runner pod status: {status_info}")
                 for pod_name, status in status_info.items():
                     if workload_config['pod_name'] in pod_name:
@@ -541,33 +540,33 @@ class K8Helper:
             return workload_config
         elif op_code == K8Helper.WorkloadOp.STOP_WORKLOAD:
             Logger.info(f"Delete test-runner job: {workload_config}")
-            k8_util.k8_delete_job(gpu_cluster, environment.gpu_operator_namespace, workload_config['pod_name'])
+            k8_util.k8_delete_job(environment.gpu_operator_namespace, workload_config['pod_name'])
             workload_config['podStatus'] = K8Helper.PodStatus.UNKNOWN
             return workload_config
 
     @staticmethod
-    def workload_operation(gpu_cluster, environment, op_code, **kwargs):
+    def workload_operation(environment, op_code, **kwargs):
         global Logger
         """
         create the workload pod
         """
         workload_selection = kwargs.get("workload_selection", environment.default_workload)
         if workload_selection == "test-runner-manual-job":
-            return K8Helper._test_runner_job_handler(gpu_cluster, environment, op_code, **kwargs)
+            return K8Helper._test_runner_job_handler(environment, op_code, **kwargs)
         else:
             with open("lib/files/workload-specs.json", "r") as fp:
                 wl_templates = json.load(fp)
             tmp_list = list(filter(lambda x: x['workload-type'] == workload_selection, wl_templates['workload-specs']))
             assert len(tmp_list) == 1, f"No workload found with workload-type={workload_selection}"
-            return K8Helper._rocm_workload_handler(gpu_cluster, environment, tmp_list[0], op_code, **kwargs)
+            return K8Helper._rocm_workload_handler(environment, tmp_list[0], op_code, **kwargs)
 
     @staticmethod
-    def delete_debug_pods(gpu_cluster, namespaces) -> None:
+    def delete_debug_pods(namespaces) -> None:
         for namespace in namespaces:
-            k8_util.k8_delete_all_pods_with_prefix(gpu_cluster, namespace, "node-debug-")
-            k8_util.k8_delete_all_pods_with_prefix(gpu_cluster, namespace, "curl-cmd-pod-")
-            k8_util.k8_delete_all_pods_with_prefix(gpu_cluster, namespace, "gpu-workload-")
-            k8_util.k8_delete_all_pods_with_prefix(gpu_cluster, namespace, "techsupport-")
-            k8_util.k8_delete_all_pods_with_prefix(gpu_cluster, namespace, "test-runner-manual-trigger-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "node-debug-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "curl-cmd-pod-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "gpu-workload-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "techsupport-")
+            k8_util.k8_delete_all_pods_with_prefix(namespace, "test-runner-manual-trigger-")
         return
 
