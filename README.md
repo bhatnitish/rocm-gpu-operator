@@ -72,6 +72,7 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
   - Skip KMM installation: `--set kmm.enabled=false`
+  - Skip Auto Node Remediation: `--set remediation.enabled=false`
 ```
 
 ```{warning}
