@@ -44,7 +44,6 @@ device_config_template_v1_0_0 = {
     },
     'spec'          : {
         'driver'    : {
-            'image' : '',
             'enable': False,
             'blacklist' : True,
             'imageRegistryTLS' : {
@@ -53,12 +52,9 @@ device_config_template_v1_0_0 = {
             },
         },
         'devicePlugin' : {
-            'devicePluginImage': '',
-            'nodeLabellerImage': '',
             'enableNodeLabeller' : False,
         },
         'metricsExporter' : {
-            'image'             : '',
             'enable'            : False,
             'nodePort'          : 32500,
             'port'              : 5000,
@@ -83,10 +79,8 @@ device_config_template_v1_2_0 = {
     },
     'spec'          : {
         'commonConfig' : {
-            'initContainerImage': '',
         },
         'driver'    : {
-            'image' : '',
             'enable': False,
             'blacklist' : True,
             'imageRegistryTLS' : {
@@ -95,19 +89,17 @@ device_config_template_v1_2_0 = {
             },
             'upgradePolicy' : {
                 'enable' : False,
-                'maxParallelUpgrade' : 1,
+                'maxParallelUpgrades' : 1,
                 'maxUnavailableNodes' : '25%',
                 'nodeDrainPolicy' : {
                     'force' : False,
                     'timeoutSeconds' : 300,
                 },
+                'rebootRequired' : False,
             },
-            'rebootRequired' : False,
         },
         'devicePlugin' : {
-            'devicePluginImage': '',
             'devicePluginImagePullPolicy' : 'Always',
-            'nodeLabellerImage': '',
             'enableNodeLabeller' : False,
             'nodeLabellerImagePullPolicy' : 'Always',
             'upgradePolicy' : {
@@ -116,7 +108,6 @@ device_config_template_v1_2_0 = {
             },
         },
         'metricsExporter' : {
-            'image'             : '',
             'imagePullPolicy'   : 'Always',
             'enable'            : False,
             'nodePort'          : 32500,
@@ -134,7 +125,6 @@ device_config_template_v1_2_0 = {
         'testRunner' : {
             'enable' : False,
             'config' : None,
-            'image'  : '',
             'imagePullPolicy': 'Always',
             'upgradePolicy' : {
                 'maxUnavailable' : 1,
@@ -156,10 +146,8 @@ device_config_template_v1_3_0 = {
     },
     'spec'          : {
         'commonConfig' : {
-            'initContainerImage': '',
         },
         'driver'    : {
-            'image' : '',
             'enable': False,
             'blacklist' : True,
             'imageRegistryTLS' : {
@@ -168,19 +156,17 @@ device_config_template_v1_3_0 = {
             },
             'upgradePolicy' : {
                 'enable' : False,
-                'maxParallelUpgrade' : 1,
+                'maxParallelUpgrades' : 1,
                 'maxUnavailableNodes' : '25%',
                 'nodeDrainPolicy' : {
                     'force' : False,
                     'timeoutSeconds' : 300,
                 },
+                'rebootRequired' : True,
             },
-            'rebootRequired' : True,
         },
         'devicePlugin' : {
-            'devicePluginImage': '',
             'devicePluginImagePullPolicy' : 'Always',
-            'nodeLabellerImage': '',
             'enableNodeLabeller' : False,
             'nodeLabellerImagePullPolicy' : 'Always',
             'upgradePolicy' : {
@@ -189,7 +175,6 @@ device_config_template_v1_3_0 = {
             },
         },
         'metricsExporter' : {
-            'image'             : '',
             'imagePullPolicy'   : 'Always',
             'enable'            : False,
             'nodePort'          : 32500,
@@ -207,7 +192,6 @@ device_config_template_v1_3_0 = {
         'testRunner' : {
             'enable' : False,
             'config' : None,
-            'image'  : '',
             'imagePullPolicy': 'Always',
             'upgradePolicy' : {
                 'maxUnavailable' : 1,
@@ -240,7 +224,7 @@ device_config_templates = {
 
 device_config_template_default = device_config_template_v1_3_0
 
-helm_deployment_template_0 = {
+gpu_operator_helm_deployment_template_0 = {
     'node-feature-discovery' : {
         'enabled': DQ('true'),
     },
@@ -325,6 +309,40 @@ helm_deployment_template_0 = {
     }
 }
 
+exporter_helm_deployment_template_0 = {
+    'platform': 'k8s',
+    'nodeSelector': {}, # Optional: Add custom nodeSelector
+    'tolerations': [],  # Optional: Add custom tolerations
+    'kubelet': {
+        'podResourceAPISocketPath': '/var/lib/kubelet/pod-resources',
+    },
+    'image': {
+        'repository': 'rocm/device-metrics-exporter',
+        'tag': '',
+        'pullPolicy': 'Always',
+    },
+    'configMap': "", # Optional: Add custom configuration
+    'service': {
+        'type': 'ClusterIP',  # or NodePort
+        'ClusterIP': {
+            'port': 5000,
+        },
+        'NodePort' : {
+            'nodePort' : 32500,
+            'port' : 5000,
+        },
+    },
+    # ServiceMonitor configuration for Prometheus Operator integration
+    'serviceMonitor': {
+        'enabled': False,
+        'interval': '30s',
+        'honorLabels': True,
+        'honorTimestamps': True,
+        'labels': {},
+        'relabelings': [],
+    }
+}
+
 def dump_yaml(file_name, data):
     with open(file_name, 'w') as fp:
         yaml.dump(data, fp)
@@ -362,8 +380,8 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
                 rebootReqDefault = False
             device_config['spec']['driver']['upgradePolicy']['enable'] = spec.get('driver.upgradePolicy.enable', False)
             device_config['spec']['driver']['upgradePolicy']['rebootRequired'] = spec.get('driver.upgradePolicy.rebootRequired', rebootReqDefault)
-            device_config['spec']['driver']['upgradePolicy']['maxParallelUpgrade'] = spec.get('driver.upgradePolicy.maxParallelUpgrade', 1)
-            device_config['spec']['driver']['upgradePolicy']['maxUnavailable'] = spec.get('driver.upgradePolicy.maxUnavailable', "25%")
+            device_config['spec']['driver']['upgradePolicy']['maxParallelUpgrades'] = spec.get('driver.upgradePolicy.maxParallelUpgrades', 1)
+            device_config['spec']['driver']['upgradePolicy']['maxUnavailableNodes'] = spec.get('driver.upgradePolicy.maxUnavailableNodes', "25%")
             device_config['spec']['driver']['upgradePolicy']['nodeDrainPolicy']['force'] = spec.get('driver.upgradePolicy.nodeDrainPolicy.force', False)
             device_config['spec']['driver']['upgradePolicy']['nodeDrainPolicy']['timeoutSeconds'] = spec.get('driver.upgradePolicy.nodeDrainPolicy.timeoutSeconds', 300)
     else:
@@ -486,7 +504,7 @@ def generate_helmchart_deployment_config(gpu_operator_version, images, file_name
     '''
 
     modifed = False
-    helmchart_values = copy.deepcopy(helm_deployment_template_0)
+    helmchart_values = copy.deepcopy(gpu_operator_helm_deployment_template_0)
 
     # kmm controller manager image-sign
     kmm_sign_prefix = 'kmm.controller.manager.env.relatedImageSign'
@@ -541,6 +559,42 @@ def generate_helmchart_deployment_config(gpu_operator_version, images, file_name
     if images.get(f'{ctrl_manager_prefix}.secret', None):
         modifed = True
         helmchart_values['controllerManager']['manager']['imagePullSecrets'] = images.get(f'{ctrl_manager_prefix}.secret')
+
+    if modifed:
+        return dump_yaml(file_name, helmchart_values)
+    return modifed
+
+def generate_exporter_helmchart_deployment_config(exporter_version, images, file_name, **kwargs):
+    '''
+    Generate values.yaml used to install device-metrics-exporter helm-chart
+    '''
+    modifed = False
+    helmchart_values = copy.deepcopy(exporter_helm_deployment_template_0)
+
+    if images.get(f'metricsExporter.image.repository', None):
+        img = f"{images['metricsExporter.image.repository']}"
+        tag = f"{images['metricsExporter.image.version']}"
+        helmchart_values['image']['repository'] = img
+        helmchart_values['image']['tag'] = tag
+        modifed = True
+
+    if 'configMap' in kwargs:
+        helmchart_values['configMap'] = kwargs['configMap']
+    if 'service.type' in kwargs:
+        helmchart_values['service']['type'] = kwargs['service.type']
+        modifed = True
+    if 'service.ClusterIP.port' in kwargs:
+        helmchart_values['service']['ClusterIP']['port'] = kwargs['service.ClusterIP.port']
+        modifed = True
+    if 'service.NodePort.nodePort' in kwargs:
+        helmchart_values['service']['NodePort']['nodePort'] = kwargs['service.NodePort.nodePort']
+        modifed = True
+    if 'service.NodePort.port' in kwargs:
+        helmchart_values['service']['NodePort']['port'] = kwargs['service.NodePort.port']
+        modifed = True
+
+    if 'serviceMonitor.enabled' in kwargs:
+        helmchart_values['serviceMonitor']['enabled'] = kwargs['serviceMonitor.enabled']
 
     if modifed:
         return dump_yaml(file_name, helmchart_values)

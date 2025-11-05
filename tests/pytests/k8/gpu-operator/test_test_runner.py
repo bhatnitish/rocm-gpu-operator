@@ -67,6 +67,7 @@ debug_on_failure = K8Helper.triage
 @pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     yield
     delattr(environment, 'current_tc_name')
 
@@ -575,7 +576,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods([environment.gpu_operator_namespace, "default"])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
@@ -686,7 +687,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods([environment.gpu_operator_namespace, "default"])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
@@ -786,7 +787,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods([environment.gpu_operator_namespace, "default"])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
@@ -911,7 +912,7 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect,
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods([environment.gpu_operator_namespace, "default"])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:

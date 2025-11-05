@@ -186,17 +186,18 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
     for key, value in kwargs:
         cmd.extend(["--set", f"{key}={value}"])
 
-    if os.getenv("GPU_DEVICE") == "VF":
-        node_selection = {
-            "feature.node.kubernetes.io/amd-gpu"    : None,
-            "feature.node.kubernetes.io/amd-vgpu"   : "true",
-        }
-    else:
-        node_selection = {
-            "feature.node.kubernetes.io/amd-gpu"    : "true",
-            "feature.node.kubernetes.io/amd-vgpu"   : None,
-        }
-    cmd.extend(["--set-json", f"deviceConfig.spec.selector={json.dumps(node_selection)}"])
+    if release_name == 'gpu-operator':
+        if os.getenv("GPU_DEVICE") == "VF":
+            node_selection = {
+                "feature.node.kubernetes.io/amd-gpu"    : None,
+                "feature.node.kubernetes.io/amd-vgpu"   : "true",
+            }
+        else:
+            node_selection = {
+                "feature.node.kubernetes.io/amd-gpu"    : "true",
+                "feature.node.kubernetes.io/amd-vgpu"   : None,
+            }
+        cmd.extend(["--set-json", f"deviceConfig.spec.selector={json.dumps(node_selection)}"])
 
     if k8_cluster.k8_kube_config:
         cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
@@ -526,17 +527,27 @@ def k8_modify_deviceconfig_cr(cr_spec : dict) -> (int, str, str):
     plural = cr_spec['kind'].lower() + 's'
     namespace = cr_spec['metadata']['namespace']
     devcfg_name = cr_spec['metadata']['name']
-    try:
-        devcfg_obj = custom_objects_api.get_namespaced_custom_object(group = group, version = version, namespace = namespace, 
-                                                                     plural = plural, name = devcfg_name)
-        # Modify devcfg_obj['spec']
-        devcfg_obj['spec'] = cr_spec['spec']
-        custom_objects_api.replace_namespaced_custom_object(group = group, version = version, namespace = namespace, 
-                                                            plural = plural, name = devcfg_name, body=devcfg_obj)
-    except ApiException as e:
-        Logger.error(f"Failed to modify deviceconfig {devcfg_name}\n{devcfg_obj}\n Exception: {e}")
-        return -1, "", str(e)
-    return 0, "", ""
+    resp = None
+    error = None
+    retcode = -1
+    for _ in range(5):
+        try:
+            devcfg_obj = custom_objects_api.get_namespaced_custom_object(group = group, version = version, namespace = namespace, 
+                                                                         plural = plural, name = devcfg_name)
+            # Modify devcfg_obj['spec']
+            devcfg_obj['spec'] = cr_spec['spec']
+            resp = custom_objects_api.replace_namespaced_custom_object(group = group, version = version, namespace = namespace,
+                                                                       plural = plural, name = devcfg_name, body=devcfg_obj)
+            Logger.debug(f"Modified devcfg_obj: {devcfg_obj}")
+            retcode = 0
+            break
+        except ApiException as e:
+            Logger.error(f"Failed to modify deviceconfig {devcfg_name}, Exception: {e}")
+            time.sleep(5)
+            error = str(e)
+    else:
+        Logger.error(f"Unable to modify deviceconfig {devcfg_name} - aborting")
+    return retcode, "", error
 
 @log_arguments
 def k8_apply_cr(cr_spec : dict, cr_file : str) -> (int, str, str):
@@ -620,6 +631,24 @@ def k8_delete_cr(cr_spec, cr_file):
     except ApiException as e:
         return -1, "", str(e)
     return 0, "", ""
+
+@log_arguments
+def k8_get_servicemonitor_cr(namespace : str) -> (int, str, str):
+    """
+    API to delete deviceconfig CR with given name and namespace
+    """
+    global Logger
+    custom_objects_api = client.CustomObjectsApi()
+    group = 'monitoring.coreos.com'
+    version = 'v1'
+    plural = 'servicemonitors'
+    try:
+        cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
+                                                                   namespace = namespace, plural = plural)
+        return 0, cr_list, None
+    except ApiException as e:
+        Logger.error(f"Failed to query deviceconfig CR, error: {e}")
+        return -1, None, str(e)
 
 @log_arguments
 def k8_create_rules_from_endpoint_list(endpoint_verbs : List):

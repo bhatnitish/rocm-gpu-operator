@@ -35,6 +35,7 @@ Logger = logging.getLogger("k8.test_gpu_operator")
 @pytest.fixture(scope="function", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     yield
     delattr(environment, 'current_tc_name')
 

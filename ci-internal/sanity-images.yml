@@ -24,6 +24,11 @@ images:
             image       : /gpu-operator/amd-gpu-operator-latest.tar.gz
             kind        : container
 
+        exporter:
+            image       : /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+            kind        : helm-chart
+            version     : v1.4.0
+
         device-metrics-exporter:
             key         : metricsExporter.image
             image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz

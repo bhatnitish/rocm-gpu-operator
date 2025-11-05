@@ -46,6 +46,7 @@ class K8Helper:
         FAILED      = 3
         SUCCEEDED   = 4
         UNKNOWN     = 5
+        STOPPED     = 6
 
     class WorkloadOp(Enum):
         UNKNOWN         = 0
@@ -150,7 +151,7 @@ class K8Helper:
 
         build_pod_status = set()
         time.sleep(20)
-        for _ in range(5):
+        for _ in range(10):
             build_pod_status.clear()
             status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, build_pods)
             Logger.debug(f"build pod status: {status_info}")
@@ -403,7 +404,7 @@ class K8Helper:
             workload_pods = [
                 common.PodInfo(pod_name, 1, 1),
             ]
-            for _ in range(10):
+            for _ in range(20):
                 status_info = k8_util.k8_check_pod_status(cr_spec['metadata']['namespace'], workload_pods)
                 Logger.debug(f"workload pod status: {status_info}")
                 for pod_name, status in status_info.items():
@@ -424,11 +425,13 @@ class K8Helper:
             return workload_config
         elif op_code == K8Helper.WorkloadOp.STOP_WORKLOAD:
             # delete the workload
-            Logger.info(f"Delete the first workload with gpu")
+            Logger.info(f"Delete the workload with config: {workload_config}")
             ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_cr(workload_config['spec'], None)
             if ret_code != 0:
                 Logger.warn(f"Failed to delete workload : {workload_config}")
-            workload_config['podStatus'] = K8Helper.PodStatus.UNKNOWN
+                workload_config['podStatus'] = K8Helper.PodStatus.UNKNOWN
+            else:
+                workload_config['podStatus'] = K8Helper.PodStatus.STOPPED
             return workload_config
         return None
 

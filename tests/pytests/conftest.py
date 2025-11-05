@@ -129,7 +129,8 @@ def environment(request):
 
     tenv = Env()
     setattr(tenv, 'deployment_mode', request.config.option.deployment)
-    setattr(tenv, 'gpu_operator_namespace', 'kube-amd-gpu')
+    setattr(tenv, 'gpu_operator_namespace', os.getenv('GPU_OPERATOR_NAMESPACE', 'kube-amd-gpu'))
+    setattr(tenv, 'exporter_namespace', os.getenv('EXPORTER_NAMESPACE', 'kube-amd-exporter'))
     setattr(tenv, 'download_folder', 'downloads')
     setattr(tenv, 'global_registry', request.config.option.global_registry)
     setattr(tenv, 'logdir', "logs")
@@ -308,7 +309,10 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
 
     images = image_manifest['k8']
     # prepare to download gpu-operator
-    setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
+    if images.get('gpu-operator', None) and images['gpu-operator']['kind'] == 'helm-chart':
+        setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
+    if images.get('exporter', None) and images['exporter']['kind'] == 'helm-chart':
+        setattr(environment, 'exporter_version', images['exporter']['version'])
     if 'build' in images['gpu-operator']:
         setattr(environment, 'gpu_operator_build', images['gpu-operator']['build'])
     setattr(environment, 'metrics_exporter_version', images['device-metrics-exporter']['version'])
@@ -444,7 +448,7 @@ def cleanup_cluster(request, gpu_cluster, release_name, environment):
 
     # cleanup
     _delete_deviceconfigs(gpu_cluster, environment.gpu_operator_namespace)
-    _delete_debug_pods(gpu_cluster, ["default", environment.gpu_operator_namespace])
+    _delete_debug_pods(gpu_cluster, ["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     if k8_util.is_helm_chart_deployed(gpu_cluster, release_name, environment.gpu_operator_namespace):
         Logger.warn(f"helm {release_name} is already deployed - cleanup")
         ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name,

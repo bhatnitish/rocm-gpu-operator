@@ -122,6 +122,14 @@ builds:
     artifacts:
      - /kernel-module-management/kernel-module-management-worker.tar.gz
 
+  build-external-device-metrics-exporter-helm-artifact:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-helm-artifact \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-helm-artifact --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+
 targets:
   gpu-operator-sanity:
     commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make generate && make vet && make lint && make unit-test"]

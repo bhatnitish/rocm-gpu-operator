@@ -47,6 +47,7 @@ debug_on_failure = K8Helper.triage
 @pytest.fixture(scope="module", autouse=True)
 def setup_testcase_info(request, environment):
     setattr(environment, 'current_tc_name', request.node.name)
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
     yield
     delattr(environment, 'current_tc_name')
 
@@ -226,7 +227,7 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, add_tolerati
 
     yield devcfg_info
 
-    cleanup_configmanager(environment)
+    cleanup_configmanager(environment, devcfg_info)
     device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)
     for devcfg_name, _ in device_cfg_info.items():
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
@@ -285,7 +286,7 @@ def create_configmap(gpu_cluster, deviceconfig_install, amd_smi_collect, environ
     ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(namespace,
                                                                    configmap)
 
-def cleanup_configmanager(environment):
+def cleanup_configmanager(environment, devcfg_info):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
@@ -311,18 +312,20 @@ def cleanup_configmanager(environment):
 
     api_client = client.ApiClient()
     custom_objects_api = client.CustomObjectsApi(api_client)
-    try:
-        custom_objects_api.patch_namespaced_custom_object(
-            group="amd.com",
-            version='v1alpha1',
-            name='deviceconfig-clusterwide',
-            namespace=environment.gpu_operator_namespace,
-            plural='deviceconfigs',
-            body=patch_body
-        )
-        print(f"Successfully patched")
-    except client.ApiException as e:
-        pytest.fail(f"Failed to patch custom object: {e}")
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        try:
+            custom_objects_api.patch_namespaced_custom_object(
+                group="amd.com",
+                version='v1alpha1',
+                name=devcfg_name,
+                namespace=environment.gpu_operator_namespace,
+                plural='deviceconfigs',
+                body=patch_body
+            )
+            print(f"Successfully patched")
+        except client.ApiException as e:
+            pytest.fail(f"Failed to patch custom object: {e}")
  
 
     # Watch for all pod creation
@@ -540,18 +543,20 @@ def test_deviceconfig_partitioning(
 
     api_client = client.ApiClient()
     custom_objects_api = client.CustomObjectsApi(api_client)
-    try:
-        custom_objects_api.patch_namespaced_custom_object(
-            group="amd.com",
-            version='v1alpha1',
-            name='deviceconfig-clusterwide',
-            namespace=namespace,
-            plural='deviceconfigs',
-            body=patch_body
-        )
-        Logger.info(f"Successfully patched with {patch_body}")
-    except client.ApiException as e:
-        debug_on_failure(environment, False, f"Failed to patch custom object: {e}")
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        try:
+            custom_objects_api.patch_namespaced_custom_object(
+                group="amd.com",
+                version='v1alpha1',
+                name=devcfg_name,
+                namespace=namespace,
+                plural='deviceconfigs',
+                body=patch_body
+            )
+            Logger.info(f"Successfully patched with {patch_body}")
+        except client.ApiException as e:
+            debug_on_failure(environment, False, f"Failed to patch custom object: {e}")
 
     labels_dict = {"dcm.amd.com/gpu-config-profile" : profile}
     for node in gpu_nodes:

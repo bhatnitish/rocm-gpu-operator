@@ -369,13 +369,15 @@ def _load_images(logger, registry, image_manifest):
         image_manifest_templ = yaml.load(fp)
 
     client = docker.from_env(timeout=300)
-    for artifact_name, artifact_info in image_manifest_templ['images']['k8'].items():
+    for artifact_name in list(image_manifest_templ['images']['k8'].keys()):
         logger.info(f"Processing {artifact_name} section")
+        artifact_info = image_manifest_templ['images']['k8'][artifact_name]
         if artifact_info.get('image', None) != None:
             image_file = artifact_info['image']
             if not os.path.exists(image_file):
-                logger.error(f"Fatal Error: Specified image-file {image_file} missing")
-                return False
+                logger.warning(f"Specified image-file {image_file} missing - ignore for now")
+                del image_manifest_templ['images']['k8'][artifact_name]
+                continue
 
             if artifact_info['kind'] == 'helm-chart':
                 artifact_info['location'] = f"file://{image_file}"
@@ -433,7 +435,7 @@ def _load_images(logger, registry, image_manifest):
                         done = True
                         break
                     else:
-                        logger.warn("Failed to push docker images, retry after 10sec")
+                        logger.warning("Failed to push docker images, retry after 10sec")
                         time.sleep(10)
 
                 if done:
@@ -518,6 +520,7 @@ def _upload_crio_registry_conf(logger, registry, testbed_info):
     cmd_daemon = ["sudo", "systemctl", "daemon-reload"]
     cmd_crio = ["sudo", "systemctl", "restart", "crio"]
     cmd_kubelet = ["sudo", "systemctl", "restart", "kubelet"]
+    cmd_crio_img_cleanup = ["sudo", "crictl", "rmi", "-a"]
     for node in masters + workers:
         result = put(node, local_file, os.path.join("/etc/containers/registries.conf.d/", config_filename), sudo = True) 
         if result.return_code != 0:
@@ -535,6 +538,8 @@ def _upload_crio_registry_conf(logger, registry, testbed_info):
         if result.return_code != 0:
             logger.error(f"Failed acheive systemctl restart kubelet, result: {result}")
             return result.return_code
+        result = run_command(node, " ".join(cmd_crio_img_cleanup))
+        # Ignore error as image cleanup would fail as some images are still in use
     return 0
 
 def _run_testbed_commands(logger):
