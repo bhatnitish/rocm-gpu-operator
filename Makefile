@@ -462,7 +462,7 @@ bundle-build: operator-sdk manifests kustomize
 		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	${OPERATOR_SDK} bundle validate ./bundle
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	docker build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push:

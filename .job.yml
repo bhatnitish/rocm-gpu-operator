@@ -8,8 +8,8 @@ builds:
                IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
                IMAGE_NAME=amd-gpu-operator PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
                mv amd-gpu-operator-olm-bundle.tar.gz internal-gpu-operator-olm-bundle.tar.gz && \
-               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
-               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.4.0 IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
+               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.4.0 HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=$PROJECT_VERSION make bundle-build && \
+               DOCKER_REGISTRY=amdpsdo IMAGE_NAME=gpu-operator PROJECT_VERSION=v1.4.0 HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=$PROJECT_VERSION make bundle-save && \
                mv gpu-operator-olm-bundle.tar.gz amdpsdo-gpu-operator-olm-bundle.tar.gz"]
     owners: ["email:mharkara@amd.com"]
     artifacts:

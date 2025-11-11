@@ -77,7 +77,7 @@ docker_push () {
       docker tag registry.test.pensando.io:5000/amd-gpu-operator:$tag amdpsdo/gpu-operator:$RELEASE
       docker push amdpsdo/gpu-operator:$RELEASE
       # push OLM bundle images 
-      docker tag amdpsdo/gpu-operator-bundle:$tag amdpsdo/gpu-operator-olm-bundle:$RELEASE
+      docker tag amdpsdo/gpu-operator-bundle:$PROJECT_VERSION amdpsdo/gpu-operator-olm-bundle:$RELEASE
       docker push amdpsdo/gpu-operator-olm-bundle:$RELEASE
     fi
 }
