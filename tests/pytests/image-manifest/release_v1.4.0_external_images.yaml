@@ -43,6 +43,12 @@ images:
             kind        : container
             secret      : docker-amdpsdo-auth
 
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            location    : container://<registry>/rocm/test-runner
+            version     : agfhc-v1.4.0
+            kind        : container
+
         config-manager:
             key         : configManager.image
             location    : container://<registry>/rocm/device-config-manager

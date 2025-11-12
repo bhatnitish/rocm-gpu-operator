@@ -28,6 +28,7 @@ import subprocess
 import base64
 import pprint
 import datetime
+import yaml
 from functools import wraps
 from collections import defaultdict
 from typing import List, Dict
@@ -836,12 +837,11 @@ def k8_create_namespace(namespace : str):
         return -1, "", str(e)
 
 @log_arguments
-def k8_create_pre_test_runner_job(namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str, framework: str):
+def k8_create_pre_test_runner_job(namespace: str, images: dict, sa_name: str, deployment_name: str, worker: str, framework: str, init_cap: str):
     global Logger
     apps_v1 = client.AppsV1Api()
     core_v1 = client.CoreV1Api()
     gpu_type = k8_get_node_gpu_allocatable(worker)
-    init_cap, alloc = k8_get_node_gpu_capacity(worker)
 
     # Define deployment metadata
     labels = {"purpose": "demo-pytorch-amdgpu"}
@@ -1164,6 +1164,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
         name=job_name, namespace=namespace
     )
 
+    api_client = client.ApiClient()
     if not schedule:
         # Create the V1Job object
         job = client.V1Job(
@@ -1172,6 +1173,7 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
             metadata=job_metadata,
             spec=job_spec,
         )
+        sanitized_dict = api_client.sanitize_for_serialization(job)
         try:
             # Create the Job in the specified namespace
             api_response = batch_v1_api.create_namespaced_job(namespace=namespace, body=job)
@@ -1193,12 +1195,15 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
             metadata=job_metadata,
             spec=cronjob_spec,
         )
+        sanitized_dict = api_client.sanitize_for_serialization(cron_job)
         try:
             # Create the Job in the specified namespace
             api_response = batch_v1_api.create_namespaced_cron_job(namespace=namespace, body=cron_job)
             Logger.info(f"Job created successfully: {api_response.metadata.name}")
         except client.ApiException as e:
             assert True, f"Error creating Job: {e}"
+    yaml_output = yaml.dump(sanitized_dict, default_flow_style=False)
+    Logger.info(pprint.pprint(yaml_output))
 
 
 @log_arguments

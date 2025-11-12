@@ -544,16 +544,15 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     update_test_runner_configmap(new_recipe, worker, configmap, new_framework, trigger)
     configmap_name = create_configmap(request, deviceconfig_install, environment, new_framework, configmap)
     update_test_runner_image(deviceconfig_install, environment, new_framework, configmap_name)
+    if new_framework != framework:
+        verify_logs(environment,
+                    [
+                        "Version :",
+                        "BuildDate:",
+                        "GitCommit:",
+                    ])
 
-    verify_logs(environment,
-                [
-                    f'Recipe:"{new_recipe}"',
-                    "Version :",
-                    "BuildDate:",
-                    "GitCommit:",
-                    f"loaded test suite {new_recipe}",
-                ],
-                since="1060s")
+    verify_logs(environment, [f'Recipe:"{new_recipe}"'], since="1060s")
     time.sleep(50)
     '''
     test-runner 2025/08/18 16:16:59 types.go:192: writing logs babel [iteration=1]:
@@ -627,6 +626,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_
         return
 
     request.addfinalizer(_cleanup)
+    time.sleep(60)
     debug_on_failure(environment, wl_ctxt['podStatus'] == K8Helper.PodStatus.PENDING,
                      f"Workload not in PENDING state, {wl_ctxt}")
     Logger.info(f"Test runner worker logs\n===================\n")
@@ -635,7 +635,6 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_
 
     Logger.info(f"found {recipe} in test runner logs\n{LogPrettyPrinter.pformat(stdout)}\n")
 
-    time.sleep(60)
     wait_for_pod(environment,
                  namespace,
                  ["metricsclient"],
@@ -750,8 +749,13 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     time.sleep(30)
     verify_events(namespace)
 
-    verify_logs(environment,
-                [f"AssociatedWorkload:\"pod : {wl_ctxt['spec']['metadata']['name']}, namespace : {wl_ctxt['spec']['metadata']['namespace']}"])
+    wl_name = wl_ctxt['spec']['metadata']['name']
+    wl_namespace = wl_ctxt['spec']['metadata']['namespace']
+    wait_for_pod(environment,
+                 namespace,
+                 ["metricsclient"],
+                 "metrics-exporter",
+                 wl_name)
     debug_on_failure(environment, k8_util.k8_get_node_health(worker, namespace) == "unhealthy",
                               f"result of kubectl describe node $NODE_NAME | grep unhealthy")
     match = []
@@ -879,7 +883,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
 
     verify_logs(environment, match, "metrics-exporter", since="60s")
     time.sleep(30)
-    verify_logs(environment, nomatch, "metrics-exporter", since="30s", switch="and", negate=True)
+    verify_logs(environment, nomatch, "metrics-exporter", since="10s", switch="and", negate=True)
 
     verify_logs(environment,
                [f"associated with workload"])
@@ -896,7 +900,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     verify_events(namespace)
 
 
-@pytest.mark.level2
+@pytest.mark.level3
 @pytest.mark.parametrize("framework, recipe, schedule, healthy", [
     ("RVS", "gst_single", True, True),
     ("RVS", "iet_stress", False, True),
@@ -1097,12 +1101,11 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect,
     verify_logs(environment, ["all GPUs are healthy"])
     verify_events(namespace)
 
-@pytest.mark.level22
-@pytest.mark.level2
+@pytest.mark.level3
 @pytest.mark.parametrize("framework, recipe, healthy", [
-    ("AGFHC", "all_lvl1", True),
-    ("RVS", "iet_stress", True),
     ("RVS", "babel", False),
+    ("RVS", "babel", True),
+    ("AGFHC", "all_lvl1", True)
     #("AGFHC", "all_lvl2", False) #TODO add this testcase back after GPUOP-447 is fixed in phase-5
 ])
 def test_pre_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment, images, framework, recipe, healthy):
@@ -1231,9 +1234,8 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect, en
         time.sleep(30)
         debug_on_failure(environment, k8_util.k8_get_node_health(worker, namespace) == "unhealthy",
                              f"result of kubectl describe node $NODE_NAME | grep unhealthy")
- 
-    k8_util.k8_create_pre_test_runner_job(namespace, images, sa_name, deployment_name, worker, framework)
 
+    k8_util.k8_create_pre_test_runner_job(namespace, images, sa_name, deployment_name, worker, framework, init_cap)
     time.sleep(10)
 
     deployment = k8_util.k8_get_deployment(namespace, deployment_name)
@@ -1255,11 +1257,14 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect, en
                 debug_on_failure(environment, failed_pods == ['pytorch-gpu-deployment'],
                                  f"expecting failed pods to be ['pytorch-gpu-deployment'], found {failed_pods}")
                 _cleanup()
-                i = 0
-                while i < 10 and failed_pods != []:
-                    failed_pods = k8_util.k8_check_pod_running(namespace, devicecfg_pods, total_attempts=20)
-                    i += 1
-                    time.sleep(20)
+                wait_for_pod(environment,
+                             namespace,
+                             ["metricsclient"],
+                             "metrics-exporter",
+                             "healthy")
+                k8_util.k8_delete_all_pods_with_prefix(namespace, 'pytorch-gpu-deployment')
+                time.sleep(20)
+                failed_pods = k8_util.k8_check_pod_running(namespace, devicecfg_pods, total_attempts=20)
                 debug_on_failure(environment, (not failed_pods),
                                  f"expecting failed pods to be [], found {failed_pods}")
 

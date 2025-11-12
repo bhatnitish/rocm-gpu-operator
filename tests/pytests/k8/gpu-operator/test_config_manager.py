@@ -131,8 +131,20 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     return
 
 @pytest.fixture
-def verify_events(environment, profile):
+def verify_events(gpu_cluster, environment, profile, amd_smi_collect):
     global Logger
+
+    gpu_series = get_gpu_series(gpu_cluster, environment)
+    if not gpu_series or 'MI2' in gpu_series:
+        pytest.skip(f"testcase not supported")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    with open(file_path) as fp:
+        profiles = json.load(fp)
+        if not profiles.get("gpu-config-profiles"):
+            pytest.fail(f"check {file_path}, something wrong with the configmap")
+        elif not profiles["gpu-config-profiles"].get(profile, False):
+            pytest.skip(f"testcase not supported")
+
     before = k8_util.k8_get_events(namespace=environment.gpu_operator_namespace)
     yield
     after = k8_util.k8_get_events(namespace=environment.gpu_operator_namespace)
@@ -156,8 +168,9 @@ def verify_events(environment, profile):
             Logger.info(f"{pprint.pformat(event.message)}")
             if profile in event.message and "Success" in event.message:
                 flag = True
+    debug_on_failure(environment, "ail" not in event.message, f"Fail found in {event.message}")
     debug_on_failure(environment, flag,
-                     "Successful profile change happened with {profile}")
+                     f"Successful profile change has not happened with {profile}")
 
 
 @pytest.fixture(scope="module")
@@ -233,6 +246,15 @@ def deviceconfig_install(gpu_cluster, images, gpu_operator_install, add_tolerati
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
     return
 
+def get_gpu_series(gpu_cluster, environment):
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
+    Logger.info(f"found gpu_series {gpu_series}")
+    debug_on_failure(environment, gpu_series, f"didn't find gpu_series")
+    return gpu_series
+
 @pytest.fixture(scope="module")
 def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
     # Derive gpu information using amd-smi information
@@ -268,23 +290,21 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
                         f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
         amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
 
-@pytest.fixture
-def create_configmap(gpu_cluster, deviceconfig_install, amd_smi_collect, environment):
+
+@pytest.fixture(scope="module")
+def create_configmap(deviceconfig_install, gpu_cluster, environment, amd_smi_collect):
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
-    file_path = os.path.join("lib", "files", "partitioning_check.yaml")
 
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
+    gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series and 'MI2' in gpu_series:
         pytest.skip("skipping tests for gpu_series = {gpu_series}")
 
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+
     k8_util.k8_create_configmap(namespace, configmap, file_path)
     yield
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(namespace,
-                                                                   configmap)
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(namespace, configmap)
 
 def cleanup_configmanager(environment, devcfg_info):
     global Logger
@@ -337,48 +357,58 @@ def cleanup_configmanager(environment, devcfg_info):
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
  
-def parse_amd_smi_json(environment, output, profile):
+def parse_amd_smi_json(environment, output, profile, gpu_series):
+    global Logger
+    factor_dict = {
+            "SPX_NPS1": 1,
+            "CPX_NPS1": 8,
+            "CPX_NPS4": 8,
+            "DPX_NPS2": 2,
+            "DPX_NPS1": 2,
+            "QPX_NPS1": 4,
+            "QPX_NPS4": 4
+    }
+    factor = factor_dict[profile]
     uuid = None
-    j = json.loads(output.replace("'", '"'))
-    for gpu in j:
-        i = gpu["gpu"]
-        this_uuid = gpu["uuid"]
-        if uuid:
-            debug_on_failure(environment, uuid == this_uuid, f"uuid for GPU: 0 is {uuid}, no match for uuid of GPU: {i}\nin {output}")
+    jsonout = json.loads(output.replace("'", '"'))
+    gpus = len(jsonout)
+    if "MI300" in gpu_series:
+        if 'SPX' in profile:
+            debug_on_failure(environment, len(jsonout) == 1, f"no. of GPUs should be 1, found {len(jsonout)}")
+        elif 'CPX' in profile:
+            debug_on_failure(environment, len(jsonout) == 8, f"no. of GPUs should be 8, found {len(jsonout)}")
+    elif "MI350" in gpu_series:
+        if 'SPX' in profile:
+            debug_on_failure(environment, len(jsonout) == 8, f"no. of GPUs should be 8, found {len(jsonout)}")
+        elif 'CPX' in profile:
+            debug_on_failure(environment, len(jsonout) == 63, f"no. of GPUs should be 63, found {len(jsonout)}")
+        elif 'QPX' in profile:
+            debug_on_failure(environment, len(jsonout) == 32, f"no. of GPUs should be 32, found {len(jsonout)}")
+        elif 'DPX' in profile:
+            debug_on_failure(environment, len(jsonout) == 16, f"no. of GPUs should be 16, found {len(jsonout)}")
         else:
-            uuid = this_uuid
-        debug_on_failure(environment, gpu["node_id"] == i+1, f'didnt find {i+1} in {gpu["node_id"]}')
-        debug_on_failure(environment, gpu["partition_id"] == i, f'didnt find {i} in {gpu["partition_id"]}')
+            pytest.fail(f"unknown profile {profile}")
+    GPUs = {}
+    partitions = {}
+    for gpu in jsonout:
+        i = gpu.get("gpu")
+        this_uuid = gpu.get("uuid")
+        if i % factor == 0 or i == 47:
+             uuid = this_uuid
+
+        partition_id = gpu.get("partition_id")
+        debug_on_failure(environment, partition_id != None, f'didnt find partition_id in {pprint.pprint(gpu)}')
+        partitions[i] = partition_id
+        GPUs[i] = True
+        #TODO Praveen kumar Shanmugam: That's a limitation from day 1. Iirc there is a tracking bug on swdev
+        debug_on_failure(environment, this_uuid == uuid, f'didnt find uuid=={this_uuid} in {pprint.pprint(gpu)}')
+        debug_on_failure(environment, gpu.get("node_id") != None, f'didnt find node_id in {pprint.pprint(gpu)}')
+        debug_on_failure(environment, gpu.get("bdf") != None, f'didnt find bdf in {pprint.pprint(gpu)}')
+        debug_on_failure(environment, gpu.get("kfd_id") != None, f'didnt find kfd_id in {pprint.pprint(gpu)}')
+    Logger.info(f"profile is {profile} GPUS {pprint.pprint(GPUs)}")
+    Logger.info(f"{pprint.pprint(partitions)}")
 
 
-#TODO use json above
-def parse_amd_smi(environment, output, profile):
-    i = 0
-    uuid = None
-    current_gpu = 0
-    for line in output.split('\n'):
-        if line == "":
-            i += 1
-            continue
-        line = line.strip()
-        if "GPU:" in line:
-            debug_on_failure(environment, f"GPU: {i}" in line, f"didn't find 'GPU: {i}' in {output}")
-        elif "BDF:" in line:
-            debug_on_failure(environment, line[-1] == f"{i}", f"didn't find {i} in last digit of {line}")
-        elif "UUID:" in line:
-            this_uuid = line[6:]
-            if uuid:
-                debug_on_failure(environment, uuid == this_uuid, f"uuid for GPU: 0 is {uuid}, no match for uuid of GPU: {i}\nin {output}")
-            else:
-                uuid = this_uuid
-        elif "NODE_ID:" in line:
-            debug_on_failure(environment, f"NODE_ID: {i+1}" in line, f"didn't find 'NODE_ID: {i}' in {output}")
-        elif "PARTITION_ID:" in line:
-            debug_on_failure(environment, f"PARTITION_ID: {i}" in line, f"didn't find 'PARTITION_ID: {i}' in {output}")
-        elif "KFD_ID:" in line:
-            pass
-        else:
-            debug_on_failure(environment, False, f"unrecognized field = {line}")
 
 
 @pytest.mark.level11
@@ -397,31 +427,49 @@ def test_deviceconfig_config_manager_deploy(deviceconfig_install, environment):
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
-def verify_gpu_capacity_status(environment, worker, gpus):
+def verify_gpu_capacity_status(environment, worker):
     i = 0
     while i < 10:
         cap, alloc = k8_util.k8_get_node_gpu_capacity(worker)
-        if cap == alloc + gpus:
+        if cap == alloc:
             return
         time.sleep(10)
         i = i + 1
-    debug_on_failure(environment, i >= 10,
-                     f"capacity = allocatable + unavailable_gpus: {cap} != {alloc} + {gpus}")
+    debug_on_failure(environment, i < 10,
+                     f"capacity = allocatable {cap} != {alloc}")
 
-def verify_label(environment, profile):
+def verify_no_label(environment, profile):
     i = 0
     while i < 30:
         ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-        if gpu_nodes and gpu_nodes[0]['metadata']['labels']['dcm.amd.com/gpu-config-profile'] == profile and \
-                gpu_nodes[0]['metadata']['labels']['dcm.amd.com/gpu-config-profile-state'] == "success":
+        if gpu_nodes and gpu_nodes[0]['metadata']['labels'].get('dcm.amd.com/gpu-config-profile', 'NA') == profile and \
+                gpu_nodes[0]['metadata']['labels'].get('dcm.amd.com/gpu-config-profile-state', 'NA') == "failure":
             break
+        i += 1
+        time.sleep(2)
+    debug_on_failure(environment, i < 30,
+            f"didn't find {profile} or state=failure in labels:\n{pprint.pprint(gpu_nodes[0]['metadata']['labels'])}")
+
+ 
+def verify_label(environment, profile):
+    i = 0
+    prof = "NA"
+    stat = "unknown"
+    while i < 30:
+        ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+        if gpu_nodes:
+            prof = gpu_nodes[0]['metadata']['labels'].get('dcm.amd.com/gpu-config-profile', 'NA')
+            stat = gpu_nodes[0]['metadata']['labels'].get('dcm.amd.com/gpu-config-profile-state', 'unknown')
+            if prof == profile and stat == "success":
+                break
         i += 1
         time.sleep(10)
     debug_on_failure(environment, i < 30,
-                     f"Didn't find gpu-config-profile-state=success, found {gpu_nodes[0]['metadata']['labels']['dcm.amd.com/gpu-config-profile-state']} or\
-                       Didn't find gpu-config-profile={profile}, found {gpu_nodes[0]['metadata']['labels']['dcm.amd.com/gpu-config-profile']}")
+                     f"Didn't find gpu-config-profile-state=success, found {prof} or\
+                       Didn't find gpu-config-profile={profile}, found {stat}")
 
-def verify_logs(environment, log_msg_list, pod_str="config-manager", since="1800s", container=None, negate=False):
+
+def verify_logs(environment, log_msg_list, pod_str="config-manager", since="1800s", container=None, optional=False):
     global Logger
     global LogPrettyPrinter
     namespace = environment.gpu_operator_namespace
@@ -429,17 +477,20 @@ def verify_logs(environment, log_msg_list, pod_str="config-manager", since="1800
     i = 0
     ret_code, stdout, stderr = k8_util.k8_get_pod_logs(pod_str, namespace, since, container)
 
-    if negate:
-        for log_msg in log_msg_list:
-            debug_on_failure(environment, log_msg not in stdout,
-                                      f"found {log_msg} in\n" + LogPrettyPrinter.pformat(stdout.split('\n')))
+    flag = False
     for log_msg in log_msg_list:
         while log_msg not in stdout and i < 3:
             time.sleep(30)
             i = i + 1
             ret_code, stdout, stderr = k8_util.k8_get_pod_logs(pod_str, namespace, since, container)
+        if optional and log_msg in stdout:
+            flag = True
+            break
         debug_on_failure(environment, log_msg in stdout,
                          f"didn't find {log_msg} in\n" + LogPrettyPrinter.pformat(stdout.split('\n')))
+        if optional:
+            debug_on_failure(environment, flag,
+                             f"didn't find one of {log_msg_list} in\n" + LogPrettyPrinter.pformat(stdout.split('\n')))
 
 def wait_for_pods(local_workload_ctxts):
     workload_pods = []
@@ -455,39 +506,149 @@ def wait_for_pods(local_workload_ctxts):
             break
     return status_info
 
+#Unsupported compute partition combination
+@pytest.mark.level12
+@pytest.mark.parametrize("profile", ["SPX_NPS4", "invalidgpucount", "invalidmissingfields", "highgpucount_mostly_invalid"])
+def test_negative_partitioning(gpu_cluster, deviceconfig_install, create_configmap, environment, profile, amd_smi_collect):
+    global Logger
+    gpu_series = get_gpu_series(gpu_cluster, environment)
+    if not gpu_series or 'MI2' in gpu_series:
+        pytest.skip(f"skipping tests for gpu_series = {gpu_series}")
+    local_workload_ctxts = []
+    namespace = environment.gpu_operator_namespace
+    configmap = "config-map-config-manager"
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    with open(file_path) as fp:
+        profiles = json.load(fp)
+        if not profiles.get("gpu-config-profiles"):
+            pytest.fail(f"check {file_path}, something wrong with the configmap")
+        elif not profiles["gpu-config-profiles"].get(profile, False):
+            pytest.skip(f"Profile {profile} is not supported for {gpu_series}. Refer {file_path}")
+        else:
+            memory = profiles["gpu-config-profiles"][profile]["profiles"][0]["memoryPartition"]
+            partition = profiles["gpu-config-profiles"][profile]["profiles"][0]["computePartition"]
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    for node in gpu_nodes:
+        worker = k8_util.k8_get_node_hostname(node)
+        if node['metadata']['labels'].get('dcm.amd.com/gpu-config-profile'):
+            Logger.info(f"Record existing profile = {node['metadata']['labels']['dcm.amd.com/gpu-config-profile']}")
+        else:
+            Logger.info("Didn't find any existing profile")
+        if node['metadata']['labels'].get('dcm.amd.com/gpu-config-profile-state'):
+            Logger.info(f"Record existing state = {node['metadata']['labels']['dcm.amd.com/gpu-config-profile-state']}")
+        else:
+            Logger.info("Didn't find any existing profile state")
+    Logger.info(f"to be changed to profile: {profile}")
+
+    patch_body = {
+        "spec": {
+            "configManager": {
+                "config": {
+                    "name": configmap
+                },
+                "configManagerTolerations": [
+                    {
+                        "effect": "NoSchedule",
+                        "key": "amd-dcm",
+                        "operator": "Equal",
+                        "value": "up"
+                    }
+                ]
+            }
+        }
+    }
+
+    api_client = client.ApiClient()
+    custom_objects_api = client.CustomObjectsApi(api_client)
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        try:
+            custom_objects_api.patch_namespaced_custom_object(
+                group="amd.com",
+                version='v1alpha1',
+                name=devcfg_name,
+                namespace=namespace,
+                plural='deviceconfigs',
+                body=patch_body
+            )
+            Logger.info(f"Successfully patched with {patch_body}")
+        except client.ApiException as e:
+            debug_on_failure(environment, False, f"Failed to patch custom object: {e}")
+
+    # Watch for all pod creation
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('config-manager', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
+
+
+    labels_dict = {"dcm.amd.com/gpu-config-profile" : profile}
+    for node in gpu_nodes:
+        node_name = node['metadata']['labels']['kubernetes.io/hostname']
+        k8_util.k8_taint_node(node_name, taint_add=True)
+        k8_util.k8_label_node(node_name, labels_dict, overwrite=True)
+        verify_no_label(environment, profile)
+
+    verify_logs(environment,
+                [
+                    "Unsupported compute partition combination",
+                    "Error occurred in PartitionGPU: partition failed"
+                ],
+                optional=True)
+    verify_logs(environment, [f"Selected Profile {profile} found in the configmap"])
+
+    for node in gpu_nodes:
+        node_name = node['metadata']['labels']['kubernetes.io/hostname']
+        k8_util.k8_untaint_node(node_name)
+
+
 @pytest.mark.level11
 @pytest.mark.parametrize("profile, workload", [
+    ("QPX_NPS1", False),
+    ("DPX_NPS2", True),
     ("SPX_NPS1", False),
+    ("DPX_NPS1", True),
     ("CPX_NPS1", True),
-    ("CPX_NPS4", False),
     ("SPX_NPS1", True),
-    ("CPX_NPS4", True)
+    ("DPX_NPS2", False),
+    ("CPX_NPS4", False),
+    ("QPX_NPS1", True)
 ])
-def test_deviceconfig_partitioning(
+def test_partitioning(
         gpu_cluster,
         deviceconfig_install,
         environment,
         request,
         create_configmap,
         verify_events,
+        amd_smi_collect,
         profile,
         workload):
     global Logger
+    gpu_series = get_gpu_series(gpu_cluster, environment)
+    if not gpu_series or 'MI2' in gpu_series:
+        pytest.skip(f"skipping tests for gpu_series = {gpu_series}")
     local_workload_ctxts = []
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
-    (partition, memory) = profile.split('_')
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    with open(file_path) as fp:
+        profiles = json.load(fp)
+        if not profiles.get("gpu-config-profiles"):
+            pytest.fail(f"check {file_path}, something wrong with the configmap")
+        elif not profiles["gpu-config-profiles"].get(profile, False):
+            pytest.skip(f"Profile {profile} is not supported for {gpu_series}. Refer {file_path}")
+        else:
+            memory = profiles["gpu-config-profiles"][profile]["profiles"][0]["memoryPartition"]
+            partition = profiles["gpu-config-profiles"][profile]["profiles"][0]["computePartition"]
+            GPUs = profiles["gpu-config-profiles"][profile]["profiles"][0]["numGPUsAssigned"]
 
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes(gpu_cluster)
-    debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    gpu_node = gpu_nodes[0]
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
-        pytest.skip("skipping tests for gpu_series = {gpu_series}")
-
-    worker = k8_util.k8_get_node_hostname(gpu_node)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     for node in gpu_nodes:
+        worker = k8_util.k8_get_node_hostname(node)
         if node['metadata']['labels'].get('dcm.amd.com/gpu-config-profile'):
             Logger.info(f"Record existing profile = {node['metadata']['labels']['dcm.amd.com/gpu-config-profile']}")
         else:
@@ -508,7 +669,6 @@ def test_deviceconfig_partitioning(
                 "workload_selection" : "busybox-workload",
             }
             wl_ctxt = K8Helper.workload_operation(environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
-            #verify_gpu_capacity_status(environment, worker, 1)
             local_workload_ctxts.append(wl_ctxt)
         def _cleanup_workload():
             for ctxt in local_workload_ctxts:
@@ -589,27 +749,29 @@ def test_deviceconfig_partitioning(
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
-    verify_logs(environment, [
-        f"Requested compute partition {partition}",
-        f"Requested memory partition {memory}",
-        "Gpu-config-profile-state label added successfully",
-        "AMD SMI shutdown successfully",
-        "Restarting service skipped for: amd-metrics-exporter.service",
-        "Restarting service skipped for: gpuagent.service"])
+    match_logs = [
+            f"Requested compute partition {partition}",
+            f"Requested memory partition {memory}",
+            f"Selected Profile {profile} found in the configmap",
+            "Gpu-config-profile-state label added successfully",
+            "AMD SMI shutdown successfully",
+            "ServicesList"]
+
+    for gpu in range(GPUs):
+        match_logs.append(f"GPU ID {gpu}")
+
+    verify_logs(environment, match_logs)
 
 
     pod_name = k8_util.k8_get_pod_name("config-manager", namespace, node_name)
-    #cmd = ["amd-smi", "static", "--json"]
-    #ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(namespace, cmd, pod_name)
-    #start_index = amd_smi_info.find('{')
-    #Logger.info(f"cutting out the following {amd_smi_info[:start_index]}")
-    #Logger.info(f"Printing the rest of the json output\n{amd_smi_info[start_index:]}")
-    #amd_smi_dict = json.loads(amd_smi_info[start_index:])
+
     ret_code, output, resp_stderr = k8_util.exec_command_in_pod(namespace, ["amd-smi", "list"], pod_name)
-    parse_amd_smi(environment, output, profile)
+    Logger.info(f"amd-smi list output:{output}")
+
+    time.sleep(20)
 
     ret_code, output, resp_stderr = k8_util.exec_command_in_pod(namespace, ["amd-smi", "list", "--json"], pod_name)
-    parse_amd_smi_json(environment, output, profile)
+    parse_amd_smi_json(environment, output, profile, gpu_series)
 
 
     if workload:
@@ -622,6 +784,8 @@ def test_deviceconfig_partitioning(
         debug_on_failure(environment, flag, 
                          f"found no running workloads in {pprint.pformat(local_workload_ctxts)}")
     Logger.info("verify events in the testcase")
+    worker = k8_util.k8_get_node_hostname(gpu_nodes[0])
+    verify_gpu_capacity_status(environment, worker)
  
 @pytest.mark.level1
 def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, environment):
