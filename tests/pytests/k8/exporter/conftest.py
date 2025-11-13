@@ -30,4 +30,3 @@ def inbox_driver_skip(environment):
     if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
         pytest.skip("Using inbox amdgpu driver - skip")
     return
-

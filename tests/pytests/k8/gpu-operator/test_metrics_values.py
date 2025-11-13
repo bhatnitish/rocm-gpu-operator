@@ -122,6 +122,11 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     # Enable profile-metrics
     config_map_name = "prof-metrics-cfgmap"
     config_map = {
+        "CommonConfig" : {
+            "HealthService" : {
+                "Enable" : "false",
+            },
+        },
         "GPUConfig" : {
             "ProfilerMetrics": {
                 "all": True,

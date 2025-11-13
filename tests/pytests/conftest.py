@@ -108,11 +108,6 @@ def pytest_html_results_summary(prefix, summary, postfix):
     postfix.extend([html.h3("Post Run Information")])
     '''
 
-def pytest_configure(config):
-    if 'junit_suite_name' not in config.inicfg:
-        config.inicfg['junit_suite_name'] = 'GPU Operator TestSuite'
-
-
 @pytest.hookimpl(optionalhook=True)
 def pytest_metadata(metadata):
     metadata.clear()
