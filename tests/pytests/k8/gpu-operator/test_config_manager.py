@@ -289,6 +289,7 @@ def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, env
         K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
                         f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
         amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
+        cluster_node.host_name = node_name
 
 
 @pytest.fixture(scope="module")

@@ -27,6 +27,7 @@ import logging
 from datetime import datetime
 from lib import common
 from lib import k8_util
+from py.xml import html
 from pathlib import Path
 from urllib.parse import urlparse
 import getpass
@@ -107,6 +108,67 @@ def pytest_html_results_summary(prefix, summary, postfix):
     summary.extend([html.h3("Additional Summary Information")])
     postfix.extend([html.h3("Post Run Information")])
     '''
+    summary.append(html.h3("amdgpu Driver Default Version"))
+    summary.append(pytest._amdgpu_driver_spec['default-version'])
+    summary.append(html.h3("Cluster Information"))
+    summary.append(cluster_info_table())
+    summary.append(html.h3("Images Used"))
+    summary.append(transform_image_info())
+    
+def cluster_info_table():
+    gpu_series_by_host = {
+        node.host_name: node.gpu_series
+        for node in pytest._k8_cluster_inst.worker_nodes
+    }
+
+    table = html.table(border="1")
+    header_row = html.tr([
+        html.th("Node Name"),
+        html.th("K8-Version"),
+        html.th("GPU-Series"),
+    ])
+    table.append(header_row)
+
+    for node_name, k8_version in pytest._nodes_version.items():
+        table.append(html.tr([
+            html.td(node_name),
+            html.td(k8_version),
+            html.td(gpu_series_by_host.get(node_name, "N/A")),
+        ]))
+
+    return table
+   
+def transform_image_info():
+    # convert dict image_info to table format
+    pytest._image_info.pop("image_folder")
+    transformed_dict = {}
+ 
+    for key, value in  pytest._image_info.items():
+        base_key = ".".join(key.split(".")[:-1]) 
+        sub_key = key.split(".")[-1]
+        if base_key == 'gpu-operator' and sub_key == 'helm-chart':
+           version = value.split('k8s-')[-1].split('.tgz')[0]
+           transformed_dict.setdefault(base_key + '.' + sub_key, {})['repository'] = value
+           transformed_dict[base_key + '.' + sub_key]['version'] = version
+        else:
+           transformed_dict.setdefault(base_key, {})[sub_key] = value
+       
+    table = html.table(border="1")
+    header_row = html.tr([
+        html.th("Image"),
+        html.th("Repository"),
+        html.th("Version"),
+        ])
+    table.append(header_row)
+
+    for key, value in transformed_dict.items():
+        row = html.tr([
+              html.td(key),
+              html.td(value.get('repository', 'N/A')),
+              html.td(value.get('version', 'N/A')),
+              ])
+        table.append(row)
+    return table
 
 @pytest.hookimpl(optionalhook=True)
 def pytest_metadata(metadata):
@@ -132,6 +194,7 @@ def environment(request):
     if request.config.option.amdgpu_driver_spec:
         with open(request.config.option.amdgpu_driver_spec, "r") as fp:
             driver_spec = json.load(fp)
+            setattr (pytest, "_amdgpu_driver_spec", driver_spec)
             setattr(tenv, 'amdgpu_driver_spec', driver_spec)
     kube_config_file = os.path.join(Path.home(), ".kube", "config")
     if os.path.exists(kube_config_file):
@@ -172,7 +235,9 @@ def gpu_cluster(request, release_name, environment):
         master_node = None
         worker_nodes = []
         mini_kube_cluster = False
+        nodes_version = {}
         for node in k8_nodes:
+            nodes_version[node['metadata']['name']] = node['status']['node_info']['kubelet_version']
             node_ip = k8_util.k8_get_node_address(node)
             if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
                 master_node = common.Node(node_ip, None, None, None, "master", None)
@@ -192,6 +257,8 @@ def gpu_cluster(request, release_name, environment):
         if hasattr(environment, "k8_secrets_file"):
             with open(environment.k8_secrets_file) as fp:
                 k8_cluster_inst.k8_secrets = json.load(fp)
+        setattr(pytest, "_nodes_version",  nodes_version)
+        setattr(pytest, "_k8_cluster_inst", k8_cluster_inst)
         cleanup_cluster(request, k8_cluster_inst, release_name, environment)
         return k8_cluster_inst
     else:
@@ -270,6 +337,7 @@ def images(request, environment, gpu_cluster):
         image_info = images_openshift(request, environment, gpu_cluster, image_manifest['images'])
 
     assert image_info != None, f"Failed to build images for {environment.deployment_mode}"
+    setattr(pytest, "_image_info", image_info)
     return image_info
 
 def images_standalone(request, environment, image_manifest):

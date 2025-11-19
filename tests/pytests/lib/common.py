@@ -52,6 +52,7 @@ class cluster_node(object):
         self._identity = identity
         self._node_type = None
         self._gpu_series = None
+        self._host_name = None
         self._device_id = None
         self._num_gpus = 0
         self._connect_kwargs = {}
@@ -91,6 +92,14 @@ class cluster_node(object):
     @gpu_series.setter
     def gpu_series(self, gpu_series):
         self._gpu_series = gpu_series
+        
+    @property
+    def host_name(self):                
+        return self._host_name
+
+    @host_name.setter
+    def host_name(self, host_name):   
+        self._host_name = host_name
 
     @property
     def num_gpus(self):
