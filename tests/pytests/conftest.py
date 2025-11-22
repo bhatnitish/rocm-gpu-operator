@@ -108,12 +108,15 @@ def pytest_html_results_summary(prefix, summary, postfix):
     summary.extend([html.h3("Additional Summary Information")])
     postfix.extend([html.h3("Post Run Information")])
     '''
-    summary.append(html.h3("amdgpu Driver Default Version"))
-    summary.append(pytest._amdgpu_driver_spec['default-version'])
-    summary.append(html.h3("Cluster Information"))
-    summary.append(cluster_info_table())
-    summary.append(html.h3("Images Used"))
-    summary.append(transform_image_info())
+    if hasattr(pytest, "_amdgpu_driver_spec"):
+        summary.append(html.h3("amdgpu Driver Default Version"))
+        summary.append(pytest._amdgpu_driver_spec.get('default-version', 'NA'))
+    if hasattr(pytest, "_k8_cluster_inst") and hasattr(pytest, "_nodes_version"):
+        summary.append(html.h3("Cluster Information"))
+        summary.append(cluster_info_table())
+    if hasattr(pytest, "_image_info"):
+        summary.append(html.h3("Images Used"))
+        summary.append(transform_image_info())
     
 def cluster_info_table():
     gpu_series_by_host = {
