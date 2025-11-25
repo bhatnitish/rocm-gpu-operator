@@ -26,74 +26,13 @@ import time
 import json
 import logging
 import lib.k8_util as k8_util
+import lib.helm_util as helm_util
 import lib.amdgpu as amdgpu
 import lib.common as common
 import lib.spec_util as spec_util
 from lib.util import K8Helper
 
 Logger = logging.getLogger("k8.test_driver_deviceplugin")
-
-@pytest.fixture(scope="function", autouse=True)
-def setup_testcase_info(request, environment):
-    setattr(environment, 'current_tc_name', request.node.name)
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
-    yield
-    delattr(environment, 'current_tc_name')
-
-@pytest.fixture(scope="module")
-def gpu_operator_install(gpu_cluster, release_name, images, environment):
-    global Logger
-    if k8_util.is_helm_chart_healthy(gpu_cluster,
-                                     release_name,
-                                     environment.gpu_operator_namespace):
-        Logger.info("gpu-operator helm-chart is already installed/running - skip rest of setup/fixture")
-        yield
-        return
-
-    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
-    for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
-        if ret_code != 0:
-            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
-    time.sleep(10)
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    if ret_code != 0:
-        k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
-
-    if images.get("gpu-operator.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
-
-    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
-    if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
-        Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
-    else:
-        values_yaml = None
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, release_name,
-                                                            environment.gpu_operator_namespace,
-                                                            images.get('gpu-operator.helm-chart', None),
-                                                            environment.gpu_operator_version, values_yaml)
-    if ret_code != 0:
-        Logger.error(f"Failed to install helm chart for {release_name}")
-        Logger.error(f"Stdout: {ret_stdout.strip()}")
-        Logger.error(f"Stderr: {ret_stderr.strip()}")
-    K8Helper.triage(environment, ret_code == 0, f"Failed to install helm-chart for {release_name}")
-    time.sleep(30)
-    yield
-    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
-    for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
-        if ret_code != 0:
-            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
-    time.sleep(10)
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.triage(environment, ret_code == 0, f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}")
-    return
 
 @pytest.fixture(scope="module")
 def deviceconfig_install(images, gpu_operator_install, environment):
@@ -211,7 +150,7 @@ def test_deviceplugin_label(deviceconfig_install, environment, inbox_driver_skip
 
     '''
     Check for following label:
-    beta.kmm.node.kubernetes.io/version-device-plugin.kube-amd-gpu.deviceconfig-clusterwide: 6.2.4
+    beta.kmm.node.kubernetes.io/version-device-plugin.<namespace>.deviceconfig-clusterwide: 6.2.4
     '''
     label_missing = set()
     pattern = r"beta\.kmm\.node\.kubernetes\.io/version-device-plugin." + environment.gpu_operator_namespace + r"\.(.*?)"
@@ -410,7 +349,7 @@ def test_deviceplugin_create_delete_gpu_workload(request, deviceconfig_install, 
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
@@ -469,7 +408,7 @@ def test_deviceplugin_create_workload_with_max_gpu(request, deviceconfig_install
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
@@ -526,7 +465,7 @@ def test_deviceplugin_create_workload_exceed_gpu_capacity(request, deviceconfig_
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "gpu-operator failed to find amd/gpu nodes in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
@@ -588,7 +527,7 @@ def test_driver_deviceplugin_multiple_workloads_with_gpu(request, deviceconfig_i
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "gpu-operator failed to find amd/gpu nodes in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     
     # Take one node with gpu
     gpu_node = gpu_nodes[0]
@@ -661,7 +600,7 @@ def test_upgrade_driver_using_label(request, environment, driver_version=version
         worker_node = gpu_cluster.get_worker_node(node_ip)
         node_name = k8_util.k8_get_node_hostname(node)
         ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl label node {node_name} \
-                  --overwrite kmm.node.kubernetes.io/version-module.kube-amd-gpu.test-device-config=driver_version")
+                  --overwrite kmm.node.kubernetes.io/version-module.<namespace>.test-device-config=driver_version")
         Logger.info(f"err: {resp_stderr}")
         Logger.info(f"output: {resp_stdout}")
 

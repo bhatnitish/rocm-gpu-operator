@@ -19,10 +19,13 @@
 import pdb
 import logging
 import json
+import re
+import pprint
 from collections import defaultdict
 from prometheus_client.parser import text_string_to_metric_families
 
 Logger = logging.getLogger("lib.metricutil")
+LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
 
 def get_label_details(version_string):
     global Logger
@@ -60,10 +63,24 @@ def dump_all_samples(all_metrics, file_prefix):
     return
 
 def dump_json_samples(all_json_samples, file_prefix):
+    global Logger
+    pattern = r'("[^"]+")\s*:\s*"(\[.*?\])"'
+    replacement = r'\1: \2'
     for idx, sample in enumerate(all_json_samples):
         out_file = f"{file_prefix}_{idx}.json"
-        with open(out_file, "w") as fp:
-            json.dump(json.loads(sample.replace("'", "\"")), fp, indent=4)
+        try:
+            new_sample = re.sub(pattern, replacement, sample.replace("'", "\""))
+            with open(out_file, "w") as fp:
+                json.dump(json.loads(new_sample), fp, indent=4)
+        except:
+            try:
+                # Write as-is so that we can debug json parsing issue offline
+                with open(out_file, "w") as fp:
+                    fp.write(sample)
+            except:
+                # finally redirect to logging so that we have data to analyze failure
+                Logger.debug(f"Failed to write json sample to file {out_file}")
+                Logger.debug(f"{LogPrettyPrinter.pformat(sample)}")
     return
 
 def parse_metric_data(http_response):

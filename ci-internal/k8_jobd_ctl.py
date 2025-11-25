@@ -7,6 +7,7 @@ import json
 import argparse
 import time
 import logging
+from urllib.parse import urlparse
 
 
 GlobalOptions = argparse.Namespace()
@@ -66,6 +67,7 @@ def _init_cmdline_args():
     image_cmd.add_argument("--testbed", required = True, help = "jobd testbed json file")
     image_cmd.add_argument("--load-images", action='store_true', default=False, help = "Load images into the registry")
     image_cmd.add_argument("--setup-insecure-registry", action='store_true', default=False, help = "Load images into the registry")
+    image_cmd.add_argument("--pull-images", action='store_true', default=False, help = "Download images on each nodes of the cluster")
     image_cmd.add_argument("--registry", default=None, help = "Destination Registry")
     image_cmd.add_argument("--image-manifest", default='/tmp/images.yaml', help = "output images yaml")
 
@@ -542,6 +544,45 @@ def _upload_crio_registry_conf(logger, registry, testbed_info):
         # Ignore error as image cleanup would fail as some images are still in use
     return 0
 
+def _pull_images(logger, node, image_manifest_file):
+    from ruamel.yaml import YAML
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.indent(sequence=4, offset=2)
+
+    with open(GlobalOptions.image_manifest, 'r') as fp:
+        images = yaml.load(fp)
+
+    # Process metadata section of image-manifest
+    image_metadata = images['images'].get('meta', {})
+    registry = 'docker.io'
+    return_val = True
+    if 'registry' in image_metadata:
+        registry = image_metadata['registry'].get('default', 'docker.io')
+        if 'mirror' in image_metadata['registry']:
+            if image_metadata['registry']['mirror'].get('enable', 'no') == 'yes':
+                registry = image_metadata['registry']['mirror']['url']
+
+    for artifact_name in list(images['images']['k8'].keys()):
+        logger.info(f"Processing {artifact_name} section")
+        artifact_info = images['images']['k8'][artifact_name]
+        if artifact_name == "driver":
+            continue
+        if artifact_info.get('location', None) != None and artifact_info['kind'] == 'container':
+            location = artifact_info['location']
+            if '<registry>' in location:
+                url = location.replace('<registry>', registry)
+            else:
+                url = location
+            parsed_data = urlparse(url)
+            img = f"{parsed_data.netloc}{parsed_data.path}:{artifact_info['version']}"
+            crictl_img_download = ["sudo", "crictl", "pull", img]
+            result = run_command(node, " ".join(crictl_img_download), timeout=1200)
+            if result.return_code != 0:
+                logger.error(f"Failed to download image : {img} on node {node}")
+                return_val = False
+    return return_val
+
 def _run_testbed_commands(logger):
     if GlobalOptions.fetch_kube_config:
         testbed_info = _load_testbed_json(GlobalOptions.testbed)
@@ -561,16 +602,17 @@ def _run_testbed_commands(logger):
     if GlobalOptions.reboot_workers:
         testbed_info = _load_testbed_json(GlobalOptions.testbed)
         if testbed_info:
-            masters = _get_master_nodes(testbed_info)
-            workers = _get_worker_nodes(testbed_info)
-            logger.debug(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
+            if testbed_info.get("reboot-workers", "no") == "yes":
+                masters = _get_master_nodes(testbed_info)
+                workers = _get_worker_nodes(testbed_info)
+                logger.debug(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
+                if workers and _reboot_workers(logger, masters[0], workers):
+                    logger.info("Successfully rebooted all worker nodes - cluster is ready to use")
+                else:
+                    logger.error("Failed to reboot all worker nodes - test-result could be unreliable")
+                    sys.exit(1)
         else:
             logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
-            sys.exit(1)
-        if workers and _reboot_workers(logger, masters[0], workers):
-            logger.info("Successfully rebooted all worker nodes - cluster is ready to use")
-        else:
-            logger.error("Failed to reboot all worker nodes - test-result could be unreliable")
             sys.exit(1)
 
     if GlobalOptions.testbed_yaml:
@@ -607,6 +649,18 @@ def _run_image_commands(logger):
         else:
             logger.error(f"Failed to upload /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
             sys.exit(1)
+    if GlobalOptions.pull_images:
+        testbed_info = _load_testbed_json(GlobalOptions.testbed)
+        if testbed_info and testbed_info.get("pull-images", "no") == "yes":
+            logger.info("pulling images for this cluster")
+            workers = _get_worker_nodes(testbed_info)
+            for node in workers:
+                if _pull_images(logger, node, GlobalOptions.image_manifest):
+                    logger.info("Successfully downloaded images in each node (for speedup)")
+                else:
+                    logger.warning("Failed to download images in each node - ignoring error")
+        else:
+            logger.info("not pulling images for this cluster")
 
 def _generate_report(logger):
     import xmltodict

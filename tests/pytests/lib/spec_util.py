@@ -40,7 +40,7 @@ device_config_template_v1_0_0 = {
     'kind'          : 'DeviceConfig',
     'metadata'      : {
         'name'      : 'test-deviceconfig',
-        'namespace' : 'kube-amd-gpu',
+        'namespace' : 'default',
     },
     'spec'          : {
         'driver'    : {
@@ -75,7 +75,7 @@ device_config_template_v1_2_0 = {
     'kind'          : 'DeviceConfig',
     'metadata'      : {
         'name'      : 'test-deviceconfig',
-        'namespace' : 'kube-amd-gpu',
+        'namespace' : 'default',
     },
     'spec'          : {
         'commonConfig' : {
@@ -142,7 +142,7 @@ device_config_template_v1_3_0 = {
     'kind'          : 'DeviceConfig',
     'metadata'      : {
         'name'      : 'test-deviceconfig',
-        'namespace' : 'kube-amd-gpu',
+        'namespace' : 'default',
     },
     'spec'          : {
         'commonConfig' : {
@@ -358,7 +358,7 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
     global Logger
     device_config = copy.deepcopy(device_config_templates.get(gpu_operator_version, device_config_template_default))
     device_config['metadata']['name'] = spec.get('metadata.name', 'deviceconfig')
-    device_config['metadata']['namespace'] = spec.get('metadata.namespace', 'kube-amd-gpu')
+    device_config['metadata']['namespace'] = spec.get('metadata.namespace', 'default')
 
     # commonConfig
     if not skip_sections.get('commonConfig', False):
@@ -401,6 +401,10 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         if gpu_operator_version >= 'v1.2.0':
             device_config['spec']['devicePlugin']['upgradePolicy']['maxUnavailable'] = spec.get('devicePlugin.upgradePolicy.maxUnavailable', 1)
             device_config['spec']['devicePlugin']['upgradePolicy']['upgradeStrategy'] = spec.get('devicePlugin.upgradePolicy.upgradeStrategy', 'RollingUpdate')
+        if spec.get('devicePlugin.devicePluginImage.secret', None):
+            device_config['spec']['devicePlugin']['imageRegistrySecret'] = {
+                    'name' : spec.get('devicePlugin.devicePluginImage.secret')
+            }
     else:
         del device_config['spec']['devicePlugin']
 
@@ -627,7 +631,7 @@ def generate_service_account_yaml(file_name, namespace, sa_name):
     kind: ServiceAccount
     metadata:
       name: exporter-client
-      namespace : kube-amd-gpu
+      namespace : default
     """
 
     global Logger
@@ -675,7 +679,7 @@ def generate_clusterrolebinding_yaml(file_name, crb_name, namespace, cluster_rol
         subjects:
         - kind: ServiceAccount
           name: exporter-client
-          namespace: kube-amd-gpu   # Updated namespace to metrics-reader
+          namespace: default   # Updated namespace to metrics-reader
     """
 
     global Logger

@@ -45,13 +45,6 @@ DRIVER_SPEC="NA"
 WORKLOAD_NAME="NA"
 TECH_SUPPORT_TOOL=${TECH_SUPPORT_TOOL:-"${PWD}/techsupport_dump.sh"}
 
-function collect_tech_support() {
-    echo "Collect test run logs"
-    cp $IMAGE_MANIFEST logs/
-    tar -zcf pytest_logs.tgz logs/
-    ls -ltr $PWD/pytest_logs.tgz
-}
-
 function setup_pyenv() {
     if [[ -f venv/bin/activate ]] ;
     then
@@ -120,6 +113,7 @@ function launch_pytest() {
     echo ""
     echo "****** USING FOLLOWING IMAGES FOR THE TEST ******"
     cat ${IMAGE_MANIFEST}
+    cp $IMAGE_MANIFEST logs/
     echo ""
 
     if [[ -f $TECH_SUPPORT_TOOL ]];
@@ -136,7 +130,6 @@ function launch_pytest() {
         --junit-xml=${xml_file} --deployment ${DEPLOYMENT} ${CMD_OPT} \
         --html ${html_file}
     ret=$?
-    collect_tech_support
     exit $ret
 }
 

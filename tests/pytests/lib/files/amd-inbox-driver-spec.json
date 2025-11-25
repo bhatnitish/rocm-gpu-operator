@@ -1,3 +1,4 @@
 {
-    "driver-deployment" : "inbox"
+    "driver-deployment" : "inbox",
+    "default-version" : "inbox"
 }

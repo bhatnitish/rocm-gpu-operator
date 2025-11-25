@@ -27,6 +27,7 @@ import logging
 import random
 import datetime
 import lib.common as common
+import lib.helm_util as helm_util
 import lib.k8_util as k8_util
 import lib.spec_util as spec_util
 import lib.metric_util as metric_util
@@ -64,73 +65,10 @@ metrics_fields = {
 
 debug_on_failure = K8Helper.triage
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_testcase_info(request, environment):
-    setattr(environment, 'current_tc_name', request.node.name)
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
-    yield
-    delattr(environment, 'current_tc_name')
-
 @pytest.fixture(autouse=True, scope="module")
 def skip_module(environment):
     if environment.gpu_operator_version in ["v1.0.0", "v1.1.0"]:
         pytest.skip(f"Skipping test-runner for current version {environment.gpu_operator_version}")
-    return
-
-
-@pytest.fixture(scope="module")
-def gpu_operator_install(gpu_cluster, release_name, images, environment):
-    global Logger
-    if k8_util.is_helm_chart_healthy(gpu_cluster,
-                                     environment.gpu_operator_namespace,
-                                     release_name):
-        Logger.info("gpu-operator helm-chart is already installed/running - skip rest of setup/fixture")
-        yield
-        return
-    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
-    for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
-        if ret_code != 0:
-            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
-    time.sleep(10)
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    if ret_code != 0:
-        k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
-
-    if images.get("gpu-operator.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
-
-    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
-    if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
-        Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
-    else:
-        values_yaml = None
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, release_name,
-                                                            environment.gpu_operator_namespace,
-                                                            images.get('gpu-operator.helm-chart', None),
-                                                            environment.gpu_operator_version, values_yaml)
-    if ret_code != 0:
-        Logger.error(f"Failed to install helm chart for {release_name}")
-        Logger.error(f"Stdout: {ret_stdout.strip()}")
-        Logger.error(f"Stderr: {ret_stderr.strip()}")
-    debug_on_failure(environment, (ret_code == 0), f"Failed to install helm-chart for {release_name}")
-    time.sleep(30)
-    yield
-    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
-    for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
-        if ret_code != 0:
-            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
-    time.sleep(10)
-
-    # Uninstall gpu-operator helm-chart
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    debug_on_failure(environment, (ret_code == 0), f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}")
     return
 
 @pytest.fixture(scope="module")
@@ -196,42 +134,6 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     for devcfg_name, _ in device_cfg_info.items():
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
     return
-
-@pytest.fixture(scope="module")
-def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
-    # Derive gpu information using amd-smi information
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-
-    # Watch for all pod creation
-    '''
-    test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
-    test-deviceconfig-metrics-exporter-27gq9                     2/2     Running       0                 12d
-    '''
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
-
-    time.sleep(30) # Wait for exporter to start working
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_name = k8_util.k8_get_node_hostname(node)
-        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
-        # Collect gpu information from the node
-        cmd = [K8Helper.get_amd_smi_path(environment), "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                          cmd, exporter_pod_name, "metrics-exporter-container")
-        K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
-                        f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
-        amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
-        cluster_node.host_name = node_name
 
 @pytest.mark.level1
 def test_deviceconfig_test_runner_deploy(deviceconfig_install, amd_smi_collect, environment):
@@ -576,7 +478,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
@@ -687,7 +589,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
@@ -792,7 +694,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:
@@ -917,7 +819,7 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect,
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace, environment.exporter_namespace])
+    K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
     gpu_series = gpu_cluster.worker_nodes[0].gpu_series
     if gpu_series and 'MI2' in gpu_series:

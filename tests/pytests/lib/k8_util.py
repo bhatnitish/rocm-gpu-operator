@@ -17,14 +17,10 @@
 '''
 
 import pdb
-import os
-import sys
 import time
 import json
-import glob
 import logging
 import pytest
-import subprocess
 import base64
 import pprint
 import datetime
@@ -63,294 +59,28 @@ def k8_lib_init(k8_kube_config : str) -> None:
     ret_code, k8_nodes = k8_get_nodes()
     assert ret_code == 0, f"Failed to collect worker nodes from k8/cluster"
 
-def k8_init_cluster(k8_cluster : common.k8_cluster):
+def k8_init_cluster(k8_cluster : common.k8_cluster, namespaces):
     if k8_cluster.k8_secrets:
         # create secrets, but first create the non-default namespace(s) listed in each entry
-        namespaces = list(filter(lambda x: x != 'default', map(lambda entry: entry.get('namespace', 'default'), k8_cluster.k8_secrets['secrets'])))
         for namespace in namespaces:
             ret_code, ret_stdout, ret_stderr = k8_create_namespace(namespace)
             if ret_code != 0:
                 Logger.debug(f"Failed to create namespace {namespace}, error: {ret_stderr}")
 
-        for entry in k8_cluster.k8_secrets["secrets"]:
-            ret_code, ret_stdout, ret_stderr = k8_delete_secret(entry.get("name"),
-                                                                entry.get("type"),
-                                                                entry.get("namespace", "default"))
-            if ret_code != 0:
-                Logger.warn(f"secret deletion failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
-            ret_code, ret_stdout, ret_stderr = k8_create_secret(entry.get("name"),
-                                                                entry.get("type"),
-                                                                username = entry.get("username"),
-                                                                password = entry.get("password"),
-                                                                namespace = entry.get("namespace", "default"))
-            if ret_code != 0:
-                Logger.error(f"secret create failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
-                pytest.fail(f"failed to create secret type {entry.get('name')} - Abort")
+            for entry in k8_cluster.k8_secrets["secrets"]:
+                ret_code, ret_stdout, ret_stderr = k8_delete_secret(entry.get("name"),
+                                                                    entry.get("type"), namespace)
+                if ret_code != 0:
+                    Logger.warn(f"secret deletion failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
+                ret_code, ret_stdout, ret_stderr = k8_create_secret(entry.get("name"),
+                                                                    entry.get("type"),
+                                                                    username = entry.get("username"),
+                                                                    password = entry.get("password"),
+                                                                    namespace = namespace)
+                if ret_code != 0:
+                    Logger.error(f"secret create failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
+                    pytest.fail(f"failed to create secret type {entry.get('name')} - Abort")
     return
-
-@log_arguments
-def helm_list(k8_cluster : common.k8_cluster, namespace : str) -> (int, str, str):
-    """
-    API to list installed helm-charts in a given namespace
-    
-    Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
-    namespace : The name of namespace
-
-    Returns:
-    int: return-code, 0 for success else failure
-    stdout : stdout from command execution
-    stderr : stderr from command execution
-    """
-    global Logger
-    cmd = ["helm", "list", "-a", "--namespace", namespace, "-o", "json"]
-    if k8_cluster.k8_kube_config:
-        cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
-        cmd_resp = subprocess.run(cmd, check=False,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  encoding='utf-8')
-        return cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
-    else:
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
-
-@log_arguments
-def helm_add_repo(k8_cluster : common.k8_cluster, repo_name : str, repo_url : str) -> None:
-    """
-    API to add helm repo
-
-    For example, following commands will be run:
-    helm repo add rocm <repo>
-    helm repo update
-
-    Parameters:
-    k8_cluster : intance of lib.common.k8_cluster
-    repo_name  : Name of the repo
-    repo_url   : repo url
-    """
-    cmd = ["helm", "repo", "add", repo_name, repo_url]
-    if k8_cluster.k8_kube_config:
-        cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
-        cmd_resp = subprocess.run(cmd, check=False,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    encoding='utf-8')
-        ret_code = cmd_resp.returncode
-    else:
-        ret_code, _, _ = k8_cluster.k8_master.run_command(" ".join(cmd))
-    assert ret_code == 0, f"Failed to add helm repo {repo}, stdout : {ret_stdout} stderr: {ret_stderr}"
-
-    cmd = ["helm", "repo", "update"]
-    if k8_cluster.k8_kube_config:
-        cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
-        cmd_resp = subprocess.run(cmd, check=False,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    encoding='utf-8')
-        ret_code = cmd_resp.returncode
-    else:
-        ret_code, _, _ = k8_cluster.k8_master.run_command(" ".join(cmd))
-    assert ret_code == 0, f"Failed to update helm repo {repo}, stdout : {ret_stdout} stderr: {ret_stderr}"
-    return
-
-@log_arguments
-def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace : str, helm_chart_path : str, version : str, values_yaml : str, **kwargs) -> (int, str, str):
-    """
-    API to install helm-chart
-
-    For example, following command will be run:
-    helm install <release-name> <path-to-helm-chart>
-        -n kube-amd-gpu --create-namespace --version=<version>
-        --set controllerManager.manager.image.repository=registry.test.pensando.io:5000/amd-gpu-operator
-        --set controllerManager.manager.image.tag=latest 
-
-    Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
-    release_name : release-name to use for helm-chart installation
-    namespace : namespace in which to install helm-chart
-    helm_chart_path : path to helm chart (file or repo path)
-    version : version of the helm-chart to install
-    values_yaml : values.yaml file
-
-    Returns:
-    ret_code   : Return code for command execution. 0 for success else failure
-    ret_stdout : Stdout from command execution
-    ret_stderr : Stderr from command execution
-    """
-
-    global Logger
-    cmd = ["helm", "install", "--debug", f"{release_name}", f"{helm_chart_path}"]
-    cmd.extend(["-n", f"{namespace}", "--create-namespace"])
-    if version:
-        cmd.extend([f"--version={version}"])
-
-    for key, value in kwargs:
-        cmd.extend(["--set", f"{key}={value}"])
-
-    if release_name == 'gpu-operator':
-        if os.getenv("GPU_DEVICE") == "VF":
-            node_selection = {
-                "feature.node.kubernetes.io/amd-gpu"    : None,
-                "feature.node.kubernetes.io/amd-vgpu"   : "true",
-            }
-        else:
-            node_selection = {
-                "feature.node.kubernetes.io/amd-gpu"    : "true",
-                "feature.node.kubernetes.io/amd-vgpu"   : None,
-            }
-        cmd.extend(["--set-json", f"deviceConfig.spec.selector={json.dumps(node_selection)}"])
-
-    if k8_cluster.k8_kube_config:
-        cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
-        if values_yaml:
-            if not os.path.exists(values_yaml):
-                return -1, "", f"Missing values.yaml : {values_yaml}"
-            cmd.extend(["-f", values_yaml])
-        Logger.debug(f"helm-install command: {' '.join(cmd)}")
-        cmd_resp = subprocess.run(cmd, check=False,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  encoding='utf-8')
-        return cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
-    else:
-        if values_yaml:
-            if not os.path.exists(values_yaml):
-                return -1, "", f"Missing values.yaml : {values_yaml}"
-            if k8_cluster.k8_master.is_local():
-                cmd.extend(["-f", values_yaml])
-            else:
-                k8_cluster.k8_master.run_command(f"mkdir -p workspace")
-                remote_file = os.path.join("workspace", os.path.basename(values_yaml))
-                k8_cluster.k8_master.put(values_yaml, remote_file)
-                cmd.extend(["-f", remote_file])
-        Logger.debug(f"helm-install command: {' '.join(cmd)}")
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
-
-@log_arguments
-def helm_uninstall(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> (int, str, str):
-    """
-    API to uninstall helm-chart
-
-    Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
-    release_name : Release-name of the helm-chart
-    namespace : name-space in which helm-chart was installed
-
-    Returns:
-    int: return-code, 0 for success else failure
-    stdout: stdout of command execution
-    stderr: stderr of command execution
-    """
-
-    global Logger
-    cmd = ["helm", "uninstall", "--debug", f"{release_name}", "--namespace", f"{namespace}"]
-    if k8_cluster.k8_kube_config:
-        cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
-        cmd_resp = subprocess.run(cmd, check=False,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    encoding='utf-8')
-        return cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
-    else:
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
-
-@log_arguments
-def helm_cleanup(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> (int, str, str):
-    """
-    API to do forceful cleanup, if helm-uninstall resulted in failure
-
-    Following command will be run: "helm uninstall <release-name> --namespace <namespace> --no-hooks"
-
-    Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
-    release_name : helm-chart release name
-    namespace : namespace to use
-
-    Returns:
-    int: return-code, 0 for success else failure
-    stdout: stdout of command execution
-    stderr: stderr of command execution
-    """
-    global Logger
-    cmd = ["helm", "uninstall", f"{release_name}", "--namespace", f"{namespace}", "--no-hooks"]
-    if k8_cluster.k8_kube_config:
-        cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
-        cmd_resp = subprocess.run(cmd, check=False,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    encoding='utf-8')
-        return cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
-    else:
-        return k8_cluster.k8_master.run_command(" ".join(cmd))
-
-@log_arguments
-def is_helm_chart_deployed(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> bool:
-    """
-    API to check if helm-chart is deployed. 
-
-    Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
-    release-name: release-name used for helm-chart
-    namespace : namespace in which helm-chart is installed
-
-    Returns:
-    bool : True if chart is deployed else False
-    """
-    ret_code, ret_stdout, ret_stderr = helm_list(k8_cluster, namespace)
-
-    """
-    Sample output
-    vm@master-node:~/sandbox$ helm list -n kube-amd-gpu -o json | jq .
-    [
-      {
-        "name": "gpu-operator",
-        "namespace": "kube-amd-gpu",
-        "revision": "1",
-        "updated": "2024-12-11 10:04:56.122288711 +0000 UTC",
-        "status": "failed", or "deployed",
-        "chart": "gpu-operator-v1.0.0",
-        "app_version": "v1.0.0"
-      }
-    ]
-    """
-    for chart in json.loads(ret_stdout):
-        if chart['name'] == release_name and chart['status'] != 'uninstalling':
-            return True
-    return False
-
-@log_arguments
-def is_helm_chart_healthy(k8_cluster : common.k8_cluster, release_name : str, namespace : str) -> bool:
-    """
-    API to check if installed helm-chart is healthy
-
-    Parameters:
-    k8_cluster : instance of lib.common.k8_cluster
-    release-name: release-name used for helm-chart
-    namespace : namespace in which helm-chart is installed
-
-    Returns:
-    bool : True if chart is deployed and healthy else False
-    """
-    """
-    Sample output
-    vm@master-node:~/sandbox$ helm list -n kube-amd-gpu -o json | jq .
-    [
-      {
-        "name": "gpu-operator",
-        "namespace": "kube-amd-gpu",
-        "revision": "1",
-        "updated": "2024-12-11 10:04:56.122288711 +0000 UTC",
-        "status": "failed", or "deployed",
-        "chart": "gpu-operator-v1.0.0",
-        "app_version": "v1.0.0"
-      }
-    ]
-    """
-    ret_code, ret_stdout, ret_stderr = helm_list(k8_cluster, namespace)
-    for chart in json.loads(ret_stdout):
-        if chart['name'] == release_name and chart['status'] == 'deployed':
-            return True
-    return False
 
 @log_arguments
 def k8_get_nodes() -> (int, str, K8Items):
@@ -368,8 +98,11 @@ def k8_get_nodes() -> (int, str, K8Items):
     try:
         nodes = api.list_node().to_dict()
         return 0, nodes.get('items', None)
-    except ApiException as e:
-        Logger.error(f"Failed to collect nodes, error : {e}")
+    except ApiException as ae:
+        Logger.error(f"Failed to collect nodes, error : {ae}")
+        return -1, None
+    except Exception as e:
+        Logger.error(f"Unexpected failure while collectiong nodes, error : {e}")
         return -1, None
 
 @log_arguments
@@ -497,7 +230,7 @@ def k8_get_endpoints(namespace):
     return ret_code, ret_values
 
 @log_arguments
-def k8_create_deviceconfig_cr(cr_spec : dict) -> (int, str, str):
+def k8_create_custom_resource(cr_spec : dict) -> (int, str, str):
     """
     API to create custom-resource on a K8 cluster.
     """
@@ -507,13 +240,18 @@ def k8_create_deviceconfig_cr(cr_spec : dict) -> (int, str, str):
     # Read cr_file and derive: group, version, plural and name
     group, version = cr_spec['apiVersion'].split('/')
     plural = cr_spec['kind'].lower() + 's'
-    namespace = cr_spec['metadata']['namespace']
+    namespace = cr_spec['metadata']['namespace'] # TODO: If namespace is not defined, then use different/default API
     try:
-        _ = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
+        resp = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
     except ApiException as e:
         Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
         return -1, "", str(e)
+    except Exception as e:
+        Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
+        return -1, "", str(e)
     return 0, "", ""
+
+k8_create_deviceconfig_cr = k8_create_custom_resource
 
 @log_arguments
 def k8_modify_deviceconfig_cr(cr_spec : dict) -> (int, str, str):
@@ -567,56 +305,71 @@ def k8_apply_cr(cr_spec : dict, cr_file : str) -> (int, str, str):
     return 0, "", ""
 
 @log_arguments
-def k8_delete_deviceconfig_cr(namespace : str, name : str) -> (int, str, str):
+def k8_delete_custom_resource(group : str, version : str, plural : str, namespace : str, name : str) -> (int, str, str):
     """
-    API to delete deviceconfig CR with given name and namespace
+    API to delete CR with given group, vesion, plural, namespace and name
     """
     global Logger
     custom_objects_api = client.CustomObjectsApi()
-    group = 'amd.com'
-    version = 'v1alpha1'
-    plural = 'deviceconfigs'
     # check if it exists:
-    found = False
+    entry = None
     try:
-        cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
-                                                                   namespace = namespace, plural = plural)
-        for item in cr_list["items"]:
+        cr_info = custom_objects_api.list_cluster_custom_object(group = group, version = version, plural = plural)
+        for item in cr_info["items"]:
             if name == item["metadata"]["name"]:
-                found = True
+                entry = item
+                break
     except ApiException as e:
-        Logger.error(f"Failed to query deviceconfig CR, error: {e}")
+        Logger.error(f"Failed to query CR, error: {e}")
 
-    if not found:
-        Logger.error(f"DeviceConfig {name} does not exists")
+    if entry == None:
+        Logger.warn(f"CustomResource of type {plural} with name {name} does not exists")
         return 0, "", ""
     try:
-        custom_objects_api.delete_namespaced_custom_object(group=group,
-                                                           version=version,
-                                                           namespace=namespace,
-                                                           plural=plural,
-                                                           name=name,
-                                                           body=client.V1DeleteOptions())
+        if entry["metadata"].get("namespace", None):
+            resp = custom_objects_api.delete_namespaced_custom_object(group=group,
+                                                                      version=version,
+                                                                      namespace=entry["metadata"]["namespace"],
+                                                                      plural=plural,
+                                                                      name=name,
+                                                                      body=client.V1DeleteOptions())
+        else:
+            resp = custom_objects_api.delete_cluster_custom_object(group=group,
+                                                                   version=version,
+                                                                   plural=plural,
+                                                                   name=name,
+                                                                   body=client.V1DeleteOptions())
+        if resp.get("status") == "Success":
+            Logger.debug("CR {name} deletion successful")
+        else:
+            Logger.debug(resp)
     except ApiException as e:
-        Logger.error(f"Failed to delete deviceconfig CR, error: {e}")
+        Logger.error(f"Failed to delete CR, error: {e}")
         return -1, "", str(e)
 
     # Wait till resources are removed
     for _ in range(10):
         found = False
         try:
-            cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
-                                                                       namespace = namespace, plural = plural)
-            for item in cr_list["items"]:
+            cr_info = custom_objects_api.list_cluster_custom_object(group = group, version = version, plural = plural)
+            for item in cr_info["items"]:
                 if name == item["metadata"]["name"]:
                     found = True
         except ApiException as e:
-            Logger.error(f"Failed to query deviceconfig CR, error: {e}")
+            pass
 
         if not found:
             break
         time.sleep(5)
     return 0, "", ""
+
+@log_arguments
+def k8_delete_deviceconfig_cr(namespace : str, name : str) -> (int, str, str):
+    """
+    API to delete deviceconfig CR with given name and namespace
+    """
+    global Logger
+    return k8_delete_custom_resource("amd.com", "v1alpha1", "deviceconfigs", namespace, name)
 
 @log_arguments
 def k8_delete_cr(cr_spec, cr_file):
@@ -634,22 +387,32 @@ def k8_delete_cr(cr_spec, cr_file):
     return 0, "", ""
 
 @log_arguments
+def k8_get_custom_resource_objects(group : str, version : str, plural : str) -> (int, str, str):
+    """
+    API to get list of CR
+    """
+    global Logger
+    custom_objects_api = client.CustomObjectsApi()
+    try:
+        cr_info = custom_objects_api.list_cluster_custom_object(group = group, version = version,
+                                                                plural = plural)
+        return 0, cr_info['items'], None
+    except ApiException as e:
+        Logger.error(f"Failed to query deviceconfig CR, error: {e}")
+        return -1, None, str(e)
+
 def k8_get_servicemonitor_cr(namespace : str) -> (int, str, str):
     """
     API to delete deviceconfig CR with given name and namespace
     """
     global Logger
-    custom_objects_api = client.CustomObjectsApi()
     group = 'monitoring.coreos.com'
     version = 'v1'
     plural = 'servicemonitors'
-    try:
-        cr_list = custom_objects_api.list_namespaced_custom_object(group = group, version = version,
-                                                                   namespace = namespace, plural = plural)
-        return 0, cr_list, None
-    except ApiException as e:
-        Logger.error(f"Failed to query deviceconfig CR, error: {e}")
-        return -1, None, str(e)
+    ret_code, cr_list, err = k8_get_custom_resource_objects(group, version, plural)
+    if ret_code == 0:
+        return ret_code, list(filter(lambda x: x['metadata']['namespace'] == namespace, cr_list)), err
+    return ret_code, cr_list, err
 
 @log_arguments
 def k8_create_rules_from_endpoint_list(endpoint_verbs : List):
@@ -833,6 +596,8 @@ def k8_create_namespace(namespace : str):
         Logger.debug("k8_create_namespace::api_response : {api_response}")
         return 0, "", ""
     except ApiException as e:
+        if e.status == 409 and e.reason == 'Conflict':
+            return 0, "", ""
         Logger.error(f"Failed to create namespace, error : {e}")
         return -1, "", str(e)
 
@@ -2327,4 +2092,53 @@ def reboot_node(k8_cluster : common.k8_cluster, node_name : str):
         Logger.error(f"Failed to uncordon node - {node_name}")
         return ret_code
     return 0
+
+@log_arguments
+def k8_list_subscriptions() -> (int, List, str):
+    """
+    API to list subscriptions (items) in openshift.
+    """
+    global Logger
+
+    custom_objects_api = client.CustomObjectsApi()
+    group = "operators.coreos.com"
+    version = "v1alpha1"
+    plural = "subscriptions"
+    try:
+        subscriptions = custom_objects_api.list_cluster_custom_object(group=group, version=version, plural=plural)
+        return 0, subscriptions.get("items", []), ""
+    except ApiException as e:
+        Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
+        return -1, [], str(e)
+    return 0, [], ""
+
+@log_arguments
+def k8_wait_for_cluster_ready(minikube : bool = False) -> (int):
+    """
+    API to wait for (all) nodes to be declared Ready in kubernetes
+    """
+    # Check for status to be declared as Ready
+    for _ in range(30):
+        ret_code, k8_nodes = k8_get_nodes()
+        if ret_code != 0 or k8_nodes == None:
+            if minikube:
+                time.sleep(30) # If this is a minikube, we have lost connectivity to the cluster itself
+            else:
+                return ret_code
+
+        status_list = list()
+        for node in k8_nodes:
+            ready = False
+            for entry in node['status']['conditions']:
+                if entry.get('type', 'NotReady') == 'Ready':
+                    if entry['status'] == 'True':
+                        Logger.info(f"Node {node['metadata']['name']} is up")
+                        ready = True
+                    break
+            status_list.append(ready)
+        if all(status_list):
+            return 0
+        time.sleep(20)
+    Logger.error(f"Some of the nodes of cluster failed to come online - fatal error")
+    return -1
 

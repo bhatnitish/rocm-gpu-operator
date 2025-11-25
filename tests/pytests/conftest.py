@@ -39,13 +39,6 @@ logging.getLogger('kubernetes').setLevel(logging.WARNING)
 
 def pytest_addoption(parser):
     parser.addoption(
-            "--global-registry",
-            action = "store",
-            default = "registry.test.pensando.io:5000",
-            help = "Docker registry to use while setting up exporter image",
-    )
-
-    parser.addoption(
             "--testbed",
             action="store",
             default=None,
@@ -177,9 +170,15 @@ def transform_image_info():
 def pytest_metadata(metadata):
     metadata.clear()
 
-@pytest.fixture(scope="session")
-def release_name():
-    return "gpu-operator"
+@pytest.fixture(scope="function", autouse=True)
+def update_environment(request, environment):
+    global Logger
+    setattr(environment, 'current_tc_name', request.node.name)
+    #K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
+    Logger.debug(f"Starting Testcase: {request.node.name}")
+    yield
+    delattr(environment, 'current_tc_name')
+    Logger.debug(f"Testcase Completed: {request.node.name}")
 
 @pytest.fixture(scope="session")
 def environment(request):
@@ -189,10 +188,7 @@ def environment(request):
 
     tenv = Env()
     setattr(tenv, 'deployment_mode', request.config.option.deployment)
-    setattr(tenv, 'gpu_operator_namespace', os.getenv('GPU_OPERATOR_NAMESPACE', 'kube-amd-gpu'))
-    setattr(tenv, 'exporter_namespace', os.getenv('EXPORTER_NAMESPACE', 'kube-amd-exporter'))
     setattr(tenv, 'download_folder', 'downloads')
-    setattr(tenv, 'global_registry', request.config.option.global_registry)
     setattr(tenv, 'logdir', "logs")
     if request.config.option.amdgpu_driver_spec:
         with open(request.config.option.amdgpu_driver_spec, "r") as fp:
@@ -221,6 +217,9 @@ def environment(request):
 
     # Workload Template
     setattr(tenv, 'default_workload', request.config.option.workload_selection)
+    setattr(tenv, 'exporter_namespace', os.getenv('EXPORTER_NAMESPACE', 'kube-amd-exporter'))
+    setattr(tenv, 'gpu_operator_namespace', os.getenv('GPU_OPERATOR_NAMESPACE', 'kube-amd-gpu'))
+    setattr(tenv, "amd_smi_collection_complete", False)
     '''
     request.config._metadata['Helm-Chart Version'] = request.config.option.gpu_operator_version
     request.config._metadata['Metrics Exporter Version'] = request.config.option.metrics_exporter_version
@@ -262,7 +261,6 @@ def gpu_cluster(request, release_name, environment):
                 k8_cluster_inst.k8_secrets = json.load(fp)
         setattr(pytest, "_nodes_version",  nodes_version)
         setattr(pytest, "_k8_cluster_inst", k8_cluster_inst)
-        cleanup_cluster(request, k8_cluster_inst, release_name, environment)
         return k8_cluster_inst
     else:
         # Build testbed_info from testbed-yaml file
@@ -333,11 +331,8 @@ def images(request, environment, gpu_cluster):
     if environment.deployment_mode == "standalone":
         image_info = images_standalone(request, environment, image_manifest['images'])
 
-    if environment.deployment_mode == "k8":
+    if environment.deployment_mode in ["k8", "openshift"]:
         image_info = images_k8(request, environment, gpu_cluster, image_manifest['images'])
-
-    if environment.deployment_mode == "openshift":
-        image_info = images_openshift(request, environment, gpu_cluster, image_manifest['images'])
 
     assert image_info != None, f"Failed to build images for {environment.deployment_mode}"
     setattr(pytest, "_image_info", image_info)
@@ -373,9 +368,9 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
     global Logger
     image_info = dict()
 
-    images = image_manifest['k8']
+    images = image_manifest[environment.deployment_mode]
     # prepare to download gpu-operator
-    if images.get('gpu-operator', None) and images['gpu-operator']['kind'] == 'helm-chart':
+    if images.get('gpu-operator', None) and images['gpu-operator']['kind'] in ['helm-chart', 'olm-bundle']:
         setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
     if images.get('exporter', None) and images['exporter']['kind'] == 'helm-chart':
         setattr(environment, 'exporter_version', images['exporter']['version'])
@@ -432,6 +427,8 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
                     pytest.fail("Use image-manifest.yaml with remote registry locations")
             elif artifact_info['kind'] == 'helm-chart':
                 image_info[f'{artifact}.helm-chart'] = file_path
+            elif artifact_info['kind'] == 'olm-bundle':
+                image_info[f'{artifact}.olm-bundle'] = file_path
         elif 'http://' in artifact_info['location'] or 'https://' in artifact_info['location']:
             # Download the file
             url = artifact_info['location']
@@ -479,6 +476,8 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
                     pytest.fail("Use image-manifest.yaml with remote registry locations")
             elif artifact_info['kind'] == 'helm-chart':
                 image_info[f'{artifact}.helm-chart'] = file_path
+            elif artifact_info['kind'] == 'olm-bundle':
+                image_info[f'{artifact}.olm-bundle'] = file_path
         elif 'container://' in artifact_info['location']:
             location = artifact_info['location']
             if '<registry>' in location and environment.default_registry:
@@ -486,43 +485,15 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
             else:
                 url = location
             parsed_data = urlparse(url)
-            image_info[f"{artifact_info['key']}.repository"] = f"{parsed_data.netloc}{parsed_data.path}"
-            if artifact_info.get('version'):
-                image_info[f"{artifact_info['key']}.version"] = artifact_info['version']
-            if 'secret' in artifact_info:
-                image_info[f"{artifact_info['key']}.secret"] = artifact_info['secret']
-
+            if artifact_info['kind'] == 'container':
+                image_info[f"{artifact_info['key']}.repository"] = f"{parsed_data.netloc}{parsed_data.path}"
+                if artifact_info.get('version'):
+                    image_info[f"{artifact_info['key']}.version"] = artifact_info['version']
+                if 'secret' in artifact_info:
+                    image_info[f"{artifact_info['key']}.secret"] = artifact_info['secret']
+            elif artifact_info['kind'] == 'olm-bundle':
+                version = artifact_info['version']
+                image_info[f'{artifact}.olm-bundle'] = f"{parsed_data.netloc}{parsed_data.path}:{version}"
+                image_info[f'{artifact}.secret'] = artifact_info['secret']
     return image_info
 
-def cleanup_cluster(request, gpu_cluster, release_name, environment):
-    global Logger
-    Logger.info("Delete any deviceconfig CRs from the cluster")
-    def _delete_deviceconfigs(k8_cluster : common.k8_cluster, namespace : str) -> None:
-        device_cfg_info = k8_util.k8_get_deviceconfigs_info(namespace, None)
-
-        for devcfg_name, _ in device_cfg_info.items():
-            k8_util.k8_delete_deviceconfig_cr(namespace, devcfg_name)
-        return
-
-    def _delete_debug_pods(k8_cluster : common.k8_cluster, namespaces) -> None:
-        for namespace in namespaces:
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "node-debug-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "curl-cmd-pod-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "gpu-workload-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "techsupport-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "test-runner-manual-trigger-")
-
-    # cleanup
-    _delete_deviceconfigs(gpu_cluster, environment.gpu_operator_namespace)
-    _delete_debug_pods(gpu_cluster, ["default", environment.gpu_operator_namespace, environment.exporter_namespace])
-    if k8_util.is_helm_chart_deployed(gpu_cluster, release_name, environment.gpu_operator_namespace):
-        Logger.warn(f"helm {release_name} is already deployed - cleanup")
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name,
-                                                                  environment.gpu_operator_namespace)
-        if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-        #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
-
-    # Init k8 cluster
-    k8_util.k8_init_cluster(gpu_cluster)
-    return

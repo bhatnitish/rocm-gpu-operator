@@ -26,6 +26,12 @@ APP_NAME="NA"
 
 REGISTRY=""
 
+function collect_logs() {
+    echo "Collect test run logs"
+    tar -zcf pytest_logs.tgz logs/
+    ls -ltr $PWD/pytest_logs.tgz
+}
+
 function upload_reports() {
     echo "JOB_ID=${JOB_ID}"
     echo "TARGET_NAME=${TARGET_NAME}"
@@ -129,6 +135,18 @@ function load_images() {
         exit $RET
     fi
     echo ""
+
+    echo ""
+    echo "Run k8_jobd_ctl to "
+    echo "    (1) pull images for each worker node in the cluster"
+    echo ""
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --pull-images
+    RET=$?
+    if [[ "$RET" != "0" ]]
+    then
+        echo "WARNING : Failed to pull images on each worker node(s)"
+    fi
+    echo ""
 }
 
 function prepare_cluster() {
@@ -165,6 +183,7 @@ function launch_pytest() {
     /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
     echo ""
     upload_reports
+    collect_logs
     if [[ "$RET" != "0" ]]
     then
         exit $RET

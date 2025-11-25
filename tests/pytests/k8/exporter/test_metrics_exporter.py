@@ -28,6 +28,7 @@ import random
 import functools
 from collections import defaultdict
 import lib.common as common
+import lib.helm_util as helm_util
 import lib.k8_util as k8_util
 import lib.spec_util as spec_util
 import lib.metric_util as metric_util
@@ -37,68 +38,6 @@ from lib.util import K8Helper
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_metrics_exporter")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
-
-@pytest.fixture(scope="function", autouse=True)
-def setup_testcase_info(request, environment):
-    setattr(environment, 'current_tc_name', request.node.name)
-    yield
-    delattr(environment, 'current_tc_name')
-
-@pytest.fixture(scope="module")
-def gpu_operator_install(gpu_cluster, release_name, images, environment):
-    global Logger
-    if k8_util.is_helm_chart_healthy(gpu_cluster,
-                                     release_name,
-                                     environment.gpu_operator_namespace):
-        Logger.info("gpu-operator helm-chart is already installed/running - skip rest of setup/fixture")
-        yield
-        return
-
-    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
-    for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
-        if ret_code != 0:
-            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
-    time.sleep(10)
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    if ret_code != 0:
-        k8_util.helm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
-
-    if images.get("gpu-operator.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
-
-    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
-    if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
-        Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
-    else:
-        values_yaml = None
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, release_name,
-                                                            environment.gpu_operator_namespace,
-                                                            images.get('gpu-operator.helm-chart', None),
-                                                            environment.gpu_operator_version, values_yaml)
-    if ret_code != 0:
-        Logger.error(f"Failed to install helm chart for {release_name}")
-        Logger.error(f"Stdout: {ret_stdout.strip()}")
-        Logger.error(f"Stderr: {ret_stderr.strip()}")
-    K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {release_name}")
-    time.sleep(30)
-
-    yield
-    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
-    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
-    for devcfg_name, _ in devcfg_map.items():
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
-        if ret_code != 0:
-            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
-    time.sleep(10)
-
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name} helm-chart, error: {ret_stderr}")
-    return
 
 @pytest.fixture(scope="module")
 def deviceconfig_install(images, gpu_operator_install, environment):
@@ -163,57 +102,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
     return
 
-@pytest.fixture(scope="module")
-def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
-    # Derive gpu information using amd-smi information
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-
-    # Enable metricsExporter in gpu-operator deviceconfig CR
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        tcfg['metricsExporter.enable'] = True
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
-        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
-
-    # Watch for all pod creation
-    '''
-    test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
-    test-deviceconfig-metrics-exporter-27gq9                     2/2     Running       0                 12d
-    '''
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
-
-    time.sleep(30) # Wait for exporter to start working
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_name = k8_util.k8_get_node_hostname(node)
-        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
-        # Collect gpu information from the node
-        cmd = [K8Helper.get_amd_smi_path(environment), "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                          cmd, exporter_pod_name, "metrics-exporter-container")
-        K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
-                        f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
-        amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
-        cluster_node.host_name = node_name
-
-    # Disable metricsExporter in gpu-operator deviceconfig CR
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        tcfg['metricsExporter.enable'] = False
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
-        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
-
-def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, amd_smi_collect, images, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
@@ -221,13 +110,13 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
 
     exporter_release_name = "device-metrics-exporter"
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -240,10 +129,10 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_
     else:
         values_yaml = None
 
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                            environment.exporter_namespace,
-                                                            images.get('exporter.helm-chart', None),
-                                                            environment.exporter_version, values_yaml)
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {exporter_release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -251,7 +140,7 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
     K8Helper.triage(environment,
-                    k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
@@ -286,13 +175,13 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
 
     exporter_release_name = "device-metrics-exporter"
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -306,10 +195,10 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
     else:
         values_yaml = None
 
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                            environment.exporter_namespace,
-                                                            images.get('exporter.helm-chart', None),
-                                                            environment.exporter_version, values_yaml)
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {exporter_release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -317,7 +206,7 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
     K8Helper.triage(environment,
-                    k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
@@ -357,13 +246,13 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
 
     exporter_release_name = "device-metrics-exporter"
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -376,10 +265,10 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
     else:
         values_yaml = None
 
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                            environment.exporter_namespace,
-                                                            images.get('exporter.helm-chart', None),
-                                                            environment.exporter_version, values_yaml)
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {exporter_release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -387,7 +276,7 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
     K8Helper.triage(environment,
-                    k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
@@ -419,13 +308,13 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
 
     exporter_release_name = "device-metrics-exporter"
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -440,10 +329,10 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
     else:
         values_yaml = None
 
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                            environment.exporter_namespace,
-                                                            images.get('exporter.helm-chart', None),
-                                                            environment.exporter_version, values_yaml)
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {exporter_release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -451,7 +340,7 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
     K8Helper.triage(environment,
-                    k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
@@ -550,9 +439,9 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
     request.addfinalizer(_cleanup_configmap)
 
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -575,10 +464,10 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         else:
             values_yaml = None
 
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                                environment.exporter_namespace,
-                                                                images.get('exporter.helm-chart', None),
-                                                                environment.exporter_version, values_yaml)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                                  environment.exporter_namespace,
+                                                                  images.get('exporter.helm-chart', None),
+                                                                  environment.exporter_version, values_yaml)
         if ret_code != 0:
             Logger.error(f"Failed to install helm chart for {exporter_release_name}")
             Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -586,7 +475,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
         K8Helper.triage(environment,
-                        k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                        helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                         "exporter helm-chart is in failed state")
         failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
         K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
@@ -718,9 +607,9 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     request.addfinalizer(_cleanup_configmap)
 
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -734,10 +623,10 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     else:
         values_yaml = None
 
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                            environment.exporter_namespace,
-                                                            images.get('exporter.helm-chart', None),
-                                                            environment.exporter_version, values_yaml)
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {exporter_release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -745,7 +634,7 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
     K8Helper.triage(environment,
-                    k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
     exporter_pods = [
         common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
@@ -795,13 +684,13 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
-        k8_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
 
     exporter_release_name = "device-metrics-exporter"
     def _uninstall_exporter_helmchart():
-        ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
         if ret_code != 0:
-            k8_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
@@ -815,10 +704,10 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     else:
         values_yaml = None
 
-    ret_code, ret_stdout, ret_stderr = k8_util.helm_install(gpu_cluster, exporter_release_name,
-                                                            environment.exporter_namespace,
-                                                            images.get('exporter.helm-chart', None),
-                                                            environment.exporter_version, values_yaml)
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {exporter_release_name}")
         Logger.error(f"Stdout: {ret_stdout.strip()}")
@@ -826,7 +715,7 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
 
     K8Helper.triage(environment,
-                    k8_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working

@@ -116,33 +116,33 @@ class cluster_node(object):
     @device_id.setter
     def device_id(self, device_id):
         self._device_id = device_id
-        if device_id == '0x7408':
+        if device_id in ['0x7408']:
             self._gpu_series = 'MI250X'
-        if device_id == '0x740f':
+        if device_id in ['0x740f']:
             self._gpu_series = 'MI210'
-        elif device_id == '0x7410':
+        elif device_id in ['0x7410']:
             self._gpu_series = 'MI210-VF'
-        elif device_id == '0x740c':
+        elif device_id in ['0x740c']:
             self._gpu_series = 'MI250'
-        elif device_id == '0x74a1':
+        elif device_id in ['0x74a1']:
             self._gpu_series = 'MI300X'
-        elif device_id == '0x74b5':
+        elif device_id in ['0x74b5']:
             self._gpu_series = 'MI300X-VF'
         elif device_id in ['0x74a2', '0x74a8']:
             self._gpu_series = 'MI308X'
         elif device_id in ['0x74b5', '0x74b6', '0x74bc']:
             self._gpu_series = 'MI308X-VF'
-        elif device_id == '0x75a0':
+        elif device_id in ['0x75a0']:
             self._gpu_series = 'MI350X'
-        elif device_id == '0x75a5':
+        elif device_id in ['0x75a5', '0x74a5']:
             self._gpu_series = 'MI325X'
-        elif device_id == '0x75b0':
+        elif device_id in ['0x75b0']:
             self._gpu_series = 'MI350X-VF'
-        elif device_id == '0x74b9':
+        elif device_id in ['0x74b9']:
             self._gpu_series = 'MI325X-VF'
-        elif device_id == '0x75a3':
+        elif device_id in ['0x75a3']:
             self._gpu_series = 'MI355X'
-        elif device_id == '0x75b3':
+        elif device_id in ['0x75b3']:
             self._gpu_series = 'MI355X-VF'
         else:
             self._gpu_series = 'UNKNOWN'

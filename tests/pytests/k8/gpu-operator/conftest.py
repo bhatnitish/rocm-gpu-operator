@@ -20,14 +20,15 @@ import pdb
 import pytest
 import os
 import logging
-import time
-import re
-from enum import Enum
-from datetime import datetime
+from lib import common
+from lib import k8_util
+from lib import helm_util
+
+Logger = logging.getLogger("gpu-operator.conftest")
 
 @pytest.fixture(scope="session")
-def inbox_driver_skip(environment):
-    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
-        pytest.skip("Using inbox amdgpu driver - skip")
-    return
+def release_name(environment):
+    if environment.deployment_mode == "openshift":
+        return "amd-gpu-operator"
+    return "gpu-operator"
 
