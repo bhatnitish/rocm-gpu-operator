@@ -461,6 +461,7 @@ bundle-build: operator-sdk manifests kustomize
 		     PKG=amd-gpu-operator \
 		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
+	cp $(shell pwd)/hack/openshift-patch/olm-bundle-patch/*.yaml $(shell pwd)/bundle/manifests/
 	${OPERATOR_SDK} bundle validate ./bundle
 	docker build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
