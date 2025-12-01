@@ -102,7 +102,7 @@ def k8_get_nodes() -> (int, str, K8Items):
         Logger.error(f"Failed to collect nodes, error : {ae}")
         return -1, None
     except Exception as e:
-        Logger.error(f"Unexpected failure while collectiong nodes, error : {e}")
+        Logger.error(f"Unexpected failure while collecting nodes, error : {e}")
         return -1, None
 
 @log_arguments
@@ -340,7 +340,7 @@ def k8_delete_custom_resource(group : str, version : str, plural : str, namespac
                                                                    name=name,
                                                                    body=client.V1DeleteOptions())
         if resp.get("status") == "Success":
-            Logger.debug("CR {name} deletion successful")
+            Logger.debug(f"CR {name} deletion successful")
         else:
             Logger.debug(resp)
     except ApiException as e:

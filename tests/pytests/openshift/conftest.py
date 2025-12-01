@@ -151,7 +151,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
 @pytest.fixture(scope="module")
 def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
     if environment.amd_smi_collection_complete:
-        Logger.debug("amd-smi information already collection, skip now")
+        Logger.debug("amd-smi information already collected, skip now")
         return
 
     # Derive gpu information using amd-smi information

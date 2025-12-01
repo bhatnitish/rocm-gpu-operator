@@ -87,7 +87,7 @@ def helm_add_repo(k8_cluster : common.k8_cluster, repo_name : str, repo_url : st
                                 stderr=subprocess.PIPE,
                                 encoding='utf-8')
     ret_code = cmd_resp.returncode
-    assert ret_code == 0, f"Failed to add helm repo {repo}, stdout : {ret_stdout} stderr: {ret_stderr}"
+    assert ret_code == 0, f"Failed to add helm repo {repo_name}, stdout : {ret_stdout} stderr: {ret_stderr}"
 
     cmd = ["helm", "repo", "update"]
     if k8_cluster.k8_kube_config:
@@ -98,7 +98,7 @@ def helm_add_repo(k8_cluster : common.k8_cluster, repo_name : str, repo_url : st
                                 stderr=subprocess.PIPE,
                                 encoding='utf-8')
     ret_code = cmd_resp.returncode
-    assert ret_code == 0, f"Failed to update helm repo {repo}, stdout : {ret_stdout} stderr: {ret_stderr}"
+    assert ret_code == 0, f"Failed to update helm repo {repo_name}, stdout : {cmd_resp.stdout} stderr: {cmd_resp.stderr}"
     return
 
 @log_arguments

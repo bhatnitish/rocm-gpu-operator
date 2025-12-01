@@ -96,27 +96,49 @@ def parse_metric_data(http_response):
             })
     return metrics
 
-def get_supported_metrics(gpu_series = None, skip_profiler_metrics = True):
+def get_supported_metrics(gpu_series = None, skip_profiler_metrics = True, amdgpu_driver = None):
     global Logger
     with open('lib/files/metrics-support.json', 'r') as fp:
-        metrics_data = json.load(fp)
+        data = json.load(fp)
 
+    metrics = data['metrics']
+    # Remove profiler-metrics if enabled
+    if skip_profiler_metrics:
+        metrics = list(filter(lambda entry: '_PROF_' not in entry['name'], metrics))
+
+    # Filter by gpu-series if defined
     if gpu_series:
         supported_metrics = []
-        for entry in metrics_data['metrics']:
-            if skip_profiler_metrics and '_PROF_' in entry['name']:
-                continue
+        for entry in metrics:
             for support in entry['gpu-support']:
-                if gpu_series in support['gpu']:
+                if gpu_series in support.get('gpu', []):
                     supported_metrics.append(entry)
                     break
-        return supported_metrics
-    return metrics_data['metrics']
+        metrics = supported_metrics
 
-def is_metric_supported(metric_to_test, gpu_series):
+    # check deprecation-matrix
+    if amdgpu_driver:
+        supported_metrics = []
+        for entry in metrics:
+            deprecated = False
+            if entry.get("deprecation-matrix", None):
+                # Check driver-based deprecation
+                if amdgpu_driver and entry["deprecation-matrix"].get("driver", None):
+                    for ver, support in entry["deprecation-matrix"]["driver"].items():
+                        if amdgpu_driver >= ver:
+                            deprecated = True
+                            break
+            if not deprecated:
+                supported_metrics.append(entry)
+        metrics = supported_metrics
+    return metrics
+
+def is_metric_supported(metric_to_test, gpu_series, amdgpu_driver):
     global Logger
 
-    supported_metrics = get_supported_metrics(gpu_series)
+    supported_metrics = get_supported_metrics(gpu_series = gpu_series,
+                                              skip_profiler_metrics = False,
+                                              amdgpu_driver = amdgpu_driver)
 
     for entry in supported_metrics:
         if entry['name'].lower() == metric_to_test.lower():
@@ -126,7 +148,7 @@ def is_metric_supported(metric_to_test, gpu_series):
 def get_metric_metadata(metric_to_test):
     global Logger
 
-    all_metrics = get_supported_metrics()
+    all_metrics = get_supported_metrics(skip_profiler_metrics = False)
     for entry in all_metrics:
         if entry['name'].lower() == metric_to_test.lower():
             return entry

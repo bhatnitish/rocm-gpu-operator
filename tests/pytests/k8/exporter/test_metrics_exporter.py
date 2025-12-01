@@ -388,7 +388,9 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         cluster_node = gpu_cluster.get_worker_node(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        metrics_data = metric_util.get_supported_metrics(cluster_node.gpu_series, skip_profiler_metrics = False)
+        metrics_data = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
+                                                         skip_profiler_metrics = False,
+                                                         amdgpu_driver = cluster_node.amdgpu_driver_version)
         list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
     common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
     Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")
@@ -662,7 +664,9 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
         node_metrics = metric_util.parse_metric_data(ret_stdout)
         metric_util.dump_metrics(ret_stdout, os.path.join(environment.logdir, f"{node_ip}_{exp_config_name}_metrics.txt"))
 
-        supported_metrics = metric_util.get_supported_metrics(cluster_node.gpu_series, skip_profiler_metrics = False)
+        supported_metrics = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
+                                                              skip_profiler_metrics = False,
+                                                              amdgpu_driver = cluster_node.amdgpu_driver_version)
         Logger.info(f"Node: {node_name} having {cluster_node.gpu_series} has {len(supported_metrics)} metrics")
         for entry in supported_metrics:
             metric_to_test = entry['name']
@@ -727,7 +731,7 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
 
     ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.exporter_namespace)
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect servicemonitors from namespace: {environment.exporter_namespace}, error : {err}")
-    K8Helper.triage(environment, (len(resp['items']) > 0), f"Found 0 entries of servicemonitors in namespace: {exporter_release_name}")
+    K8Helper.triage(environment, (len(resp) > 0), f"Found 0 entries of servicemonitors in namespace: {exporter_release_name}")
 
     # Uninstall exporter helm-chart and check if servicemonitor object is removed
     _uninstall_exporter_helmchart()
@@ -740,4 +744,4 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
 
     ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.exporter_namespace)
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect servicemonitors from namespace: {environment.exporter_namespace}, error : {err}")
-    K8Helper.triage(environment, (len(resp['items']) == 0), f"Found non-zero entries of servicemonitors in namespace: {exporter_release_name}")
+    K8Helper.triage(environment, (len(resp) == 0), f"Found non-zero entries of servicemonitors in namespace: {exporter_release_name}")

@@ -523,7 +523,8 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         cluster_node = gpu_cluster.get_worker_node(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        metrics_data = metric_util.get_supported_metrics(cluster_node.gpu_series)
+        metrics_data = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
+                                                         amdgpu_driver = cluster_node.amdgpu_driver_version)
         list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
     common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
     Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")

@@ -15,7 +15,7 @@
             "skip-validation" : "yes",
             "gpu-support" : [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : [],
                     "amd-smi" : "power.socket_power",
                     "gpu-agent" : "stats.PackagePower"
                 }
@@ -37,7 +37,18 @@
             "skip-validation" : "yes",
             "gpu-support" : [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : [],
+                    "amd-smi" : "power.socket_power",
+                    "gpu-agent" : "stats.PackagePower"
+                }
+            ]
+        },
+        {
+            "name" : "GPU_GFX_VOLTAGE",
+            "skip-validation" : "yes",
+            "gpu-support" : [
+                {
+                    "gpu" : [],
                     "amd-smi" : "power.socket_power",
                     "gpu-agent" : "stats.PackagePower"
                 }
@@ -86,6 +97,11 @@
         {
             "name": "GPU_HBM_TEMPERATURE",
             "skip-validation" : "yes",
+            "deprecation-matrix" : {
+                "driver" : {
+                    "6.14.14" : "yes"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X-VF", "MI300X", "MI350X"],
@@ -119,7 +135,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : [],
                     "gpu-agent": "stats.usage.mma_activity",
                     "amd-smi": "usage.mma_activity"
                 }
@@ -130,7 +146,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : [],
                     "gpu-agent": "stats.usage.vcn_activity",
                     "amd-smi": "usage.vcn_activity"
                 }
@@ -141,7 +157,7 @@
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : [],
                     "gpu-agent": "stats.usage.jpeg_activity[i]",
                     "amd-smi": "usage.jpeg_activity"
                 }

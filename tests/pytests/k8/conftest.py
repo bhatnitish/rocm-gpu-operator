@@ -66,7 +66,7 @@ def init_testbed(request, gpu_cluster, release_name, environment):
         if hasattr(environment, "exporter_namespace"):
             if helm_util.is_helm_chart_deployed(gpu_cluster, release_name, environment.exporter_namespace):
                 Logger.warn(f"helm {release_name} is already deployed - cleanup")
-                ret_code, ret_stdout, ret_stderr = k8_util.helm_uninstall(gpu_cluster, release_name,
+                ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, release_name,
                                                                           environment.exporter_namespace)
                 if ret_code != 0:
                     helm_util.helm_cleanup(gpu_cluster, release_name, environment.exporter_namespace)
@@ -136,7 +136,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
 @pytest.fixture(scope="module")
 def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
     if environment.amd_smi_collection_complete:
-        Logger.debug("amd-smi information already collection, skip now")
+        Logger.debug("amd-smi information already collected, skip now")
         return
 
     # Derive gpu information using amd-smi information

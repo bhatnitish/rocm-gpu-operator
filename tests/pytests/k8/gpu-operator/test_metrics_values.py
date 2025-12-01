@@ -347,7 +347,7 @@ def pytest_generate_tests(metafunc):
     global Logger
     if 'metric_to_test' in metafunc.fixturenames:
         metrics_to_test = []
-        for entry in metric_util.get_supported_metrics():
+        for entry in metric_util.get_supported_metrics(skip_profiler_metrics = False):
             if entry.get('skip-validation', 'no') == 'yes':
                 continue
             metrics_to_test.append(entry['name'])
@@ -404,7 +404,9 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
         idle_metrics = metric_util.parse_metric_data(all_idle_metrics[node_name]['exporter'][0])
         workload_metrics = metric_util.parse_metric_data(all_workload_metrics[node_name]['exporter'][0])
 
-        supported_metrics = metric_util.get_supported_metrics(cluster_node.gpu_series, skip_profiler_metrics = False)
+        supported_metrics = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
+                                                              skip_profiler_metrics = False,
+                                                              amdgpu_driver = cluster_node.amdgpu_driver_version)
         Logger.info(f"Node: {node_name} having {cluster_node.gpu_series} has {len(supported_metrics)} metrics")
         for entry in supported_metrics:
             metric_to_test = entry['name']
@@ -542,7 +544,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
 
-        if not metric_util.is_metric_supported(metric_to_test, cluster_node.gpu_series):
+        if not metric_util.is_metric_supported(metric_to_test, cluster_node.gpu_series, cluster_node.amdgpu_driver_version):
             continue
         metric_validated = True
 

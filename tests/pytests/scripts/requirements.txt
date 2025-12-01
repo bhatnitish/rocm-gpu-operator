@@ -23,4 +23,4 @@ requests
 kubernetes
 prometheus_client
 xmltodict
-py 
+py

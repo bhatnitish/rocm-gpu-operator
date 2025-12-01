@@ -28,7 +28,7 @@ from functools import wraps
 import lib.common as common
 import lib.k8_util as k8_util
 
-Logger = logging.getLogger("lib.helmutil")
+Logger = logging.getLogger("lib.olmutil")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
 
 def log_arguments(func):
@@ -163,7 +163,7 @@ def olm_manage_amdgpu_driver_blacklist(enable : bool, is_mini_kube_cluster : boo
             Logger.info(f"{PLURAL} CustomResource object not found, create to blacklist amdgpu driver")
             return k8_util.k8_create_custom_resource(machine_config_body)
         else:
-            Logger.warn(f"Found {len(amdgpu_mod_blklist_crobjs)} {PLURAL} CustomResource objects - proceeding as-is. Check logs for any inconsistency")
+            Logger.warning(f"Found {len(amdgpu_mod_blklist_crobjs)} {PLURAL} CustomResource objects - proceeding as-is. Check logs for any inconsistency")
             Logger.debug(LogPrettyPrinter.pformat(amdgpu_mod_blklist_crobjs))
         return 0, "", ""
     else:

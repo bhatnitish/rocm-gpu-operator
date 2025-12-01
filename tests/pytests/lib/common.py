@@ -56,6 +56,7 @@ class cluster_node(object):
         self._device_id = None
         self._num_gpus = 0
         self._connect_kwargs = {}
+        self._amdgpu_driver_version = None
         if self._password:
             self._connect_kwargs['password'] = self._password 
         elif self._identity:
@@ -92,7 +93,15 @@ class cluster_node(object):
     @gpu_series.setter
     def gpu_series(self, gpu_series):
         self._gpu_series = gpu_series
-        
+
+    @property
+    def amdgpu_driver_version(self):
+        return self._amdgpu_driver_version
+
+    @amdgpu_driver_version.setter
+    def amdgpu_driver_version(self, version):
+        self._amdgpu_driver_version = version
+
     @property
     def host_name(self):                
         return self._host_name

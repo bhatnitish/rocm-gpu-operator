@@ -60,5 +60,6 @@ def extract_amdgpu_info(node, k8_node, amd_smi_info):
     node.num_gpus = num_gpus
     gpu_0 = gpu_data[0]
     node.device_id = gpu_0['asic']['device_id']
+    node.amdgpu_driver_version = gpu_0['driver']['version']
     return True
 
