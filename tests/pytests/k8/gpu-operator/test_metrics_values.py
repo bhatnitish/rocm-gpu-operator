@@ -470,9 +470,8 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                     K8Helper.triage(environment, (label_name in entry['labels']),
                                     f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
                     lval = entry['labels'][label_name]
-                    if lval != label_value:
-                        continue
-                    m_info_list.append(entry)
+                    if lval.lower() == label_value.lower():
+                        m_info_list.append(entry)
 
                 Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
                 K8Helper.triage(environment, (len(m_info_list) > 0),
