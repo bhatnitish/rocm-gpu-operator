@@ -64,10 +64,13 @@ def olm_install(k8_cluster : common.k8_cluster, repo_url : str, namespace: str, 
         cmd.append("--skip-tls-verify")
     if kwargs.get('use-http', True):
         cmd.append("--use-http")
+    if kwargs.get("pull-secret-name", None):
+        cmd.extend(["--pull-secret-name", kwargs.get("pull-secret-name")])
     cmd.extend(["--security-context-config", kwargs.get("security-context-config", "restricted")])
     if k8_cluster.k8_kube_config:
         cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
 
+    Logger.debug(f"olm-install command: {cmd}")
     cmd_resp = subprocess.run(cmd, check=False,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -92,6 +95,7 @@ def olm_cleanup(k8_cluster : common.k8_cluster, release_name : str, namespace : 
     if k8_cluster.k8_kube_config:
         cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
 
+    Logger.debug(f"olm-cleanup command: {cmd}")
     cmd_resp = subprocess.run(cmd, check=False,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -169,3 +173,21 @@ def olm_manage_amdgpu_driver_blacklist(enable : bool, is_mini_kube_cluster : boo
     else:
         return k8_util.k8_delete_custom_resource(GROUP, VERSION, PLURAL, NAMESPACE, RESOURCE_NAME)
 
+
+@log_arguments
+def update_secrets(k8_cluster : common.k8_cluster, namespace : str) -> (int, str, str):
+    """
+    API to patch openshift serviceaccount with image pull secrets
+    """
+    patch = {
+        "imagePullSecrets" : [],
+    }
+    for entry in k8_cluster.k8_secrets["secrets"]:
+        patch["imagePullSecrets"].append({"name": entry.get("name")})
+
+    Logger.debug(f"Applying following patch to Openshift default-namespace service-account, {patch}")
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_patch_serviceaccount(namespace, "default", patch)
+    if ret_code != 0:
+        Logger.error(f"failed to patch openshift serviceaccount with image pull-secret, stderr: {ret_stderr}")
+        return ret_code, ret_stdout, ret_stderr
+    return 0, "", ""

@@ -408,8 +408,9 @@ def _load_images(logger, registry, image_manifest):
                 logger.info(f"For artifact: {artifact_name}, image-tag: {loaded_image_tag}, derived image-name: {image_name} tag: {image_tag}")
 
                 # Push tag to specified registry
-                tag = image_tag
-                # TODO: Replace tag with metadata-derived version information, currently using common tag=image_tag
+                tag = loaded_image.attrs['Config']['Labels'].get('HOURLY_TAG', '')
+                if tag == '':
+                    tag = image_tag
                 loaded_image.tag(repository = f"{registry}/rocm/{image_name}", tag = tag)
                 new_image = f"{registry}/rocm/{image_name}"
 

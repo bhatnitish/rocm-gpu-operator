@@ -1,0 +1,162 @@
+---
+
+images:
+    meta:
+        registry:
+            default: docker.io
+            mirror:
+                enable: no
+    k8:
+        driver:
+            key         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : file:///path/to/gpu-operator/helm-chart/missing
+            version     : v1.4.1
+            kind        : helm-chart
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/amdpsdo/gpu-operator
+            version     : v1.4.1-21
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://<registry>/amdpsdo/device-metrics-exporter
+            version     : v1.4.1-13
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : v1.4.1-13
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : agfhc-v1.4.1-13
+            kind        : container
+
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/amdpsdo/device-config-manager
+            version     : v1.4.1-5
+            kind        : container
+            secret      : docker-amdpsdo-auth
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://<registry>/amdpsdo/kernel-module-management-signimage
+            version     : v1.4.1-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://<registry>/amdpsdo/kernel-module-management-worker
+            version     : v1.4.1-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://<registry>/amdpsdo/kernel-module-management-operator
+            version     : v1.4.1-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://<registry>/amdpsdo/kernel-module-management-webhook-server
+            version     : v1.4.1-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+
+    openshift:
+        driver:
+            key         : driver.image
+            location    : container://image-registry.openshift-image-registry.svc:5000/openshift-amd-gpu/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : container://registry.test.pensando.io:5000/amd-gpu-operator-bundle
+            version     : v1.4.1
+            kind        : olm-bundle
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/amdpsdo/gpu-operator
+            version     : v1.4.1-21
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://<registry>/amdpsdo/device-metrics-exporter
+            version     : v1.4.1-13
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : v1.4.1-13
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : agfhc-v1.4.1-13
+            kind        : container
+
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/amdpsdo/device-config-manager
+            version     : v1.4.1-5
+            kind        : container
+            secret      : docker-amdpsdo-auth
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+

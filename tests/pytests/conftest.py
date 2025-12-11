@@ -494,6 +494,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
             elif artifact_info['kind'] == 'olm-bundle':
                 version = artifact_info['version']
                 image_info[f'{artifact}.olm-bundle'] = f"{parsed_data.netloc}{parsed_data.path}:{version}"
-                image_info[f'{artifact}.secret'] = artifact_info['secret']
+                if 'secret' in artifact_info:
+                    image_info[f'{artifact}.secret'] = artifact_info['secret']
     return image_info
 

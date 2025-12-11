@@ -91,6 +91,10 @@ def init_testbed(request, gpu_cluster, release_name, environment):
     status = k8_util.k8_wait_for_cluster_ready(gpu_cluster.mini_kube_cluster)
     K8Helper.triage(environment, (status == 0),
                         f"Cluster is not Ready after amdgpu blacklist is {'enable' if blacklist_enable else 'disable'}")
+
+    # Patch default service-account for secret is defined
+    ret_code, ret_stdout, ret_stderr = olm_util.update_secrets(gpu_cluster, environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to update Openshift serviceaccount with supplied secrets")
     yield
     Logger.info("Cleanup after starting test session")
     _cleanup_steps()
@@ -124,8 +128,12 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     else:
         Logger.debug(f"No active subscription for {release_name} found")
 
+    opts = {}
     url = images['gpu-operator.olm-bundle']
-    ret_code, ret_stdout, ret_stderr = olm_util.olm_install(gpu_cluster, url, environment.gpu_operator_namespace)
+    if images.get("controllerManager.manager.image.secret", None):
+        opts["pull-secret-name"] = images["controllerManager.manager.image.secret"]
+
+    ret_code, ret_stdout, ret_stderr = olm_util.olm_install(gpu_cluster, url, environment.gpu_operator_namespace, **opts)
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install {release_name}, stdout: {ret_stdout}, error: {ret_stderr}")
     time.sleep(30)
     ret_code, subscriptions, ret_stderr = k8_util.k8_list_subscriptions()

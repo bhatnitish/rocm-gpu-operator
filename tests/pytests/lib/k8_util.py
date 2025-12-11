@@ -2113,6 +2113,24 @@ def k8_list_subscriptions() -> (int, List, str):
     return 0, [], ""
 
 @log_arguments
+def k8_patch_serviceaccount(namespace : str, sa_name : str, patch_body : Dict) -> (int, str, str):
+    """
+    API to patch service-account with given patch
+    """
+    global Logger
+
+    try:
+        api = client.CoreV1Api()
+        resp = api.patch_namespaced_service_account(name = sa_name, namespace = namespace, body = patch_body)
+    except client.ApiException as ae:
+        Logger.error(f"Failed to patch service-account : {sa_name} of {namespace}, error : {ae}")
+        return -1, "", str(ae)
+    except config.ConfigException as ce:
+        Logger.error(f"Failed to patch service-account : {sa_name} of {namespace}, error : {ce}")
+        return -1, "", str(ce)
+    return 0, str(resp), ""
+
+@log_arguments
 def k8_wait_for_cluster_ready(minikube : bool = False) -> (int):
     """
     API to wait for (all) nodes to be declared Ready in kubernetes
