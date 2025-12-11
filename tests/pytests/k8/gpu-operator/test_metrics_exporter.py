@@ -1231,3 +1231,189 @@ def test_exporter_clusterip_rbac_http_default_port(gpu_cluster, deviceconfig_ins
                     f"One or more metric endpoints HTTP-GET succeeded for stale/disabled port, nodes: {failed_endpoints}",
                     expected_to_fail = (environment.gpu_operator_version < "v1.3.1"))
 
+
+def test_exporter_servicemonitor_enable_flag(gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # enable exporter service-monitor
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['prometheus.serviceMonitor.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    time.sleep(30) 
+    # Check if service-monitor object is created
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0),
+                    f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error : {err}")
+    K8Helper.triage(environment, (len(resp) > 0),
+                    f"Found 0 entries of servicemonitors in namespace: {environment.gpu_operator_namespace}")
+
+    # Disable exporter service-monitor
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = False
+        tcfg['prometheus.serviceMonitor.enable'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+        
+    time.sleep(30)
+    # Check if service-monitor object is deleted
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    
+    K8Helper.triage(environment, (ret_code == 0),
+                    f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error : {err}")
+    K8Helper.triage(environment, (len(resp) == 0),
+                    f"Failed to delete servicemonitors in namespace: {environment.gpu_operator_namespace}")
+    
+
+def test_servicemonitor_spec_fields(gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['prometheus.serviceMonitor.enable'] = True
+        tcfg['prometheus.serviceMonitor.honorLabels'] = True
+        tcfg['prometheus.serviceMonitor.honorTimestamps'] = True
+        tcfg['prometheus.serviceMonitor.interval'] = '60s'
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    time.sleep(30)
+    ret_code, resp, err  = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to get ServiceMonitors: {err}")
+    K8Helper.triage(environment, (len(resp) > 0), "No ServiceMonitors found")
+    
+    service_monitor = resp[0] 
+    ep = service_monitor['spec']['endpoints'][0]
+    K8Helper.triage(environment, (ep['port'] == 'exporter-port'), f"Wrong port: {ep['port']}")
+    K8Helper.triage(environment, (ep['scheme'] == 'http'), f"Wrong scheme: {ep['scheme']}")
+    K8Helper.triage(environment, (ep['interval'] == '60s'), f"Wrong interval: {ep['interval']}")
+    K8Helper.triage(environment, (ep['honorLabels'] is True), "honorLabels not True")
+    K8Helper.triage(environment, (ep['honorTimestamps'] is True), "honorTimestamps not True")
+
+    selector = service_monitor['spec']['selector']['matchLabels']
+    K8Helper.triage(environment, (selector.get('app.kubernetes.io/service') == 'devcfg-clusterwide-gpu-metrics-exporter'),f"Selector mismatch: {selector}")
+    ns_selector = service_monitor['spec']['namespaceSelector']['matchNames']
+    K8Helper.triage(environment, (environment.gpu_operator_namespace in ns_selector), f"NamespaceSelector mismatch: {ns_selector}")
+    
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = False
+        tcfg['prometheus.serviceMonitor.enable'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr  = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to modify deviceconfig CR")
+        
+    time.sleep(30)
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0),f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error : {err}")
+    K8Helper.triage(environment, (len(resp) == 0),f"Failed to delete servicemonitors in namespace: {environment.gpu_operator_namespace}")
+
+def test_servicemonitor_attachMetadata(gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['prometheus.serviceMonitor.enable'] = True
+        tcfg['prometheus.serviceMonitor.attachMetadata.node'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    time.sleep(30)
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to get ServiceMonitors: {err}")
+    K8Helper.triage(environment, (len(resp) > 0), "No ServiceMonitors found")
+
+    service_monitor = resp[0]  
+    attach_metadata = service_monitor.get('spec', {}).get('attachMetadata', {})
+    K8Helper.triage(environment, ('node' in attach_metadata),f"attachMetadata not found in servicemonitor spec")
+    K8Helper.triage(environment, (attach_metadata.get('node') == True),f"attachMetadata is not set to True, found: {attach_metadata.get('node')}")
+    
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = False
+        tcfg['prometheus.serviceMonitor.enable'] = False
+        tcfg['prometheus.serviceMonitor.attachMetadata.node'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to modify deviceconfig CR")
+        
+    time.sleep(30)
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0),f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error : {err}")
+    K8Helper.triage(environment, (len(resp) == 0),f"Failed to delete servicemonitors in namespace: {environment.gpu_operator_namespace}")  
+
+def test_servicemonitor_relabeling(gpu_cluster, deviceconfig_install, environment):
+
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['prometheus.serviceMonitor.enable'] = True
+        tcfg['prometheus.serviceMonitor.honorLabels'] = False
+        tcfg['prometheus.serviceMonitor.relabelings'] = [
+            {
+                'sourceLabels': ['pod'],
+                'targetLabel': 'exporter_pod',
+                'action': 'replace',
+                'regex': '(.*)',
+                'replacement': '$1'
+            },
+            {
+                'action': 'labeldrop',
+                'regex': 'pod'
+            }
+        ]
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR with honorLabels=False")
+        
+    time.sleep(30)
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment,(ret_code == 0),f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error: {err}")
+    K8Helper.triage(environment, (len(resp) > 0), f"Found 0 entries of servicemonitors in namespace: {environment.gpu_operator_namespace}")
+
+    service_monitor = resp[0]
+    spec = service_monitor.get('spec', {})
+    K8Helper.triage(environment,('honorLabels' not in spec),f"ServiceMonitor should NOT have honorLabels, but spec contains: {spec.get('honorLabels')}")
+    
+    endpoints = spec.get('endpoints', [])
+    relabelings = endpoints[0].get('relabelings', [])
+    K8Helper.triage(environment,(len(relabelings) == 2), f"Expected 2 relabeling rules, got: {len(relabelings)}")
+
+    K8Helper.triage(environment, (relabelings[0].get('sourceLabels') == ['pod']), f"First relabeling rule should have sourceLabels=['pod'], got: {relabelings[0].get('sourceLabels')}")
+    K8Helper.triage(environment,(relabelings[0].get('targetLabel') == 'exporter_pod'),f"First relabeling rule should have targetLabel='exporter_pod', got: {relabelings[0].get('targetLabel')}" )
+    K8Helper.triage(environment,(relabelings[0].get('action') == 'replace'),f"First relabeling rule should have action='replace', got: {relabelings[0].get('action')}")
+    K8Helper.triage( environment, (relabelings[0].get('regex') == '(.*)'),f"First relabeling rule should have regex='(.*)', got: {relabelings[0].get('regex')}")
+
+    K8Helper.triage( environment,(relabelings[1].get('action') == 'labeldrop'),f"Second relabeling rule should have action='labeldrop', got: {relabelings[1].get('action')}")
+    K8Helper.triage( environment, (relabelings[1].get('regex') == 'pod'),f"Second relabeling rule should have regex='pod', got: {relabelings[1].get('regex')}")
+
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = False
+        tcfg['prometheus.serviceMonitor.enable'] = False
+        tcfg['prometheus.serviceMonitor.honorLabels'] = True
+        tcfg['prometheus.serviceMonitor.relabelings'] = []
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to modify deviceconfig CR")
+        
+    time.sleep(30)
+    ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0),f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error : {err}")
+    K8Helper.triage(environment, (len(resp) == 0),f"Failed to delete servicemonitors in namespace: {environment.gpu_operator_namespace}")  

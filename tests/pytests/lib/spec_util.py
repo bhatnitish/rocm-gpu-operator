@@ -188,6 +188,30 @@ device_config_template_v1_3_0 = {
                 'maxUnavailable' : 1,
                 'upgradeStrategy' : 'RollingUpdate',
             },
+            'prometheus' : {
+                'serviceMonitor' : {
+                    'enable': False,
+                    'honorLabels': False,
+                    'honorTimestamps': False,
+                    'interval': '30s',
+                    'attachMetadata' : {
+                        'node': False,
+                    },
+                    'relabelings': [
+                        {
+                            'sourceLabels': ['pod'],
+                            'targetLabel': 'exporter_pod',
+                            'action': 'replace',
+                            'regex': '(.*)',
+                            'replacement': '$1',
+                        },
+                        {
+                            'action': 'labeldrop',
+                            'regex': 'pod',
+                        },
+                    ],
+                },
+            },
         },
         'testRunner' : {
             'enable' : False,
@@ -435,6 +459,19 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         if gpu_operator_version >= 'v1.2.0':
             device_config['spec']['metricsExporter']['upgradePolicy']['maxUnavailable'] = spec.get('metricsExporter.upgradePolicy.maxUnavailable', 1)
             device_config['spec']['metricsExporter']['upgradePolicy']['upgradeStrategy'] = spec.get('metricsExporter.upgradePolicy.upgradeStrategy', 'RollingUpdate')
+        if gpu_operator_version > 'v1.2.0':
+            if spec.get('prometheus.serviceMonitor.enable', False):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['enable'] = True
+            if spec.get('prometheus.serviceMonitor.honorLabels', False):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['honorLabels'] = True
+            if spec.get('prometheus.serviceMonitor.honorTimestamps', False):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['honorTimestamps'] = True
+            if spec.get('prometheus.serviceMonitor.interval', None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['interval'] = spec.get('prometheus.serviceMonitor.interval', '30s')
+            if spec.get('prometheus.serviceMonitor.attachMetadata.node', False):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['attachMetadata']['node'] = spec.get('prometheus.serviceMonitor.attachMetadata.node', True)
+            if spec.get('prometheus.serviceMonitor.relabelings',None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['relabelings'] = spec.get('prometheus.serviceMonitor.relabelings', [])
     else:
         del device_config['spec']['metricsExporter']
 
