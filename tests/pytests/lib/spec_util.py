@@ -236,6 +236,106 @@ device_config_template_v1_3_0 = {
     },
 }
 
+device_config_template_v1_4_1 = {
+    'apiVersion'    : 'amd.com/v1alpha1',
+    'kind'          : 'DeviceConfig',
+    'metadata'      : {
+        'name'      : 'test-deviceconfig',
+        'namespace' : 'default',
+    },
+    'spec'          : {
+        'commonConfig' : {
+        },
+        'driver'    : {
+            'enable': False,
+            'blacklist' : True,
+            'imageRegistryTLS' : {
+                'insecure'                  : True,
+                'insecureSkipTLSVerify'     : True,
+            },
+            'upgradePolicy' : {
+                'enable' : False,
+                'maxParallelUpgrades' : 1,
+                'maxUnavailableNodes' : '25%',
+                'nodeDrainPolicy' : {
+                    'force' : False,
+                    'timeoutSeconds' : 300,
+                },
+                'rebootRequired' : True,
+            },
+        },
+        'devicePlugin' : {
+            'devicePluginImagePullPolicy' : 'Always',
+            'enableNodeLabeller' : False,
+            'nodeLabellerImagePullPolicy' : 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'metricsExporter' : {
+            'imagePullPolicy'   : 'Always',
+            'enable'            : False,
+            'nodePort'          : 32500,
+            'port'              : 5000,
+            'serviceType'       : DQ('ClusterIP'),
+            'rbacConfig' : {
+                'enable'        : False,
+                'disableHttps'  : True,
+            },
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+            'podAnnotations' : {},
+            'serviceAnnotations' : {},
+            'prometheus' : {
+                'serviceMonitor' : {
+                    'enable': False,
+                    'honorLabels': False,
+                    'honorTimestamps': False,
+                    'interval': '30s',
+                    'attachMetadata' : {
+                        'node': False,
+                    },
+                    'relabelings': [
+                        {
+                            'sourceLabels': ['pod'],
+                            'targetLabel': 'exporter_pod',
+                            'action': 'replace',
+                            'regex': '(.*)',
+                            'replacement': '$1',
+                        },
+                        {
+                            'action': 'labeldrop',
+                            'regex': 'pod',
+                        },
+                    ],
+                },
+            },
+        },
+        'testRunner' : {
+            'enable' : False,
+            'config' : None,
+            'imagePullPolicy': 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'configManager' : {
+            'enable' : False,
+            'imagePullPolicy' : 'IfNotPresent',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'selector' : {
+            'feature.node.kubernetes.io/amd-gpu' : DQ('true'),
+        },
+    },
+}
 device_config_templates = {
     'v1.0.0' : device_config_template_v1_0_0,
     'v1.1.0' : device_config_template_v1_0_0,
@@ -244,9 +344,10 @@ device_config_templates = {
     'v1.2.2' : device_config_template_v1_2_0,
     'v1.3.0' : device_config_template_v1_3_0,
     'v1.4.0' : device_config_template_v1_3_0,
+    'v1.4.1' : device_config_template_v1_4_1,
 }
 
-device_config_template_default = device_config_template_v1_3_0
+device_config_template_default = device_config_template_v1_4_1
 
 gpu_operator_helm_deployment_template_0 = {
     'node-feature-discovery' : {
@@ -472,6 +573,9 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
                 device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['attachMetadata']['node'] = spec.get('prometheus.serviceMonitor.attachMetadata.node', True)
             if spec.get('prometheus.serviceMonitor.relabelings',None):
                 device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['relabelings'] = spec.get('prometheus.serviceMonitor.relabelings', [])
+        if gpu_operator_version >= 'v1.4.1':
+            device_config['spec']['metricsExporter']['podAnnotations'] = spec.get('metricsExporter.podAnnotations', {})
+            device_config['spec']['metricsExporter']['serviceAnnotations'] = spec.get('metricsExporter.serviceAnnotations', {})
     else:
         del device_config['spec']['metricsExporter']
 
@@ -633,6 +737,12 @@ def generate_exporter_helmchart_deployment_config(exporter_version, images, file
     if 'service.NodePort.port' in kwargs:
         helmchart_values['service']['NodePort']['port'] = kwargs['service.NodePort.port']
         modifed = True
+
+    if exporter_version >= 'v1.4.1':
+        if 'podAnnotations' in kwargs:
+            helmchart_values['podAnnotations'] = kwargs['podAnnotations']
+        if 'service.annotations' in kwargs:
+            helmchart_values['service']['annotations'] = kwargs['service.annotations']
 
     if 'serviceMonitor.enabled' in kwargs:
         helmchart_values['serviceMonitor']['enabled'] = kwargs['serviceMonitor.enabled']

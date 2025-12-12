@@ -735,7 +735,7 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
 
     # Uninstall exporter helm-chart and check if servicemonitor object is removed
     _uninstall_exporter_helmchart()
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(30) # Wait for exporter pods to terminate
     exporter_pods = [
         common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
     ]
@@ -745,3 +745,165 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.exporter_namespace)
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect servicemonitors from namespace: {environment.exporter_namespace}, error : {err}")
     K8Helper.triage(environment, (len(resp) == 0), f"Found non-zero entries of servicemonitors in namespace: {exporter_release_name}")
+
+def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # Install exporter helm-chart
+    if images.get("exporter.repo", None):
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+
+    exporter_release_name = "device-metrics-exporter"
+    def _uninstall_exporter_helmchart():
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        if ret_code != 0:
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+    request.addfinalizer(_uninstall_exporter_helmchart)
+    _uninstall_exporter_helmchart()
+
+    NUM_ANNOTATIONS = 10
+    options = {
+            "service.type" : "ClusterIP",
+            "podAnnotations" : {
+                f"pod-annotation-{i}" : f"pod-value-{i}" for i in range(NUM_ANNOTATIONS)
+            }
+    }
+    values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
+    if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
+        Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
+    else:
+        values_yaml = None
+
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
+    if ret_code != 0:
+        Logger.error(f"Failed to install helm chart for {exporter_release_name}")
+        Logger.error(f"Stdout: {ret_stdout.strip()}")
+        Logger.error(f"Stderr: {ret_stderr.strip()}")
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
+
+    K8Helper.triage(environment,
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    "exporter helm-chart is in failed state")
+
+    time.sleep(30) # Wait for exporter pods to start working
+    exporter_pods = [
+        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+
+    # Check for dme pods
+    ret_code, pods = k8_util.k8_get_pods(environment.exporter_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to to collect pods from {environment.exporter_namespace}")
+    for pod in pods:
+        pod_name = pod['metadata']['name']
+        if "metrics-exporter" not in pod_name:
+            continue
+
+        # this is a metrics-exporter pod
+        node_name = pod['spec']['node_name']
+        K8Helper.triage(environment, pod["metadata"].get("annotations", None) != None,
+                        f"pod : {pod_name} on node {node_name} missing annotations section")
+        pod_annots = pod["metadata"]["annotations"]
+        for i in range(NUM_ANNOTATIONS):
+            lbl = f"pod-annotation-{i}"
+            val = f"pod-value-{i}"
+            K8Helper.triage(environment, lbl in pod_annots,
+                            f"pod : {pod_name} on node {node_name} missing label : {lbl}")
+            K8Helper.triage(environment, pod_annots[lbl] == val,
+                            f"pod : {pod_name} on node {node_name} label-value mismatch, expected: {lbl}:{val}")
+
+
+    # Uninstall exporter helm-chart
+    _uninstall_exporter_helmchart()
+    time.sleep(30) # Wait for exporter pods to terminate
+    exporter_pods = [
+        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_terminated(environment.exporter_namespace, exporter_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods still running - {failed_pods}")
+
+def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # Install exporter helm-chart
+    if images.get("exporter.repo", None):
+        helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
+
+    exporter_release_name = "device-metrics-exporter"
+    def _uninstall_exporter_helmchart():
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+        if ret_code != 0:
+            helm_util.helm_cleanup(gpu_cluster, exporter_release_name, environment.exporter_namespace)
+    request.addfinalizer(_uninstall_exporter_helmchart)
+    _uninstall_exporter_helmchart()
+
+    NUM_ANNOTATIONS = 10
+    options = {
+            "service.type" : "ClusterIP",
+            "service.annotations" : {
+                f"svc-annotation-{i}" : f"svc-value-{i}" for i in range(NUM_ANNOTATIONS)
+            }
+    }
+    values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
+    if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
+        Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
+    else:
+        values_yaml = None
+
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, exporter_release_name,
+                                                              environment.exporter_namespace,
+                                                              images.get('exporter.helm-chart', None),
+                                                              environment.exporter_version, values_yaml)
+    if ret_code != 0:
+        Logger.error(f"Failed to install helm chart for {exporter_release_name}")
+        Logger.error(f"Stdout: {ret_stdout.strip()}")
+        Logger.error(f"Stderr: {ret_stderr.strip()}")
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
+
+    K8Helper.triage(environment,
+                    helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
+                    "exporter helm-chart is in failed state")
+
+    time.sleep(30) # Wait for exporter pods to start working
+    exporter_pods = [
+        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+
+    # Check for dme svc
+    ret_code, services, ret_err = k8_util.k8_get_services(environment.exporter_namespace)
+    K8Helper.triage(environment, ret_code == 0,
+                    f"Failed to get k8-services in {environment.exporter_namespace}, error : {ret_err}")
+    K8Helper.triage(environment, len(services) > 0,f"No services found in {environment.exporter_namespace}")
+    for svc in services:
+        svc_name = svc["metadata"]["name"]
+        if "metrics-exporter" in svc_name:
+            K8Helper.triage(environment, svc["metadata"].get("annotations", None),
+                            f"Missing annotations for svc : {svc_name}")
+            svc_annots = svc["metadata"]["annotations"]
+            for i in range(NUM_ANNOTATIONS):
+                lbl = f"svc-annotation-{i}"
+                val = f"svc-value-{i}"
+                K8Helper.triage(environment, lbl in svc_annots, f"Missing annotation : {lbl}")
+                K8Helper.triage(environment, svc_annots[lbl] == val, f"Mismatch in annotation, expected: {lbl}:{val}")
+
+    # Uninstall exporter helm-chart
+    _uninstall_exporter_helmchart()
+    time.sleep(30) # Wait for exporter pods to terminate
+    exporter_pods = [
+        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_terminated(environment.exporter_namespace, exporter_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods still running - {failed_pods}")
+

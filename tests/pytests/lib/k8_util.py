@@ -181,7 +181,7 @@ def k8_get_node_gpu_allocatable(node_name: str) -> str:
 
 
 @log_arguments
-def k8_get_pods(namespace, node_name = None):
+def k8_get_pods(namespace, node_name = None) -> (int, List):
     """
     API to get all pods for a given namespace from a k8 cluster
     """
@@ -2110,6 +2110,22 @@ def k8_list_subscriptions() -> (int, List, str):
     except ApiException as e:
         Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
         return -1, [], str(e)
+    return 0, [], ""
+
+@log_arguments
+def k8_get_services(namespace : str) -> (int, List, str):
+    """
+    API to list services (items) in a given namespace
+    """
+
+    api = client.CoreV1Api()
+    try:
+        services = api.list_namespaced_service(namespace = namespace).to_dict()
+        if services.get("items", None):
+            return 0, services["items"], ""
+    except client.ApiException as ae:
+        Logger.error(f"Failed to list services in namespace : {namespace}, error : {ae}")
+        return -1, [], str(ae)
     return 0, [], ""
 
 @log_arguments

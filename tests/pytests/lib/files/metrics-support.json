@@ -22,23 +22,12 @@
             ]
         },
         {
-            "name" : "GPU_GFX_ACTIVITY",
-            "skip-validation" : "yes",
-            "gpu-support" : [
-                {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
-                    "amd-smi" : "power.socket_power",
-                    "gpu-agent" : "stats.PackagePower"
-                }
-            ]
-        },
-        {
             "name" : "GPU_MEMORY_VOLTAGE",
             "skip-validation" : "yes",
             "gpu-support" : [
                 {
                     "gpu" : [],
-                    "amd-smi" : "power.socket_power",
+                    "amd-smi" : "power.mem_voltage",
                     "gpu-agent" : "stats.PackagePower"
                 }
             ]
@@ -49,7 +38,7 @@
             "gpu-support" : [
                 {
                     "gpu" : [],
-                    "amd-smi" : "power.socket_power",
+                    "amd-smi" : "power.gfx_voltage",
                     "gpu-agent" : "stats.PackagePower"
                 }
             ]
@@ -114,7 +103,7 @@
             "name": "GPU_GFX_ACTIVITY",
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.gfx_activity",
                     "amd-smi": "usage.gfx_activity"
                 }
@@ -563,12 +552,11 @@
         },
         {
             "name": "GPU_VIOLATION_CURRENT_ACCUMULATED_COUNTER",
-            "skip-validation" : "yes",
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.current_accumulated_counter",
-                    "amd-smi": "metrics_info.accumulation_counter"
+                    "amd-smi": "throttle.accumulation_counter"
                 }
             ]
         },
@@ -579,18 +567,17 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.processor_hot_residency_accumulated",
-                    "amd-smi": "metrics_info.prochot_residency_acc"
+                    "amd-smi": "throttle.prochot_accumulated"
                 }
             ]
         },
         {
             "name": "GPU_VIOLATION_PPT_RESIDENCY_ACCUMULATED",
-            "skip-validation" : "yes",
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats->violation_stats.ppt_residency_accumulated",
-                    "amd-smi": "metrics_info.ppt_residency_acc"
+                    "amd-smi": "throttle.ppt_accumulated"
                 }
             ]
         },
@@ -628,21 +615,23 @@
         },
         {
             "name": "GPU_GFX_BUSY_INSTANTANEOUS",
+            "skip-validation" : "yes",
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.gfx_busy_inst",
-                    "amd-smi": "usage.gfx_busy_inst"
+                    "amd-smi": "usage.gfx_busy_inst.xcp_{partition_id}"
                 }
             ]
         },
         {
             "name": "GPU_VCN_BUSY_INSTANTANEOUS",
+            "skip-validation" : "yes",
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.vcn_busy_inst",
-                    "amd-smi": "usage.vcn_busy_inst"
+                    "amd-smi": "usage.vcn_busy.xcp_{partition_id}"
                 }
             ]
         },
@@ -653,7 +642,7 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.usage.jpeg_busy_inst",
-                    "amd-smi": "usage.jpeg_busy_inst.xcp_[partition_id]"
+                    "amd-smi": "usage.jpeg_busy_inst.xcp_{partition_id}"
                 }
             ]
         },

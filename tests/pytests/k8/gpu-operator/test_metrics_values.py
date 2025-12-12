@@ -437,7 +437,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
         else:
             return _extract_amd_smi_value(amd_smi_metrics.get(path_to_metric[0], {}), path_to_metric[1:])
 
-    def _analyze_metrics_collection(metric_to_test, gpu_id, metric_data):
+    def _analyze_metrics_collection(metric_to_test, gpu_id, partition_id, metric_data):
         num_samples = metric_data['num-samples']
         Logger.info(f"Processing {metric_data['title']} - total samples {num_samples}")
         hit_count = 0
@@ -479,7 +479,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                 idx = 0
                 amd_smi_values = []
                 while True:
-                    path_to_metric = amd_smi_source.format(idx = idx).split(".")
+                    path_to_metric = amd_smi_source.format(partition_id = partition_id, idx = idx).split(".")
                     if isinstance(amd_smi_metrics, list):
                         amd_smi_val = _extract_amd_smi_value(amd_smi_metrics[gpu_id], path_to_metric)
                     elif isinstance(amd_smi_metrics, dict) and 'gpu_data' in amd_smi_metrics.keys():
@@ -492,18 +492,25 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                 Logger.debug(f"Found total {len(amd_smi_values)} from amd-smi output for {metric_to_test}")
                 for idx, entry in enumerate(list(zip(m_info_list, amd_smi_values))):
                     metric_info, amd_smi_val = entry
-                    if amd_smi_val["value"] == "N/A":
+                    if isinstance(amd_smi_val, dict):
+                        if amd_smi_val["value"] == "N/A":
+                            Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
+                            continue
+                        lower_limit = int(0.95 * float(amd_smi_val["value"]))
+                        upper_limit = int(1.05 * float(amd_smi_val["value"]))
+                    elif isinstance(amd_smi_val, int):
+                        lower_limit = int(0.95 * float(amd_smi_val))
+                        upper_limit = int(1.05 * float(amd_smi_val))
+                    elif isinstance(amd_smi_val, str) and amd_smi_val == "N/A":
                         Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
                         continue
-                    lower_limit = int(0.95 * float(amd_smi_val["value"]))
-                    upper_limit = int(1.05 * float(amd_smi_val["value"]))
                     Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
                     if lower_limit <= int(metric_info["value"]) <= upper_limit:
                         hit_count = hit_count + 1
                     else:
                         miss_count = miss_count + 1
             else:
-                path_to_metric = amd_smi_source.split(".")
+                path_to_metric = amd_smi_source.format(partition_id = partition_id).split(".")
                 K8Helper.triage(environment, (metric_to_test.lower() in exporter_metrics),
                                 f"Missing {metric_to_test} in collected metrics from exporter endpoint, {metric_metadata}")
                 m_info_list = list(filter(lambda x: x['labels']['gpu_id'] == str(gpu_id), exporter_metrics[metric_to_test.lower()]))
@@ -518,17 +525,25 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                     amd_smi_val = _extract_amd_smi_value(amd_smi_metrics['gpu_data'][gpu_id], path_to_metric)
                 K8Helper.triage(environment, (amd_smi_val != None),
                                 f"Failed to extract amd-smi metric value for {metric_to_test}, {gpu_support_info}")
-                if amd_smi_val["value"] == 'N/A':
-                    pytest.skip(f"No amd-smi metric information for {metric_to_test}, got {amd_smi_val}")
+                if isinstance(amd_smi_val, dict):
+                    if amd_smi_val["value"] == 'N/A':
+                        pytest.skip(f"No amd-smi metric information for {metric_to_test}, got {amd_smi_val}")
+                    Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
+                    lower_limit = int(0.95 * float(amd_smi_val["value"]))
+                    upper_limit = int(1.05 * float(amd_smi_val["value"]))
+                elif isinstance(amd_smi_val, int) or isinstance(amd_smi_val, float):
+                    lower_limit = int(0.95 * float(amd_smi_val))
+                    upper_limit = int(1.05 * float(amd_smi_val))
+                elif isinstance(amd_smi_val, str) and amd_smi_val == "N/A":
+                    Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
+                    continue
 
-                Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
-                lower_limit = int(0.95 * float(amd_smi_val["value"]))
-                upper_limit = int(1.05 * float(amd_smi_val["value"]))
                 Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
                 if lower_limit <= int(metric_info["value"]) <= upper_limit:
                     hit_count = hit_count + 1
                 else:
                     miss_count = miss_count + 1
+
         return hit_count, miss_count
 
     metric_validated = False
@@ -536,6 +551,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     all_idle_metrics, all_workload_metrics = metrics_samples
+    partition_id = 0 # TODO: Extend this when GPU is partitioned
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
         cluster_node = gpu_cluster.get_worker_node(node_ip)
@@ -563,10 +579,10 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
 
         for gpu_id in range(cluster_node.num_gpus):
             num_samples = idle_metrics['num-samples']
-            idle_hit_count, idle_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, idle_metrics)
+            idle_hit_count, idle_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, partition_id, idle_metrics)
             Logger.info(f"Worker: {node_name} GPU: {gpu_id} - Idle Hit/Miss: {idle_hit_count}/{idle_miss_count}")
 
-            load_hit_count, load_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, workload_metrics)
+            load_hit_count, load_miss_count = _analyze_metrics_collection(metric_to_test, gpu_id, partition_id, workload_metrics)
             Logger.info(f"Worker: {node_name} GPU: {gpu_id} - Loaded Hit/Miss: {load_hit_count}/{load_miss_count}")
 
             # Atleast there should be one hit among num_samples (10)

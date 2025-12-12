@@ -1417,3 +1417,182 @@ def test_servicemonitor_relabeling(gpu_cluster, deviceconfig_install, environmen
     ret_code, resp, err = k8_util.k8_get_servicemonitor_cr(environment.gpu_operator_namespace)
     K8Helper.triage(environment, (ret_code == 0),f"Failed to collect servicemonitors from namespace: {environment.gpu_operator_namespace}, error : {err}")
     K8Helper.triage(environment, (len(resp) == 0),f"Failed to delete servicemonitors in namespace: {environment.gpu_operator_namespace}")  
+
+def test_exporter_pod_annotations(gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    # This feature was introduced in v1.4.1
+    if environment.gpu_operator_version < "v1.4.1":
+        pytest.skip(f"pod_annotations feature is not available in release before v1.4.1")
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # enable exporter pod annotation and check for metrics
+    NUM_ANNOTATIONS = 10
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.podAnnotations'] = {
+            f"pod-annotation-{i}" : f"pod-value-{i}" for i in range(NUM_ANNOTATIONS)
+        }
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    # Check for corresponding deviceconfig created
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(environment, devcfg)
+
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    """
+    {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "annotations": {
+                "cni.projectcalico.org/containerID": "c59f3e17575ea8739d828bb4764de7398d5136474b45d39b1ae7a6cec895cbe7",
+                "cni.projectcalico.org/podIP": "192.168.125.91/32",
+                "cni.projectcalico.org/podIPs": "192.168.125.91/32",
+                "label-1": "pod-1",
+                "label-2": "pod-2"
+             },
+        }
+    }
+    """
+    ret_code, pods = k8_util.k8_get_pods(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to collect pods from {environment.gpu_operator_namespace}")
+    for pod in pods:
+        pod_name = pod['metadata']['name']
+        if "metrics-exporter" not in pod_name:
+            continue
+
+        # this is a metrics-exporter pod
+        node_name = pod['spec']['node_name']
+        K8Helper.triage(environment, pod["metadata"].get("annotations", None) != None,
+                        f"pod : {pod_name} on node {node_name} missing annotations section")
+        pod_annots = pod["metadata"]["annotations"]
+        for i in range(NUM_ANNOTATIONS):
+            lbl = f"pod-annotation-{i}"
+            val = f"pod-value-{i}"
+            K8Helper.triage(environment, lbl in pod_annots,
+                            f"pod : {pod_name} on node {node_name} missing label : {lbl}")
+            K8Helper.triage(environment, pod_annots[lbl] == val,
+                            f"pod : {pod_name} on node {node_name} label-value mismatch, expected: {lbl}:{val}")
+
+    # remove pod-annotations
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.podAnnotations'] = {}
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    # Check for corresponding deviceconfig created
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(environment, devcfg)
+
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    ret_code, pods = k8_util.k8_get_pods(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to collect pods from {environment.gpu_operator_namespace}")
+    for pod in pods:
+        pod_name = pod['metadata']['name']
+        if "metrics-exporter" not in pod_name:
+            continue
+
+        # this is a metrics-exporter pod
+        node_name = pod['spec']['node_name']
+        K8Helper.triage(environment, pod["metadata"].get("annotations", None) != None,
+                        f"pod : {pod_name} on node {node_name} missing annotations section")
+        pod_annots = pod["metadata"]["annotations"]
+        for i in range(NUM_ANNOTATIONS):
+            lbl = f"pod-annotation-{i}"
+            val = f"pod-value-{i}"
+            K8Helper.triage(environment, lbl not in pod_annots,
+                            f"pod : {pod_name} on node {node_name} found label : {lbl}, annotations: {pod_annots}")
+
+
+def test_exporter_service_annotations(gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    # This feature was introduced in v1.4.1
+    if environment.gpu_operator_version < "v1.4.1":
+        pytest.skip(f"pod_annotations feature is not available in release before v1.4.1")
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # enable exporter serviceAnnotations
+    NUM_ANNOTATIONS = 10
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.serviceAnnotations'] = {
+            f"svc-annotation-{i}" : f"svc-value-{i}" for i in range(NUM_ANNOTATIONS)
+        }
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    """
+    vm@k8-master-249:~$ kubectl get svc -n kube-amd-gpu devcfg-clusterwide-gpu-metrics-exporter   -o json
+    {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+            "annotations": {
+               "label-1": "svc-1",
+               "label-2": "svc-2"
+            },
+    }
+    """
+    time.sleep(10)
+    ret_code, services, ret_err = k8_util.k8_get_services(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, ret_code == 0,
+                    f"Failed to get k8-services in {environment.gpu_operator_namespace}, error : {ret_err}")
+    K8Helper.triage(environment, len(services) > 0,f"No services found in {environment.gpu_operator_namespace}")
+    for svc in services:
+        svc_name = svc["metadata"]["name"]
+        if "metrics-exporter" in svc_name:
+            K8Helper.triage(environment, (svc["metadata"].get("annotations", None) != None),
+                            f"Missing annotations for svc : {svc_name}")
+            svc_annots = svc["metadata"]["annotations"]
+            for i in range(NUM_ANNOTATIONS):
+                lbl = f"svc-annotation-{i}"
+                val = f"svc-value-{i}"
+                K8Helper.triage(environment, lbl in svc_annots, f"Missing annotation : {lbl}")
+                K8Helper.triage(environment, svc_annots[lbl] == val, f"Mismatch in annotation, expected: {lbl}:{val}")
+
+    # disable exporter serviceAnnotations
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.serviceAnnotations'] = {}
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    time.sleep(10)
+    ret_code, services, ret_err = k8_util.k8_get_services(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, ret_code == 0,
+                    f"Failed to get k8-services in {environment.gpu_operator_namespace}, error : {ret_err}")
+    K8Helper.triage(environment, len(services) > 0, f"No services found in {environment.gpu_operator_namespace}")
+    for svc in services:
+        svc_name = svc["metadata"]["name"]
+        if "metrics-exporter" in svc_name:
+            svc_annots = svc["metadata"].get("annotations", None)
+            if svc_annots:
+                for i in range(NUM_ANNOTATIONS):
+                    lbl = f"svc-annotation-{i}"
+                    val = f"svc-value-{i}"
+                    K8Helper.triage(environment, (lbl not in svc_annots), f"Persistent annotation after cleanup: {svc_annots}")
+
