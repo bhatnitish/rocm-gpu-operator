@@ -99,11 +99,79 @@ After the **ServiceMonitor** is deployed, Prometheus automatically begins scrapi
 
 To access specific metrics, you can perform a query under the Metrics page under the Observe tab.
 
-## Using with device-metrics-exporter with Perses based integrated Openshift Dashboards
+## Basic configuration for Cluster Observability Operator and AMD GPU Operater 1.4.1 on Openshift 4.20
 
-TODO
+### Prepare storage for Cluster Observability Operator
 
-### The `pod` Label Conflict
+* Create a new basic StorageClass
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: static
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+```
+* Run the following patch operations with the oc command, to set the static StorageClass as default:
+
+```bash
+oc patch sc static -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "true"}}}'
+```
+
+
+### Install the Cluster Observability Operator
+
+* In the web console goto the left-hand menu and click **_Ecosystem > Software Catalog_** and search for "Cluster Observability Operator". 
+* Install the stable 1.3.0 version. 
+* Wait for the operator to complete its installation.
+
+### Add Labels to namespace
+
+* In the web console goto the left-hand menu and click **_Administration > Namespace_** 
+* Select the `openshift-amd-gpu` namespace
+* In the labels section add the following entry `operatorframework.io/cluster-monitoring=true`
+
+### Ensure the AMD GPU Operator DeviceConfig has the servicemonitor enabled
+
+* The following is an example servicemonitor configuration snippet:
+
+```yaml
+  metricsExporter:
+    enable: true
+    prometheus:
+      serviceMonitor:
+        enable: true
+        interval: "60s"
+        attachMetadata:
+            node: true
+        honorLabels: false
+        honorTimestamps: true
+        labels:
+            release: prometheus-operator
+```
+
+### Create Perses UIPlugin
+* In the upper right hand corder click to + button and click "Import YAML"
+* Add the following yaml file to the cluster:
+
+```yaml
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: monitoring
+spec:
+  monitoring:
+    perses:
+      enabled: true
+  type: Monitoring
+```
+After a short period the web console will reload with a new option under the left-hand menu **_Observe > Dashboards (Perses)_**
+At this point everything needed for the Accelerators dashboard should be configured and should show up in the Dashboards (Perses) page. 
+
+
+## The `pod` Label Conflict
 
 When Prometheus scrapes targets defined by a `ServiceMonitor`, it automatically attaches labels to the metrics based on the target's metadata. One such label is `pod`, which identifies the Pod being scraped (in this case, the metrics exporter Pod itself).
 
