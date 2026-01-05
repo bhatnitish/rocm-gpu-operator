@@ -26,9 +26,12 @@ from lib import helm_util
 
 Logger = logging.getLogger("gpu-operator.conftest")
 
-@pytest.fixture(scope="session")
-def release_name(environment):
-    if environment.deployment_mode == "openshift":
-        return "amd-gpu-operator"
-    return "gpu-operator"
+def pytest_html_report_title(report):
+    # Add a custom title to the report
+    report.title = f"AMD GPU Operator/DeviceConfig Validation Test Results"
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_techsupport_args(request, gpu_operator_release_name, environment):
+    if environment.tech_support_tool:
+        environment.tech_support_tool["args"] = ["all"]
 

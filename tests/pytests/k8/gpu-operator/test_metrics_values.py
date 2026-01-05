@@ -137,7 +137,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     return
 
 @pytest.fixture(scope="module")
-def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, environment):
+def metrics_samples(gpu_cluster, images, deviceconfig_install, environment):
     global Logger
     global LogPrettyPrinter
     Logger.info(f"Collecting metrics-exporter curl output, amd-smi metrics and gpuctl metrics snapshot")
@@ -205,7 +205,7 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
     idle_metrics = {}
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
@@ -264,7 +264,7 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
     # Create a workload
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
@@ -283,7 +283,7 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, amd_smi_collect, 
     workload_metrics = {}
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
@@ -352,6 +352,17 @@ def pytest_generate_tests(metafunc):
                 continue
             metrics_to_test.append(entry['name'])
         metafunc.parametrize('metric_to_test', metrics_to_test)
+    if 'prof_metric_to_test' in metafunc.fixturenames:
+        metrics_to_test = [
+            'GPU_PROF_SM_ACTIVE',
+            'GPU_PROF_TENSOR_ACTIVE_PERCENT',
+            'GPU_PROF_OCCUPANCY_PER_CU',
+            'GPU_PROF_OCCUPANCY_PER_ACTIVE_CU',
+            'GPU_PROF_SIMD_UTILIZATION',
+            'GPU_PROF_GUI_UTIL_PERCENT',
+        ]
+        metafunc.parametrize('prof_metric_to_test', metrics_to_test)
+
 
 def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environment):
     """
@@ -394,7 +405,7 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
     all_idle_metrics, all_workload_metrics = metrics_samples
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
@@ -535,7 +546,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                     lower_limit = int(0.95 * float(amd_smi_val))
                     upper_limit = int(1.05 * float(amd_smi_val))
                 elif isinstance(amd_smi_val, str) and amd_smi_val == "N/A":
-                    Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
+                    Logger.warn(f"No amd-smi metric information for {metric_to_test}, got {amd_smi_val}")
                     continue
 
                 Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
@@ -554,7 +565,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
     partition_id = 0 # TODO: Extend this when GPU is partitioned
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
@@ -604,3 +615,100 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
     if not metric_validated:
         pytest.skip(f"Metric {metric_to_test} cannot be validated in this setup - skip")
 
+def test_exporter_prof_metrics_support(gpu_cluster, metrics_samples, prof_metric_to_test, environment):
+    """
+    Testcase to check if all metrics supported for each of gpu-series is observed in the curl output of exporter endpoint
+    """
+    global Logger
+    global LogPrettyPrinter
+
+    metric_metadata = metric_util.get_metric_metadata(prof_metric_to_test)
+    def _compare_idle_vs_load(prof_metric_to_test, gpu_id, partition_id, idle_metric_data, load_metric_data):
+        num_samples = idle_metric_data['num-samples']
+        Logger.info(f"Processing {idle_metric_data['title']} - total samples {num_samples}")
+        idle_all_exporter_metrics = idle_metric_data['exporter']
+        load_all_exporter_metrics = load_metric_data['exporter']
+        variation = 0
+        no_variation = 0
+        for sample_id in range(num_samples):
+            # Extract exporter metrics for current sample_id
+            idle_exporter_metrics = metric_util.parse_metric_data(idle_all_exporter_metrics[sample_id])
+            load_exporter_metrics = metric_util.parse_metric_data(load_all_exporter_metrics[sample_id])
+
+            gpu_support_info = metric_util.get_metric_support_info(metric_metadata, idle_metric_data["gpu-series"])
+            K8Helper.triage(environment, (gpu_support_info != None),
+                            f"Missing gpu-support-info for {prof_metric_to_test}, {metric_metadata}, {idle_metric_data['gpu-series']}")
+
+            K8Helper.triage(environment, (prof_metric_to_test.lower() in idle_exporter_metrics),
+                            f"Missing {prof_metric_to_test} in collected metrics from exporter endpoint idle condition, {metric_metadata}")
+            K8Helper.triage(environment, (prof_metric_to_test.lower() in load_exporter_metrics),
+                            f"Missing {prof_metric_to_test} in collected metrics from exporter endpoint load conditions, {metric_metadata}")
+            idle_m_info_list = list(filter(lambda x: x['labels']['gpu_id'] == str(gpu_id), idle_exporter_metrics[prof_metric_to_test.lower()]))
+            Logger.debug(f"Found total {len(idle_m_info_list)} ide exported metrics for {prof_metric_to_test}")
+            load_m_info_list = list(filter(lambda x: x['labels']['gpu_id'] == str(gpu_id), load_exporter_metrics[prof_metric_to_test.lower()]))
+            Logger.debug(f"Found total {len(load_m_info_list)} load exported metrics for {prof_metric_to_test}")
+
+            K8Helper.triage(environment, len(idle_m_info_list) == 1,
+                            f"Found {len(idle_m_info_list)} values for IDLE {prof_metric_to_test}, gpu-id: {gpu_id}, info: {gpu_support_info}")
+            K8Helper.triage(environment, len(load_m_info_list) == 1,
+                            f"Found {len(load_m_info_list)} values for LOAD {prof_metric_to_test}, gpu-id: {gpu_id}, info: {gpu_support_info}")
+            idle_metric_info = idle_m_info_list[0]
+            load_metric_info = load_m_info_list[0]
+
+            Logger.debug(f"{prof_metric_to_test} Sample:{sample_id} IDLE-Value exporter : {idle_metric_info}")
+            Logger.debug(f"{prof_metric_to_test} Sample:{sample_id} LOAD-Value exporter : {load_metric_info}")
+            if int(idle_metric_info["value"]) != int(load_metric_info["value"]):
+                variation = variation + 1
+            else:
+                no_variation = no_variation + 1
+
+        return variation, no_variation
+
+    metric_validated = False
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+    all_idle_metrics, all_workload_metrics = metrics_samples
+    partition_id = 0 # TODO: Extend this when GPU is partitioned
+    for node in gpu_nodes:
+        node_ip = k8_util.k8_get_node_address(node)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
+        if not cluster_node:
+            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
+        node_name = k8_util.k8_get_node_hostname(node)
+
+        if not metric_util.is_metric_supported(prof_metric_to_test, cluster_node.gpu_series, cluster_node.amdgpu_driver_version):
+            continue
+        metric_validated = True
+
+        """
+        for idle-state metrics, access metrics values as below:
+
+        idle_metrics['exporter'] = exporter_metrics
+        idle_metrics['amd-smi'] = smi_metrics
+
+        for workload-state metrics, access metrics values as below:
+
+        workload_metrics['exporter'] = exporter_metrics
+        workload_metrics['amd-smi'] = smi_metrics
+        """
+        idle_metrics = all_idle_metrics[node_name]
+        workload_metrics = all_workload_metrics[node_name]
+
+        for gpu_id in range(cluster_node.num_gpus):
+            num_samples = idle_metrics['num-samples']
+            variation, no_variation = _compare_idle_vs_load(prof_metric_to_test, gpu_id, partition_id, idle_metrics, workload_metrics)
+            Logger.info(f"Worker: {node_name} GPU: {gpu_id} - Variation/No-Variation: {variation}/{no_variation}")
+
+            # Atleast there should be one variation with workload
+            K8Helper.triage(environment, (variation >= 1),
+                            f"Metric: {prof_metric_to_test} GPU: {gpu_id} no-variation , variation: {variation}, no-variation {no_variation}")
+
+            # Atleast there should be some variation with workload
+            # Relaxing passing conditions
+            K8Helper.triage(environment, (hit_count >= int(0.50 * num_samples)),
+                            f"Metric: {prof_metric_to_test} GPU: {gpu_id} too little variation, variation: {variation}, no-variation {no_variation}",
+                            expected_to_fail = True)
+
+    if not metric_validated:
+        pytest.skip(f"Metric {prof_metric_to_test} cannot be validated in this setup - skip")

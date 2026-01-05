@@ -1,68 +1,55 @@
 {
     "gpu-config-profiles":
     {
-        "CPX_NPS4":
+        "SPX_NPS1":
         {
             "skippedGPUs": {
-                "ids": []
+              "ids": []
+            },
+            "profiles": [
+                {
+                    "computePartition": "SPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 8
+                }
+            ]
+        },
+        "CPX_NPS1":
+        {
+            "skippedGPUs": {
+              "ids": []
             },
             "profiles": [
                 {
                     "computePartition": "CPX",
-                    "memoryPartition": "NPS4",
-                    "numGPUsAssigned": 1
-                }
-            ]
-        },
-        "QPX_NPS1":
-        {
-            "skippedGPUs": {
-                "ids": []
-            },
-            "profiles": [
-                {
-                    "computePartition": "QPX",
                     "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 1
+                    "numGPUsAssigned": 8
                 }
             ]
         },
         "DPX_NPS1":
         {
             "skippedGPUs": {
-                "ids": []
+              "ids": []
             },
             "profiles": [
                 {
                     "computePartition": "DPX",
                     "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 1
+                    "numGPUsAssigned": 8
                 }
             ]
         },
-        "QPX_NPS4":
+        "DPX_NPS2":
         {
             "skippedGPUs": {
-                "ids": []
+              "ids": []
             },
             "profiles": [
                 {
                     "computePartition": "DPX",
-                    "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 1
-                }
-            ]
-        },
-        "SPX_NPS1":
-        {
-            "skippedGPUs": {
-                "ids": []
-            },
-            "profiles": [
-                {
-                    "computePartition": "SPX",
-                    "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 1
+                    "memoryPartition": "NPS2",
+                    "numGPUsAssigned": 8
                 }
             ]
         },
@@ -75,20 +62,82 @@
                 {
                     "computePartition": "SPX",
                     "memoryPartition": "NPS4",
-                    "numGPUsAssigned": 1
+                    "numGPUsAssigned": 8
                 }
             ]
         },
-        "CPX_NPS1":
+        "QPX_NPS1":
         {
             "skippedGPUs": {
-                "ids": []
+              "ids": []
+            },
+            "profiles": [
+                {
+                    "computePartition": "QPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 8
+                }
+            ]
+        },
+        "QPX_NPS4":
+        {
+            "skippedGPUs": {
+              "ids": []
+            },
+            "profiles": [
+                {
+                    "computePartition": "QPX",
+                    "memoryPartition": "NPS4",
+                    "numGPUsAssigned": 8
+                }
+            ]
+        },
+        "CPX_NPS2":
+        {
+            "skippedGPUs": {
+              "ids": []
             },
             "profiles": [
                 {
                     "computePartition": "CPX",
+                    "memoryPartition": "NPS2",
+                    "numGPUsAssigned": 8
+                }
+            ]
+        },
+        "CPX_NPS4":
+        {
+            "skippedGPUs": {
+              "ids": []
+            },
+            "profiles": [
+                {
+                    "computePartition": "CPX",
+                    "memoryPartition": "NPS4",
+                    "numGPUsAssigned": 8
+                }
+            ]
+        },
+        "heterogenous":
+        {
+            "skippedGPUs": {
+                "ids": [3]
+            },
+            "profiles": [
+                {
+                    "computePartition": "DPX",
                     "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 1
+                    "numGPUsAssigned": 2
+                },
+                {
+                    "computePartition": "CPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 3
+                },
+                {
+                    "computePartition": "QPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 2
                 }
             ]
         },
@@ -175,6 +224,17 @@
                 }
             ]
         },
+        "homogenous":
+        {
+            "profiles": [
+
+                {
+                    "computePartition": "SPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 8
+                }
+            ]
+        },
         "highgpucount_mostly_invalid":
         {
             "profiles": [
@@ -183,6 +243,17 @@
                     "computePartition": "CPX",
                     "memoryPartition": "NPS4",
                     "numGPUsAssigned": 3543
+                }
+            ]
+        },
+        "nps2":
+        {
+            "profiles": [
+
+                {
+                    "computePartition": "DPX",
+                    "memoryPartition": "NPS2",
+                    "numGPUsAssigned": 8
                 }
             ]
         },
@@ -209,9 +280,5 @@
                  }
             ]
         }
- 
-    },
-    "gpuClientSystemdServices": {
-        "names": ["amd-metrics-exporter", "gpuagent"]
     }
 }

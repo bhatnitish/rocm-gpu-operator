@@ -27,7 +27,7 @@ images:
         exporter:
             image       : /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
             kind        : helm-chart
-            version     : v1.4.0
+            version     : v1.4.1
 
         device-metrics-exporter:
             key         : metricsExporter.image
@@ -85,5 +85,17 @@ images:
             key         : commonConfig.initContainerImage
             location    : container://<registry>/busybox
             version     : 1.36
+            kind        : container
+
+        tensorflow-image:
+            key         : workload.tensorflow
+            location    : container://registry.test.pensando.io:5000/rocm/tensorflow
+            version     : latest
+            kind        : container
+
+        pytorch-image:
+            key         : workload.pytorch
+            location    : container://docker.io/rocm/pytorch
+            version     : latest
             kind        : container
 

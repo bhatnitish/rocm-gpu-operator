@@ -125,7 +125,7 @@ def test_exporter_nodeport_deploy(gpu_cluster, deviceconfig_install, environment
     failed_endpoints = set()
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_hostname = k8_util.k8_get_node_hostname(node)
@@ -169,7 +169,7 @@ def test_exporter_disable_nodeport_exporter(gpu_cluster, deviceconfig_install, e
         node_ip = k8_util.k8_get_node_address(node)
         node_hostname = k8_util.k8_get_node_hostname(node)
         node_port = deviceconfig_install.exporter_port_map[node_hostname]
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         ret_code, ret_stdout, ret_stderr = cluster_node.http_get(node_port, "metrics")
@@ -201,7 +201,7 @@ def test_exporter_disable_nodeport_exporter(gpu_cluster, deviceconfig_install, e
     failed_endpoints = set()
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_hostname = k8_util.k8_get_node_hostname(node)
@@ -302,7 +302,7 @@ def test_exporter_nodeport_rbac_support(gpu_cluster, deviceconfig_install, envir
     failed_endpoints = set()
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_hostname = k8_util.k8_get_node_hostname(node)
@@ -436,7 +436,7 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
     failed_endpoints = set()
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_hostname = k8_util.k8_get_node_hostname(node)
@@ -493,7 +493,7 @@ def test_exporter_nodeport_rbac_http(gpu_cluster, deviceconfig_install, environm
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
     K8Helper.triage(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
-def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment):
+def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, environment):
     global Logger
     # Generate set of config-maps in the k8 cluster with different set of labels and metrics
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
@@ -520,7 +520,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
     list_of_metrics_set = []
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         metrics_data = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
@@ -609,7 +609,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
             expected_labels.update(mandatory_labels)
             for node in gpu_nodes:
                 node_ip = k8_util.k8_get_node_address(node)
-                cluster_node = gpu_cluster.get_worker_node(node_ip)
+                cluster_node = gpu_cluster.find_node_by_ip(node_ip)
                 if not cluster_node:
                     pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
                 node_hostname = k8_util.k8_get_node_hostname(node)

@@ -64,7 +64,6 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
-     - /device-metrics-exporter/tools/techsupport_dump.sh
 
   build-external-test-runner:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
@@ -129,6 +128,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+     - /device-metrics-exporter/tools/techsupport_dump.sh
 
 targets:
   gpu-operator-sanity:
@@ -181,7 +181,9 @@ jobs:
   tests/jobs/compat/mi250:
     labels: ["CI-Pytest-Compat-MI250"]
   tests/jobs/sanity:
-    labels: ["CI-Sanity-Build", "CI-Pytest-Sanity"]
+    labels: ["CI-Pytest-Sanity"]
+  tests/jobs/regression:
+    labels: ["CI-Sanity-Build", "CI-Pytest-Regression"]
       # ci-internal:
     #    labels: [""]
 host_mounts:

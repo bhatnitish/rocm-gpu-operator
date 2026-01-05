@@ -22,3 +22,7 @@ from datetime import datetime
 from py.xml import html
 
 
+def pytest_html_report_title(report):
+    # Add a custom title to the report
+    report.title = f"AMD Exporter Debian Package Validation Test Results"
+

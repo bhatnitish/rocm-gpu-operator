@@ -721,6 +721,8 @@ def generate_exporter_helmchart_deployment_config(exporter_version, images, file
         tag = f"{images['metricsExporter.image.version']}"
         helmchart_values['image']['repository'] = img
         helmchart_values['image']['tag'] = tag
+        if images.get('metricsExporter.image.secret', None):
+            helmchart_values['image']['pullSecrets'] = images['metricsExporter.image.secret']
         modifed = True
 
     if 'configMap' in kwargs:

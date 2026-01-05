@@ -27,6 +27,7 @@ import logging
 from datetime import datetime
 from lib import common
 from lib import k8_util
+import lib.amdgpu as amdgpu_util
 from py.xml import html
 from pathlib import Path
 from urllib.parse import urlparse
@@ -89,11 +90,6 @@ def pytest_addoption(parser):
             help="Workload template to use",
     )
 
-
-def pytest_html_report_title(report):
-    # Add a custom title to the report
-    report.title = f"GPU-Operator/DeviceConfig K8 Test Results"
-
 def pytest_html_results_summary(prefix, summary, postfix):
     # Insert custom HTML into the summary section of the report
     '''
@@ -102,68 +98,73 @@ def pytest_html_results_summary(prefix, summary, postfix):
     postfix.extend([html.h3("Post Run Information")])
     '''
     if hasattr(pytest, "_amdgpu_driver_spec"):
-        summary.append(html.h3("amdgpu Driver Default Version"))
-        summary.append(pytest._amdgpu_driver_spec.get('default-version', 'NA'))
+        ver = pytest._amdgpu_driver_spec.get('default-version', 'NA')
+        summary.append(html.h3(f"AMDGPU Driver Version : {ver}"))
+        summary.append(html.br())
     if hasattr(pytest, "_k8_cluster_inst") and hasattr(pytest, "_nodes_version"):
         summary.append(html.h3("Cluster Information"))
         summary.append(cluster_info_table())
+        summary.append(html.br())
     if hasattr(pytest, "_image_info"):
         summary.append(html.h3("Images Used"))
         summary.append(transform_image_info())
+        summary.append(html.br())
     
 def cluster_info_table():
     gpu_series_by_host = {
         node.host_name: node.gpu_series
-        for node in pytest._k8_cluster_inst.worker_nodes
+        for node in pytest._k8_cluster_inst.cluster_nodes
     }
 
-    table = html.table(border="1")
+    table_style = "border: 1px solid black; border-collapse: collapse; min-width: 300px; margin-bottom: 10px;"
+    cell_style = "border: 1px solid black; padding: 5px; min-width: 50px;"
+
+    table = html.table(style=table_style)
     header_row = html.tr([
-        html.th("Node Name"),
-        html.th("K8-Version"),
-        html.th("GPU-Series"),
+        html.th("Node Name", scope="col", style=cell_style),
+        html.th("K8-Version", scope="col", style=cell_style),
+        html.th("GPU-Series", scope="col", style=cell_style),
     ])
     table.append(header_row)
 
     for node_name, k8_version in pytest._nodes_version.items():
         table.append(html.tr([
-            html.td(node_name),
-            html.td(k8_version),
-            html.td(gpu_series_by_host.get(node_name, "N/A")),
+            html.td(node_name, scope="col", style=cell_style),
+            html.td(k8_version, scope="col", style=cell_style),
+            html.td(gpu_series_by_host.get(node_name, "N/A"), scope="col", style=cell_style),
         ]))
 
     return table
-   
+
 def transform_image_info():
     # convert dict image_info to table format
     pytest._image_info.pop("image_folder")
     transformed_dict = {}
  
     for key, value in  pytest._image_info.items():
-        base_key = ".".join(key.split(".")[:-1]) 
         sub_key = key.split(".")[-1]
-        if base_key == 'gpu-operator' and sub_key == 'helm-chart':
-           version = value.split('k8s-')[-1].split('.tgz')[0]
-           transformed_dict.setdefault(base_key + '.' + sub_key, {})['repository'] = value
-           transformed_dict[base_key + '.' + sub_key]['version'] = version
-        else:
-           transformed_dict.setdefault(base_key, {})[sub_key] = value
-       
-    table = html.table(border="1")
+        base_key = ".".join(key.split(".")[:-1])
+        if value:
+            transformed_dict.setdefault(base_key, {})[sub_key] = value
+
+    table_style = "border: 1px solid black; border-collapse: collapse; min-width: 300px; margin-bottom: 10px;"
+    cell_style = "border: 1px solid black; padding: 5px; min-width: 50px;"
+    table = html.table(style=table_style)
     header_row = html.tr([
-        html.th("Image"),
-        html.th("Repository"),
-        html.th("Version"),
+        html.th("Image", scope="col", style=cell_style),
+        html.th("Location", scope="col", style=cell_style),
+        html.th("Version", scope="col", style=cell_style),
         ])
     table.append(header_row)
 
     for key, value in transformed_dict.items():
-        row = html.tr([
-              html.td(key),
-              html.td(value.get('repository', 'N/A')),
-              html.td(value.get('version', 'N/A')),
-              ])
-        table.append(row)
+        if 'repository' in value.keys() or 'version' in value.keys():
+            row = html.tr([
+                  html.td(key, scope="col", style=cell_style),
+                  html.td(value.get('repository', 'N/A'), scope="col", style=cell_style),
+                  html.td(value.get('version', 'N/A'), scope="col", style=cell_style),
+                  ])
+            table.append(row)
     return table
 
 @pytest.hookimpl(optionalhook=True)
@@ -174,7 +175,6 @@ def pytest_metadata(metadata):
 def update_environment(request, environment):
     global Logger
     setattr(environment, 'current_tc_name', request.node.name)
-    #K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     Logger.debug(f"Starting Testcase: {request.node.name}")
     yield
     delattr(environment, 'current_tc_name')
@@ -212,7 +212,11 @@ def environment(request):
     setattr(tenv, 'tech_support_tool', None)
     if request.config.option.tech_support_tool:
         if os.path.exists(request.config.option.tech_support_tool):
-            setattr(tenv, 'tech_support_tool', request.config.option.tech_support_tool)
+            tst_info = {
+                "tool" : request.config.option.tech_support_tool,
+                "args" : [],
+            }
+            setattr(tenv, 'tech_support_tool', tst_info)
             os.makedirs(os.path.join(tenv.logdir, "tech-support"), exist_ok=True)
 
     # Workload Template
@@ -228,34 +232,24 @@ def environment(request):
     return tenv
 
 @pytest.fixture(scope="session")
-def gpu_cluster(request, release_name, environment):
+def gpu_cluster(request, environment):
     global Logger
     if environment.deployment_mode in ["k8", "openshift"]:
         k8_util.k8_lib_init(environment.kube_config_file)
         ret_code, k8_nodes = k8_util.k8_get_nodes()
         assert ret_code == 0, "Failed to collect nodes from cluster"
-        master_node = None
-        worker_nodes = []
-        mini_kube_cluster = False
+        nodes = list()
         nodes_version = {}
         for node in k8_nodes:
             nodes_version[node['metadata']['name']] = node['status']['node_info']['kubelet_version']
             node_ip = k8_util.k8_get_node_address(node)
             if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
-                master_node = common.Node(node_ip, None, None, None, "master", None)
-                if 'node-role.kubernetes.io/worker' in node['metadata']['labels']:
-                    Logger.info(f"control-plane node is also a worker-node")
-                    worker_nodes.append(common.Node(node_ip, None, None, None, "worker", None))
-                    mini_kube_cluster = True
-                else:
-                    Logger.warn(f"control-plane node is not a worker-node - skipping it")
-                    continue # skip control-plane node
+                nodes.append(common.Node(node_ip, None, None, None, "master", None))
             else:
-                worker_nodes.append(common.Node(node_ip, None, None, None, "worker", None))
-
-        k8_cluster_inst = common.k8_cluster(master_node, worker_nodes, mini_kube_cluster)
+                nodes.append(common.Node(node_ip, None, None, None, "worker", None))
+        k8_cluster_inst = common.k8_cluster.BuildK8Cluster(nodes)
         k8_cluster_inst.k8_kube_config = environment.kube_config_file
-        assert len(k8_cluster_inst.worker_nodes) > 0, f"Failed to collect worker nodes from k8/cluster"
+        assert len(k8_cluster_inst.cluster_nodes) > 0, f"Failed to collect worker nodes from k8/cluster"
         if hasattr(environment, "k8_secrets_file"):
             with open(environment.k8_secrets_file) as fp:
                 k8_cluster_inst.k8_secrets = json.load(fp)
@@ -391,6 +385,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
             if match:
                 image_info[f'{artifact}.repo-name'] = f"{artifact}-repo"
                 image_info[f'{artifact}.repo'] = f"https://{match.group(1)}"
+                image_info[f'{artifact}.repository'] = f"https://{match.group(1)}"
                 image_info[f'{artifact}.helm-chart'] = f"{artifact}-repo/{match.group(2)}"
             else:
                 pytest.fail(f"Failed to parse repo information from {artifact_info['location']}")
@@ -401,34 +396,14 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
                 pytest.fail(f"Invalid file name or path not found : {local_file}")
             # If not local, upload these files to the master node
             file_path = local_file
-
-            if artifact_info['kind'] == 'container':
-                if gpu_cluster.k8_master.is_local_registry_available():
-                    setattr(environment, 'registry', f"{gpu_cluster.k8_master.ip_address}:5000")
-
-                    # Setup k8-master docker registry
-                    load_cmd = f"docker load -i {os.path.join(exp_image_folder, os.bath.basename(file_path))}"
-                    result, cmd_stdout, _ = gpu_cluster.k8_master.run_command(load_cmd)
-                    assert result == 0, f"Cmd failed: {load_cmd}, result:{result}, stdout:{cmd_stdout}"
-                    loaded_img = cmd_stdout.split("Loaded image: ")[1].strip()
-
-                    repository = f"{environment.registry}/{getpass.getuser()}/{artifact}"
-                    version = artifact_info['version']
-                    tag_cmd = f"docker tag {loaded_img} {repository}:{version}"
-                    result, cmd_stdout, _ = gpu_cluster.k8_master.run_command(tag_cmd)
-                    assert result == 0, f"Cmd failed: {tag_cmd}, result:{result}, stdout:{cmd_stdout}"
-
-                    push_cmd = f"docker push {repository}:{version}"
-                    result, cmd_stdout, _ = gpu_cluster.k8_master.run_command(push_cmd)
-                    assert result == 0, f"Cmd failed: {push_cmd}, result:{result}, stdout:{cmd_stdout}"
-                    image_info[f"{artifact_info['key']}.repository"] = repository
-                    image_info[f"{artifact_info['key']}.version"] = version
-                else:
-                    pytest.fail("Use image-manifest.yaml with remote registry locations")
-            elif artifact_info['kind'] == 'helm-chart':
+            if artifact_info['kind'] == 'helm-chart':
                 image_info[f'{artifact}.helm-chart'] = file_path
+                image_info[f'{artifact}.helm-chart.version'] = artifact_info['version']
+                image_info[f'{artifact}.helm-chart.repository'] = file_path
             elif artifact_info['kind'] == 'olm-bundle':
                 image_info[f'{artifact}.olm-bundle'] = file_path
+                image_info[f'{artifact}.olm-bundle.version'] = artifact_info['version']
+                image_info[f'{artifact}.olm-bundle.repository'] = file_path
         elif 'http://' in artifact_info['location'] or 'https://' in artifact_info['location']:
             # Download the file
             url = artifact_info['location']
@@ -445,36 +420,8 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
                     Logger.error(f"Failed to download {local_file} from {url}, error : {e}")
                     pytest.fail("Could not download images - abort")
 
-            # If not local, upload these files to the master node
-            if not gpu_cluster.k8_master.is_local():
-                # Upload the downloaded files to gpu_cluster.k8_master
-                gpu_cluster.k8_master.put(local_file, local_file)
             file_path = local_file
-
-            if artifact_info['kind'] == 'container':
-                if gpu_cluster.k8_master.is_local_registry_available():
-                    setattr(environment, 'registry', f"{gpu_cluster.k8_master.ip_address}:5000")
-
-                    # Setup k8-master docker registry
-                    load_cmd = f"docker load -i {os.path.join(exp_image_folder, os.bath.basename(file_path))}"
-                    result, cmd_stdout, _ = gpu_cluster.k8_master.run_command(load_cmd)
-                    assert result == 0, f"Cmd failed: {load_cmd}, result:{result}, stdout:{cmd_stdout}"
-                    loaded_img = cmd_stdout.split("Loaded image: ")[1].strip()
-
-                    repository = f"{environment.registry}/{getpass.getuser()}/{artifact}"
-                    version = artifact_info['version']
-                    tag_cmd = f"docker tag {loaded_img} {repository}:{version}"
-                    result, cmd_stdout, _ = gpu_cluster.k8_master.run_command(tag_cmd)
-                    assert result == 0, f"Cmd failed: {tag_cmd}, result:{result}, stdout:{cmd_stdout}"
-
-                    push_cmd = f"docker push {repository}:{version}"
-                    result, cmd_stdout, _ = gpu_cluster.k8_master.run_command(push_cmd)
-                    assert result == 0, f"Cmd failed: {push_cmd}, result:{result}, stdout:{cmd_stdout}"
-                    image_info[f"{artifact_info['key']}.repository"] = repository
-                    image_info[f"{artifact_info['key']}.version"] = version
-                else:
-                    pytest.fail("Use image-manifest.yaml with remote registry locations")
-            elif artifact_info['kind'] == 'helm-chart':
+            if artifact_info['kind'] == 'helm-chart':
                 image_info[f'{artifact}.helm-chart'] = file_path
             elif artifact_info['kind'] == 'olm-bundle':
                 image_info[f'{artifact}.olm-bundle'] = file_path
@@ -494,7 +441,48 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
             elif artifact_info['kind'] == 'olm-bundle':
                 version = artifact_info['version']
                 image_info[f'{artifact}.olm-bundle'] = f"{parsed_data.netloc}{parsed_data.path}:{version}"
+                image_info[f'{artifact}.olm-bundle.version'] = version
+                image_info[f'{artifact}.olm-bundle.repository'] = f"{parsed_data.netloc}{parsed_data.path}"
                 if 'secret' in artifact_info:
                     image_info[f'{artifact}.secret'] = artifact_info['secret']
     return image_info
 
+@pytest.fixture(scope="session", autouse=True)
+def gather_device_info(gpu_cluster, environment):
+    # Derive gpu information using amd-smi information
+    ret_code, k8_nodes = k8_util.k8_get_nodes()
+    if ret_code != 0:
+        pytest.exit(f"Unable to collect node information from k8-cluster - Abort")
+    if len(k8_nodes) == 0:
+        pytest.exit(f"Unable to collect node information from k8-cluster - Abort")
+
+    """
+    root@worker-node:~# lspci  -nn -d 1002:
+        82:00.0 PCI bridge [0604]: Advanced Micro Devices, Inc. [AMD/ATI] Device [1002:1501]
+        83:00.0 Processing accelerators [1200]: Advanced Micro Devices, Inc. [AMD/ATI] Aqua Vanjaram [Instinct MI300X] [1002:74a1]
+    """
+    pattern = r"(?:Processing accelerators|Display controller).*1002:([0-9a-fA-F]{4})"
+    for node in k8_nodes:
+        node_name = k8_util.k8_get_node_hostname(node)
+        node_ip = k8_util.k8_get_node_address(node)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
+        cluster_node.host_name = node_name
+        cmd = ["lspci", "-nn", "-d", "1002:"]
+        ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd)
+        if ret_code != 0:
+            pytest.exit(f"Unable to run command on node via debug-pod, Abort")
+        if not resp_stdout:
+            Logger.debug(f"Node: {node_name} does not have any amdgpu devices")
+            continue
+        # Parse
+        gpu_count = 0
+        for line in resp_stdout.split("\n"):
+            if line:
+                match = re.search(pattern, line)
+                if match:
+                    cluster_node.device_id = match.group(1)
+                    gpu_count += 1
+        cluster_node.num_gpus = gpu_count
+        cluster_node.gpu_series = amdgpu_util.get_amdgpu_device_series(cluster_node.device_id)
+
+    Logger.info("Collected amd-gpu information for all cluster nodes")

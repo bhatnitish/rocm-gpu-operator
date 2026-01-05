@@ -59,9 +59,6 @@ metrics_fields = {
       'GPU_ECC_UNCORRECT_IH'        : 0,
       'GPU_ECC_UNCORRECT_MPIO'      : 0
 }
-#def debug_on_failure(environment, condition, message):
-#    if not condition:
-#        pdb.set_trace()
 
 debug_on_failure = K8Helper.triage
 
@@ -136,7 +133,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     return
 
 @pytest.mark.level1
-def test_deviceconfig_test_runner_deploy(deviceconfig_install, amd_smi_collect, environment):
+def test_deviceconfig_test_runner_deploy(deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
@@ -155,7 +152,7 @@ def test_deviceconfig_test_runner_deploy(deviceconfig_install, amd_smi_collect, 
     failed_endpoints = set()
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         ret_code, ret_stdout, ret_stderr = cluster_node.http_get(32500, "metrics")
         if ret_code != 0:
             failed_endpoints.add(node_ip)
@@ -166,7 +163,7 @@ def test_deviceconfig_test_runner_deploy(deviceconfig_install, amd_smi_collect, 
     '''
 
 @pytest.mark.level1
-def test_deviceconfig_test_runner_disable(deviceconfig_install, amd_smi_collect, environment):
+def test_deviceconfig_test_runner_disable(deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
@@ -210,7 +207,7 @@ def test_deviceconfig_test_runner_disable(deviceconfig_install, amd_smi_collect,
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
 @pytest.mark.level1
-def test_deviceconfig_testrunner_disable_exporter(deviceconfig_install, amd_smi_collect, environment):
+def test_deviceconfig_testrunner_disable_exporter(deviceconfig_install, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
@@ -256,7 +253,7 @@ def test_deviceconfig_testrunner_disable_exporter(deviceconfig_install, amd_smi_
 def wait_for_pod(environment, namespace, cmd_list, pod_str, result):
     resp_stdout = " "
     i = 0
-    while (resp_stdout == None or result not in resp_stdout) and i < 10:
+    while (resp_stdout is None or result not in resp_stdout) and i < 10:
         i += 1
         pod_name = k8_util.k8_get_pod_name(pod_str, namespace)
         ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
@@ -431,9 +428,8 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     Logger.info(f"Test runner worker logs\n===================\n")
     ret_code, stdout, stderr = k8_util.k8_get_pod_logs("test-runner", environment.gpu_operator_namespace)
     Logger.info(f"Test runner worker logs\n==================={stdout}\n")
-
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
+    cluster_node = gpu_cluster.find_node_by_ip(k8_util.k8_get_node_address(gpu_node))
+    if 'MI2' in cluster_node.gpu_series:
         new_framework = "RVS"
         new_recipe = "pebb_single"
     elif framework == "AGFHC":
@@ -469,7 +465,7 @@ def swap_recipe(request, gpu_cluster, deviceconfig_install, environment, framewo
     ("RVS", "iet_stress"),
     ("AGFHC", "gfx_lvl1")
 ])
-def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment, framework, recipe):
+def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, environment, framework, recipe):
     namespace = environment.gpu_operator_namespace
     global Logger
     global LogPrettyPrinter
@@ -480,10 +476,10 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
+    cluster_node = gpu_cluster.find_node_by_ip(k8_util.k8_get_node_address(gpu_node))
+    if 'MI2' in cluster_node.gpu_series:
         if framework == "AGFHC":
-            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
+            pytest.skip("skipping AGFHC tests for gpu_series = {cluster_node.gpu_series}")
         if recipe == "iet_stress":
             recipe = "iet_single"
     worker = k8_util.k8_get_node_hostname(gpu_node)
@@ -579,7 +575,7 @@ def test_deviceconfig_unhealthy(request, gpu_cluster, deviceconfig_install, amd_
     ("RVS", "babel"),
     ("AGFHC", "xgmi_lvl1")
 ])
-def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment, recipe, framework):
+def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig_install, environment, recipe, framework):
     #recipe = "babel"
     namespace = environment.gpu_operator_namespace
     global Logger
@@ -591,10 +587,10 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
+    cluster_node = gpu_cluster.find_node_by_ip(k8_util.k8_get_node_address(gpu_node))
+    if 'MI2' in cluster_node.gpu_series:
         if framework == "AGFHC":
-            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
+            pytest.skip("skipping AGFHC tests for gpu_series = {cluster_node.gpu_series}")
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(worker)
 
@@ -687,7 +683,7 @@ def test_workload_running_make_node_unhealthy(request, gpu_cluster, deviceconfig
     ("RVS", "gst_single"),
     ("AGFHC", "dma_lvl1")
 ])
-def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment, recipe, framework):
+def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconfig_install, environment, recipe, framework):
     namespace = environment.gpu_operator_namespace
     global Logger
     global LogPrettyPrinter
@@ -696,10 +692,10 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
+    cluster_node = gpu_cluster.find_node_by_ip(k8_util.k8_get_node_address(gpu_node))
+    if 'MI2' in cluster_node.gpu_series:
         if framework == "AGFHC":
-            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
+            pytest.skip("skipping AGFHC tests for gpu_series = {cluster_node.gpu_series}")
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(worker)
     time.sleep(30)
@@ -812,7 +808,7 @@ def test_update_metric_exporter_and_test_runner(request, gpu_cluster, deviceconf
     ("AGFHC", "dma_lvl2", False, True),
     ("AGFHC", "gfx_lvl1", True, True)
 ])
-def test_manual_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment, schedule, healthy, framework, recipe, images):
+def test_manual_job(request, gpu_cluster, deviceconfig_install, environment, schedule, healthy, framework, recipe, images):
     global Logger
     global LogPrettyPrinter
     global metrics_fields
@@ -821,12 +817,12 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect,
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     K8Helper.delete_debug_pods(["default", environment.gpu_operator_namespace])
     gpu_node = gpu_nodes[0]
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
+    cluster_node = gpu_cluster.find_node_by_ip(k8_util.k8_get_node_address(gpu_node))
+    if 'MI2' in cluster_node.gpu_series:
         if recipe == "iet_stress":
             recipe = "iet_single"
         if framework == "AGFHC":
-            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
+            pytest.skip("skipping AGFHC tests for gpu_series = {cluster_node.gpu_series}")
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(worker)
     trigger = "MANUAL"
@@ -1011,7 +1007,7 @@ def test_manual_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect,
     ("AGFHC", "all_lvl1", True)
     #("AGFHC", "all_lvl2", False) #TODO add this testcase back after GPUOP-447 is fixed in phase-5
 ])
-def test_pre_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect, environment, images, framework, recipe, healthy):
+def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images, framework, recipe, healthy):
     global Logger
     global LogPrettyPrinter
     global metrics_fields
@@ -1019,12 +1015,12 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, amd_smi_collect, en
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
     gpu_node = gpu_nodes[0]
-    gpu_series = gpu_cluster.worker_nodes[0].gpu_series
-    if gpu_series and 'MI2' in gpu_series:
+    cluster_node = gpu_cluster.find_node_by_ip(k8_util.k8_get_node_address(gpu_node))
+    if 'MI2' in cluster_node.gpu_series:
         if recipe == "iet_stress":
             recipe = "iet_single"
         elif framework == "AGFHC":
-            pytest.skip("skipping AGFHC tests for gpu_series = {gpu_series}")
+            pytest.skip("skipping AGFHC tests for gpu_series = {cluster_node.gpu_series}")
 
     worker = k8_util.k8_get_node_hostname(gpu_node)
     init_cap, alloc = k8_util.k8_get_node_gpu_capacity(worker)

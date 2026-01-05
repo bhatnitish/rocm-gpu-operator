@@ -102,11 +102,8 @@ def deviceconfig_install(images, gpu_operator_install, environment):
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
     return
 
-def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, amd_smi_collect, images, environment):
+def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -144,9 +141,11 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, amd_smi_colle
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
@@ -167,11 +166,8 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, amd_smi_colle
 
     K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -210,9 +206,11 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
@@ -238,11 +236,8 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
 
     K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -280,31 +275,26 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     failed_endpoints = set()
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_hostname = k8_util.k8_get_node_hostname(node)
-        ret_code, ret_stdout, ret_stderr = cluster_node.http_get(32500, "metrics")
-        if ret_code != 0:
-            failed_endpoints.add(node_ip)
-            Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            ret_code, ret_stdout, ret_stderr = node.http_get(32500, "metrics")
+            if ret_code != 0:
+                failed_endpoints.add(node_ip)
+                Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
     K8Helper.triage(environment, (len(failed_endpoints) == 0),
                     f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -344,36 +334,31 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     failed_endpoints = set()
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_hostname = k8_util.k8_get_node_hostname(node)
-        ret_code, ret_stdout, ret_stderr = cluster_node.http_get(32500, "metrics")
-        if ret_code == 0:
-            failed_endpoints.add(node_ip)
-            Logger.error(f"Able to collect metrics from nodeport endpoint for {node_ip}:32500, stdout: {ret_stdout} stderr: {ret_stderr}")
-        ret_code, ret_stdout, ret_stderr = cluster_node.http_get(32600, "metrics")
-        if ret_code != 0:
-            failed_endpoints.add(node_ip)
-            Logger.error(f"Failed to collect metrics from nodeport endpoint for {node_ip}:32600, stdout: {ret_stdout} stderr: {ret_stderr}")
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            ret_code, ret_stdout, ret_stderr = node.http_get(32500, "metrics")
+            if ret_code == 0:
+                failed_endpoints.add(node.host_name)
+                Logger.error(f"Able to collect metrics from nodeport endpoint for {node.ip_address}:32500, stdout: {ret_stdout} stderr: {ret_stderr}")
+            ret_code, ret_stdout, ret_stderr = node.http_get(32600, "metrics")
+            if ret_code != 0:
+                failed_endpoints.add(node.ip_address)
+                Logger.error(f"Failed to collect metrics from nodeport endpoint for {node.ip_address}:32600, stdout: {ret_stdout} stderr: {ret_stderr}")
     K8Helper.triage(environment, (len(failed_endpoints) == 0),
                     f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
     # Generate set of config-maps in the k8 cluster with different set of labels and metrics
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     exporter_release_name = "device-metrics-exporter"
     exporter_config_defn = {}
@@ -383,15 +368,12 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
 
     # Build common list of metrics across all nodes in the cluster (if different gpu-series are part of cluster)
     list_of_metrics_set = []
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        metrics_data = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
-                                                         skip_profiler_metrics = False,
-                                                         amdgpu_driver = cluster_node.amdgpu_driver_version)
-        list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            metrics_data = metric_util.get_supported_metrics(gpu_series = node.gpu_series,
+                                                             skip_profiler_metrics = False,
+                                                             amdgpu_driver = node.amdgpu_driver_version)
+            list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
     common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
     Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")
 
@@ -447,9 +429,6 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
     request.addfinalizer(_uninstall_exporter_helmchart)
     _uninstall_exporter_helmchart()
 
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
     failed_exp_config_metrics = []
     failed_exp_config_labels = []
     failed_endpoints = set()
@@ -475,30 +454,32 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
             Logger.error(f"Stdout: {ret_stdout.strip()}")
             Logger.error(f"Stderr: {ret_stderr.strip()}")
         K8Helper.triage(environment, (ret_code == 0), f"Failed to install helm-chart for {exporter_release_name}")
+        time.sleep(30) # Wait for config-map is read by exporter pod
 
         K8Helper.triage(environment,
                         helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                         "exporter helm-chart is in failed state")
+        exporter_pods = []
+        for node in gpu_cluster.cluster_nodes:
+            if node.is_gpu_node():
+                pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+                exporter_pods.append(common.PodInfo(pod_name, 1, 1))
         failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
         K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
-        time.sleep(30) # Wait for config-map is read by exporter pod
         expected_metrics = set(label_metrics_tuple[1])
         expected_metrics.update(['promhttp_metric_handler_errors_total'])
         expected_labels = set(label_metrics_tuple[0])
         expected_labels.update(mandatory_labels)
-        for node in gpu_nodes:
-            node_ip = k8_util.k8_get_node_address(node)
-            cluster_node = gpu_cluster.get_worker_node(node_ip)
-            if not cluster_node:
-                pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-            node_hostname = k8_util.k8_get_node_hostname(node)
-            ret_code, resp, _ = cluster_node.http_get(32500, "metrics")
+        for node in gpu_cluster.cluster_nodes:
+            if not node.is_gpu_node():
+                continue
+            ret_code, resp, _ = node.http_get(32500, "metrics")
 
             if ret_code != 0:
-                Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
-                failed_endpoints.add(node_ip)
+                Logger.error(f"Failed to get metrics from nodeport endpoint for {node.ip_address}, stdout: {ret_stdout} stderr: {ret_stderr}")
+                failed_endpoints.add(node.ip_address)
                 continue
-            metric_util.dump_metrics(resp, os.path.join(environment.logdir, f"{node_ip}_{exp_config}_metrics.txt"))
+            metric_util.dump_metrics(resp, os.path.join(environment.logdir, f"{node.ip_address}_{exp_config}_metrics.txt"))
             obs_metric_info = metric_util.parse_metric_data(resp)
             obs_metrics = set(obs_metric_info.keys())
 
@@ -532,7 +513,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
     K8Helper.triage(environment, (len(failed_exp_config_labels) == 0),
                     f"Export ConfigMap (Labels) failed for {failed_exp_config_labels} cases")
 
-def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_install, images, environment):
     """
     Testcase to check if all metrics supported for each of gpu-series is observed in the curl output of exporter endpoint
     """
@@ -565,10 +546,6 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
                 return True
         Logger.error(f"Missing {metric_to_test}")
         return False
-
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     config_map = {
         "GPUConfig" : {
@@ -638,40 +615,38 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
     time.sleep(30) # Wait for config-map is read by exporter pod
 
     failed_metrics = defaultdict(set)
     failed_endpoints = set()
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_name = k8_util.k8_get_node_hostname(node)
-        K8Helper.triage(environment, (cluster_node.num_gpus > 0), f"Node {node_name} has no GPUs present")
+    for node in gpu_cluster.cluster_nodes:
+        if not node.is_gpu_node():
+            continue
 
         # Collect metrics from given node
-        ret_code, ret_stdout, ret_stderr = cluster_node.http_get(32500, "metrics")
+        ret_code, ret_stdout, ret_stderr = node.http_get(32500, "metrics")
         if ret_code != 0:
-            failed_endpoints.add(node_ip)
-            Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
+            failed_endpoints.add(node.ip_address)
+            Logger.error(f"Failed to get metrics from nodeport endpoint for {node.ip_address}, stdout: {ret_stdout} stderr: {ret_stderr}")
             continue
         node_metrics = metric_util.parse_metric_data(ret_stdout)
-        metric_util.dump_metrics(ret_stdout, os.path.join(environment.logdir, f"{node_ip}_{exp_config_name}_metrics.txt"))
+        metric_util.dump_metrics(ret_stdout, os.path.join(environment.logdir, f"{node.ip_address}_{exp_config_name}_metrics.txt"))
 
-        supported_metrics = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
+        supported_metrics = metric_util.get_supported_metrics(gpu_series = node.gpu_series,
                                                               skip_profiler_metrics = False,
-                                                              amdgpu_driver = cluster_node.amdgpu_driver_version)
-        Logger.info(f"Node: {node_name} having {cluster_node.gpu_series} has {len(supported_metrics)} metrics")
+                                                              amdgpu_driver = node.amdgpu_driver_version)
+        Logger.info(f"Node: {node.host_name} having {node.gpu_series} has {len(supported_metrics)} metrics")
         for entry in supported_metrics:
             metric_to_test = entry['name']
-            Logger.info(f"Checking {metric_to_test} among exported metrics for node {node_name}")
-            for gpu_id in range(cluster_node.num_gpus):
+            Logger.info(f"Checking {metric_to_test} among exported metrics for node {node.host_name}")
+            for gpu_id in range(node.num_gpus):
                 if _test_if_metrics_exported(metric_to_test, gpu_id, node_metrics) == False:
                     Logger.error(f"Idle Conditions Metrics: {metric_to_test} failed for {gpu_id}")
                     failed_metrics[metric_to_test].add(gpu_id)
@@ -680,12 +655,8 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     K8Helper.triage(environment, (len(failed_metrics) == 0),
                     f"Metics validation failed: {failed_metrics.keys()} from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
 
-def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
         helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
@@ -723,9 +694,11 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.num_gpus:
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
@@ -736,9 +709,11 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     # Uninstall exporter helm-chart and check if servicemonitor object is removed
     _uninstall_exporter_helmchart()
     time.sleep(30) # Wait for exporter pods to terminate
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_terminated(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods still running - {failed_pods}")
 
@@ -746,11 +721,8 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect servicemonitors from namespace: {environment.exporter_namespace}, error : {err}")
     K8Helper.triage(environment, (len(resp) == 0), f"Found non-zero entries of servicemonitors in namespace: {exporter_release_name}")
 
-def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -792,9 +764,11 @@ def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_i
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
@@ -823,18 +797,16 @@ def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_i
     # Uninstall exporter helm-chart
     _uninstall_exporter_helmchart()
     time.sleep(30) # Wait for exporter pods to terminate
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_terminated(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods still running - {failed_pods}")
 
-def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconfig_install, amd_smi_collect, images, environment):
+def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconfig_install, images, environment):
     global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
         helm_util.helm_add_repo(gpu_cluster, images.get("exporter.repo-name"), images.get("exporter.repo"))
@@ -875,9 +847,11 @@ def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconf
                     "exporter helm-chart is in failed state")
 
     time.sleep(30) # Wait for exporter pods to start working
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_running(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
@@ -901,9 +875,10 @@ def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconf
     # Uninstall exporter helm-chart
     _uninstall_exporter_helmchart()
     time.sleep(30) # Wait for exporter pods to terminate
-    exporter_pods = [
-        common.PodInfo('device-metrics-exporter-amdgpu-metrics-exporter', len(gpu_nodes), 1),
-    ]
+    exporter_pods = []
+    for node in gpu_cluster.cluster_nodes:
+        if node.is_gpu_node():
+            pod_name = k8_util.k8_get_pod_name("amdgpu-metrics-exporter", environment.exporter_namespace, node.host_name)
+            exporter_pods.append(common.PodInfo(pod_name, 1, 1))
     failed_pods = k8_util.k8_check_pod_terminated(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods still running - {failed_pods}")
-

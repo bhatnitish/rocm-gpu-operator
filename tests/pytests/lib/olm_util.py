@@ -100,7 +100,13 @@ def olm_cleanup(k8_cluster : common.k8_cluster, release_name : str, namespace : 
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 encoding='utf-8')
-    return cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
+
+    # cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
+    # Delete catalogsources
+    """
+    oc delete catalogsources -n openshift-amd-gpu amd-gpu-operator-catalog
+    """
+    return k8_delete_custom_resource("operators.coreos.com", "v1alpha1", "catalogsources", namespace, f"{release_name}-catalog")
 
 @log_arguments
 def olm_manage_amdgpu_driver_blacklist(enable : bool, is_mini_kube_cluster : bool) -> (int, str, str):
@@ -132,7 +138,6 @@ def olm_manage_amdgpu_driver_blacklist(enable : bool, is_mini_kube_cluster : boo
         "kind": "MachineConfig",
         "metadata": {
             "name": RESOURCE_NAME,
-            "namespace" : NAMESPACE,
             "labels": {
                 "machineconfiguration.openshift.io/role": ROLE_LABEL
             }

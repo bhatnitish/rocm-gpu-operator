@@ -50,7 +50,6 @@ class cluster_node(object):
         self._user_name = user_name
         self._password = password
         self._identity = identity
-        self._node_type = None
         self._gpu_series = None
         self._host_name = None
         self._device_id = None
@@ -77,14 +76,6 @@ class cluster_node(object):
     @property
     def identity(self):
         return self._identity
-
-    @property
-    def node_type(self):
-        return self._node_type
-
-    @node_type.setter
-    def node_type(self, node_type):
-        self._node_type = node_type
 
     @property
     def gpu_series(self):
@@ -125,36 +116,12 @@ class cluster_node(object):
     @device_id.setter
     def device_id(self, device_id):
         self._device_id = device_id
-        if device_id in ['0x7408']:
-            self._gpu_series = 'MI250X'
-        if device_id in ['0x740f']:
-            self._gpu_series = 'MI210'
-        elif device_id in ['0x7410']:
-            self._gpu_series = 'MI210-VF'
-        elif device_id in ['0x740c']:
-            self._gpu_series = 'MI250'
-        elif device_id in ['0x74a1']:
-            self._gpu_series = 'MI300X'
-        elif device_id in ['0x74b5']:
-            self._gpu_series = 'MI300X-VF'
-        elif device_id in ['0x74a2', '0x74a8']:
-            self._gpu_series = 'MI308X'
-        elif device_id in ['0x74b5', '0x74b6', '0x74bc']:
-            self._gpu_series = 'MI308X-VF'
-        elif device_id in ['0x75a0']:
-            self._gpu_series = 'MI350X'
-        elif device_id in ['0x75a5', '0x74a5']:
-            self._gpu_series = 'MI325X'
-        elif device_id in ['0x75b0']:
-            self._gpu_series = 'MI350X-VF'
-        elif device_id in ['0x74b9']:
-            self._gpu_series = 'MI325X-VF'
-        elif device_id in ['0x75a3']:
-            self._gpu_series = 'MI355X'
-        elif device_id in ['0x75b3']:
-            self._gpu_series = 'MI355X-VF'
-        else:
-            self._gpu_series = 'UNKNOWN'
+
+    def is_gpu_node(self):
+        if self._gpu_series != None:
+            if self._num_gpus > 0:
+                return True
+        return False
 
     def is_local(self):
         return self._ip_address == "localhost"
@@ -337,29 +304,10 @@ class cluster_node(object):
             time.sleep(5)
         return ret_code, ret_stdout, ret_stderr
 
-class k8_master_node(cluster_node):
-
-    def __init__(self, ip_address, user_name, password, identity):
-        super().__init__(ip_address, user_name, password, identity)
-        self._local_registry_enabled = False
-
-    def set_local_registry_status(self, status):
-        self._local_registry_enabled = status
-
-    def is_local_registry_available(self):
-        return self._local_registry_enabled
-
 class cluster(object):
 
     def __init__(self, nodes, testbed_type):
-        self._worker_nodes = list()
-        self._gpu_series_set = set()
-        for node in nodes:
-            assert node.NodeType == "worker"
-            worker_node = cluster_node(node.IpAddress, node.Username, node.Password, node.Identity)
-            worker_node.gpu_series = node.GPUSeries
-            self._worker_nodes.append(worker_node)
-            self._gpu_series_set.add(node.GPUSeries)
+        self._cluster_nodes = nodes
         self._testbed_type = testbed_type
 
     @property
@@ -367,51 +315,43 @@ class cluster(object):
         return self._testbed_type
 
     @property
-    def worker_nodes(self):
-        return self._worker_nodes
+    def cluster_nodes(self):
+        return self._cluster_nodes
 
-    def get_worker_node(self, node_ip):
-        filtered_nodes = list(filter(lambda x: x.ip_address == node_ip, self._worker_nodes))
-        if len(filtered_nodes) == 1:
-            return filtered_nodes[0]
-        return None
+    def find_node_by_ip(self, node_ip):
+        node = next((n for n in self._cluster_nodes if n.ip_address == node_ip), None)
+        return node
 
-    def has_same_gpu_devices(self):
-        return len(self._gpu_series_set) == 1
-
-    def add_worker_node(self, node_ip, username = None, password = None):
-        worker_node = cluster_node(node_ip, username, password, None)
-        self._worker_nodes.append(worker_node)
-        return
-
-    def update_cluster_insights(self, node_ip, gpu_series):
-        worker_node = get_worker_node(node_ip)
-        if worker_node:
-            worker_node.gpu_series = node.GPUSeries
-            self._gpu_series_set.add(node.GPUSeries)
-            return True
-        return False
+    def get_gpu_variants(self):
+        return [node.gpu_series for node in self._cluster_nodes if node.gpu_series is not None]
 
 class k8_cluster(cluster):
 
-    def __init__(self, master_node = None, nodes = list(), mini_kube_cluster = False):
-        super().__init__(nodes, TestbedType.K8)
-        self._k8_master = None
+    @staticmethod
+    def BuildK8Cluster(nodes):
+        cluster_nodes = list()
+        master_nodes = list()
+        for node in nodes:
+            c_node = cluster_node(node.IpAddress, node.Username, node.Password, node.Identity)
+            cluster_nodes.append(c_node)
+            if node.NodeType == "master":
+                master_nodes.append(c_node)
+        return k8_cluster(cluster_nodes, master_nodes)
+
+    def __init__(self, cluster_nodes, master_nodes):
+        super().__init__(cluster_nodes, TestbedType.K8)
+        self._k8_masters = master_nodes
         self._k8_kube_config = None
         self._k8_secrets = {}
         self._k8_registry = 'docker.io'
-        self._mini_kube_cluster = mini_kube_cluster
-        if master_node:
-            assert master_node.NodeType == "master"
-            self._k8_master = k8_master_node(master_node.IpAddress, master_node.Username, master_node.Password, master_node.Identity)
 
     @property
     def k8_master(self):
-        return self._k8_master
+        return self.master_nodes[0]
 
     @property
-    def mini_kube_cluster(self):
-        return self._mini_kube_cluster
+    def k8_masters(self):
+        return self.master_nodes
 
     @property
     def k8_kube_config(self):
@@ -437,19 +377,14 @@ class k8_cluster(cluster):
     def k8_registry(self, registry):
         self._k8_registry = registry
 
+    def is_mini_kube(self):
+        return any(node.gpu_series is not None for node in self._k8_masters)
+
  
 class standalone_gpu_nodes(cluster):
 
     def __init__(self, ip_info_list):
         super().__init__(ip_info_list, TestbedType.STANDALONE)
-
-class OpenShiftGpuCluster(cluster):
-
-    def __init__(self):
-        pass
-
-    def testbed_type(self):
-        return TestbedType.OPENSHIFT
 
 class SlurmGpuCluster(cluster):
 

@@ -26,7 +26,12 @@ from lib import helm_util
 
 Logger = logging.getLogger("exporter.conftest")
 
-@pytest.fixture(scope="session")
-def release_name():
-    return "device-metrics-exporter"
+def pytest_html_report_title(report):
+    # Add a custom title to the report
+    report.title = f"AMD GPU Exporter Helmchart Validation Test Results"
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_techsupport_args(request, exporter_release_name, environment):
+    if environment.tech_support_tool:
+        environment.tech_support_tool["args"] = ["-r", exporter_release_name, "all"]
 

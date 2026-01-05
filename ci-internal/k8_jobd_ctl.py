@@ -88,6 +88,14 @@ def _load_testbed_json(testbed_json):
             return testbed_info
     return None
 
+def _is_pull_images_enabled(testbed_json):
+    if testbed_json:
+        with open(testbed_json, "r") as fp:
+            data = json.load(fp)
+
+        return data["Instances"][0]["Resource"].get("pull-images", "no") == "yes"
+    return False
+
 def run_command(node, cmd, timeout = 90):
     from fabric import Connection
     from invoke.exceptions import UnexpectedExit
@@ -408,9 +416,12 @@ def _load_images(logger, registry, image_manifest):
                 logger.info(f"For artifact: {artifact_name}, image-tag: {loaded_image_tag}, derived image-name: {image_name} tag: {image_tag}")
 
                 # Push tag to specified registry
-                tag = loaded_image.attrs['Config']['Labels'].get('HOURLY_TAG', '')
-                if tag == '':
+                tag = loaded_image.attrs['Config']['Labels'].get('HOURLY_TAG', "")
+                if "agfhc" in image_tag:
+                    tag = f"agfhc-{tag}"
+                if tag == "":
                     tag = image_tag
+
                 loaded_image.tag(repository = f"{registry}/rocm/{image_name}", tag = tag)
                 new_image = f"{registry}/rocm/{image_name}"
 
@@ -643,16 +654,14 @@ def _run_image_commands(logger):
         if _upload_docker_daemon_conf(logger, GlobalOptions.registry, testbed_info) == 0:
             logger.info("Successfully uploaded new /etc/docker/daemon.json to all nodes")
         else:
-            logger.error(f"Failed to upload /etc/docker/daemon.json to all nodes")
-            sys.exit(1)
+            logger.warning(f"Failed to upload /etc/docker/daemon.json to all nodes - ignoring this error")
         if _upload_crio_registry_conf(logger, GlobalOptions.registry, testbed_info) == 0:
             logger.info("Successfully uploaded new /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
         else:
-            logger.error(f"Failed to upload /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
-            sys.exit(1)
+            logger.warning(f"Failed to upload /etc/containers/registries.conf.d/runner-registry.conf to all nodes - ignoring")
     if GlobalOptions.pull_images:
-        testbed_info = _load_testbed_json(GlobalOptions.testbed)
-        if testbed_info and testbed_info.get("pull-images", "no") == "yes":
+        if _is_pull_images_enabled(GlobalOptions.testbed):
+            testbed_info = _load_testbed_json(GlobalOptions.testbed)
             logger.info("pulling images for this cluster")
             workers = _get_worker_nodes(testbed_info)
             for node in workers:
@@ -689,7 +698,7 @@ def _generate_report(logger):
         result_table.align["Test Module"] = 'l'
         result_table.align["TestCase"] = 'l'
         result_table.hrules = prettytable.prettytable.HRuleStyle.FRAME
-        result_table.max_table_width = 140
+        result_table.padding_width = 2
 
         module_name = ""
         module_statistics = dict()
@@ -728,8 +737,8 @@ def _generate_report(logger):
         summary_table = prettytable.PrettyTable()
         summary_table.field_names = ["Test Module", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Skip %", "Total Time"]
         summary_table.hrules = prettytable.prettytable.HRuleStyle.FRAME
-        summary_table.max_table_width = 140
         summary_table.align['Test Module'] = 'l'
+        summary_table.padding_width = 2
 
         ts_testcases = 0
         ts_failures = 0
@@ -738,9 +747,9 @@ def _generate_report(logger):
         ts_time = 0
         for module_name, stats in module_statistics.items():
             total = stats['tm_pass_count'] + stats['tm_fail_count'] + stats['tm_skip_count']
-            success = float(stats['tm_pass_count'] * 100.0/total)
-            skip = float(stats['tm_skip_count'] * 100.0/total)
-            failure = float(stats['tm_fail_count'] * 100.0/total)
+            success = float(stats['tm_pass_count']/total) * 100.0
+            skip = float(stats['tm_skip_count']/total) * 100.0
+            failure = float(stats['tm_fail_count']/total) * 100.0
             module_time = stats['module_time']
             summary_table.add_row([module_name, stats['tm_pass_count'], stats['tm_skip_count'], stats['tm_fail_count'], total,
                                    f"{success:.2f}", f"{failure:.2f}", f"{skip:.2f}", f"{module_time/60:.2f}m"])
@@ -757,16 +766,17 @@ def _generate_report(logger):
 
     summary_table = prettytable.PrettyTable()
     summary_table.title = "Overall Status"
+    summary_table.padding_width = 2
     summary_table.field_names = ["Testsuite", "Modules", "Passed", "Skipped", "Failed", "Total", "Success %", "Failure %", "Skipped %", "Total Time"]
 
     for ts_name, stats in ts_statistcs.items():
-        total_time = stats[4]
-        total = stats[1] + stats[2] + stats[3]
-        success = float(stats[1] * 100.0/total)
-        skip = float(stats[2] * 100.0/total)
-        failure = float(stats[3] * 100.0/total)
-        summary_table.add_row([ts_name, stats[0], stats[1], stats[2], stats[3], total,
-                                f"{success:.2f}", f"{failure:.2f}", f"{skip:.2f}", f"{total_time/60:.2f}m"])
+        modules, ts_success, ts_skips, ts_failures, ts_time = stats
+        total = ts_success + ts_skips + ts_failures
+        success = float(ts_success/total) * 100.0
+        skip = float(ts_skips/total) * 100.0
+        failure = float(ts_failures/total) * 100.0
+        summary_table.add_row([ts_name, modules, ts_success, ts_skips, ts_failures, total,
+                                f"{success:.2f}", f"{failure:.2f}", f"{skip:.2f}", f"{ts_time/60:.2f}m"])
     print("")
     print(summary_table)
     print(f"Test Result: {final_status}")

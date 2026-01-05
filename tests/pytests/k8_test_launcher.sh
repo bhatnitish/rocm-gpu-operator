@@ -92,7 +92,7 @@ function launch_pytest() {
             xml_file=logs/${test_sel}.xml
         fi
     fi
-    CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
+    CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html --css scripts/style.css"
     if [[ "${ENABLE_DEBUGGING}" == "YES" ]];
     then
         CMD_OPT+=" --pdb"

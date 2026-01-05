@@ -57,6 +57,9 @@ def k8_lib_init(k8_kube_config : str) -> None:
 
     # retrieve with worker-node information
     ret_code, k8_nodes = k8_get_nodes()
+    for node in k8_nodes:
+        node_name = node['metadata']['labels']['kubernetes.io/hostname']
+        k8_untaint_node(node_name)
     assert ret_code == 0, f"Failed to collect worker nodes from k8/cluster"
 
 def k8_init_cluster(k8_cluster : common.k8_cluster, namespaces):
@@ -240,9 +243,12 @@ def k8_create_custom_resource(cr_spec : dict) -> (int, str, str):
     # Read cr_file and derive: group, version, plural and name
     group, version = cr_spec['apiVersion'].split('/')
     plural = cr_spec['kind'].lower() + 's'
-    namespace = cr_spec['metadata']['namespace'] # TODO: If namespace is not defined, then use different/default API
     try:
-        resp = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
+        if 'namespace' in cr_spec['metadata']:
+            namespace = cr_spec['metadata']['namespace'] # TODO: If namespace is not defined, then use different/default API
+            resp = custom_objects_api.create_namespaced_custom_object(group, version, namespace, plural, cr_spec)
+        else:
+            resp = custom_objects_api.create_cluster_custom_object(group, version, plural, cr_spec)
     except ApiException as e:
         Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
         return -1, "", str(e)
@@ -322,7 +328,7 @@ def k8_delete_custom_resource(group : str, version : str, plural : str, namespac
     except ApiException as e:
         Logger.error(f"Failed to query CR, error: {e}")
 
-    if entry == None:
+    if entry is None:
         Logger.warn(f"CustomResource of type {plural} with name {name} does not exists")
         return 0, "", ""
     try:
@@ -983,9 +989,9 @@ def k8_get_job_status(namespace : str, job_name):
         result = ""
         if len(api_response.items) != 0:
             item = api_response.items[-1]
-            if item.status.succeeded == None:
+            if item.status.succeeded is None:
                 result = "Unknown"
-            elif item.status.active == None and item.status.succeeded == "1":
+            elif item.status.active is None and item.status.succeeded == "1":
                 result = "Succeeded"
             elif item.status.active == "1":
                 result = "Active"
@@ -1372,11 +1378,17 @@ def k8_taint_node(node_name : str, taint_add=True):
         node.spec.taints = [new_taint]
 
     # Update the node object with the modified taints
-    try:
-        v1.patch_node(name=node_name, body=node)
-        Logger.info(f"Node '{node_name}' successfully tainted with {taint_key}={taint_value}:{taint_effect}, taint={taint_add}")
-    except client.ApiException as e:
-        Logger.error(f"Error tainting node: {e}")
+    for _ in range(5):
+        try:
+            v1.patch_node(name=node_name, body=node)
+            Logger.info(f"Node '{node_name}' successfully tainted with {taint_key}={taint_value}:{taint_effect}, taint={taint_add}")
+            break
+        except client.ApiException as e:
+            Logger.warning(f"Error tainting node: {e}")
+            if e.reason == "Conflict":
+                time.sleep(5)
+                continue
+    return
 
 @log_arguments
 def k8_untaint_node(node_name : str):
@@ -1385,8 +1397,7 @@ def k8_untaint_node(node_name : str):
 
     Example: kubectl untaint nodes node_name gpu=unhealthy:NoSchedule
     """
-    global Logger
-    k8_taint_node(node_name, False)
+    return k8_taint_node(node_name, taint_add=False)
 
 @log_arguments
 def k8_patch_deployment(deployment, namespace, new_toleration, tolerate_add):
@@ -2108,7 +2119,26 @@ def k8_list_subscriptions() -> (int, List, str):
         subscriptions = custom_objects_api.list_cluster_custom_object(group=group, version=version, plural=plural)
         return 0, subscriptions.get("items", []), ""
     except ApiException as e:
-        Logger.error(f"Failed to create deviceconfig-cr, error: {e}")
+        Logger.error(f"Failed to list CR, error: {e}")
+        return -1, [], str(e)
+    return 0, [], ""
+
+@log_arguments
+def k8_list_catalogsources() -> (int, List, str):
+    """
+    API to list catalogsources (items) in openshift.
+    """
+    global Logger
+
+    custom_objects_api = client.CustomObjectsApi()
+    group = "operators.coreos.com"
+    version = "v1alpha1"
+    plural = "catalogsources"
+    try:
+        catalogsources = custom_objects_api.list_cluster_custom_object(group=group, version=version, plural=plural)
+        return 0, catalogsources.get("items", []), ""
+    except ApiException as e:
+        Logger.error(f"Failed to list CR, error: {e}")
         return -1, [], str(e)
     return 0, [], ""
 
@@ -2154,7 +2184,7 @@ def k8_wait_for_cluster_ready(minikube : bool = False) -> (int):
     # Check for status to be declared as Ready
     for _ in range(30):
         ret_code, k8_nodes = k8_get_nodes()
-        if ret_code != 0 or k8_nodes == None:
+        if ret_code != 0 or k8_nodes is None:
             if minikube:
                 time.sleep(30) # If this is a minikube, we have lost connectivity to the cluster itself
             else:

@@ -23,9 +23,7 @@ import logging
 import time
 from lib import common
 import lib.k8_util as k8_util
-import lib.spec_util as spec_util
 import lib.olm_util as olm_util
-import lib.amdgpu as amdgpu_util
 from lib.util import K8Helper
 
 Logger = logging.getLogger("k8.conftest")
@@ -36,8 +34,12 @@ def inbox_driver_skip(environment):
         pytest.skip("Using inbox amdgpu driver - skip")
     return
 
+@pytest.fixture(scope="session")
+def gpu_operator_release_name(environment):
+    return "amd-gpu-operator"
+
 @pytest.fixture(scope="session", autouse=True)
-def init_testbed(request, gpu_cluster, release_name, environment):
+def init_testbed(request, gpu_cluster, gpu_operator_release_name, environment):
     global Logger
     all_namespaces = []
     if hasattr(environment, "gpu_operator_namespace"):
@@ -63,16 +65,28 @@ def init_testbed(request, gpu_cluster, release_name, environment):
                 found = next((sub for sub in subscriptions if sub['spec']['name'] == item), None)
                 K8Helper.triage(environment, (found != None), f"Failed to find subscription {item}")
 
-            gpu_op_sub = next((sub for sub in subscriptions if sub['spec']['name'] == release_name), None)
+            gpu_op_sub = next((sub for sub in subscriptions if sub['spec']['name'] == gpu_operator_release_name), None)
 
             # remove existing gpu-operator olm-bundle
             if gpu_op_sub:
-                Logger.debug(f"Found active subscription for {release_name}, uninstalling")
-                ret_code, ret_stdout, ret_stderr = olm_util.olm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-                K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name}", expected_to_fail = True)
+                Logger.debug(f"Found active subscription for {gpu_operator_release_name}, uninstalling")
+                ret_code, ret_stdout, ret_stderr = olm_util.olm_cleanup(gpu_cluster, gpu_operator_release_name, environment.gpu_operator_namespace)
+                K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {gpu_operator_release_name}", expected_to_fail = True)
                 time.sleep(10)
             else:
-                Logger.debug(f"No active subscription for {release_name} found")
+                Logger.debug(f"No active subscription for {gpu_operator_release_name} found")
+
+            # Check for catalogsources
+            ret_code, catalogsources, ret_stderr = k8_util.k8_list_catalogsources()
+            K8Helper.triage(environment, (ret_code == 0),
+                            f"Failed to collect catalogsources from openshift-cluster, error {ret_stderr}")
+            gpu_op_catalog_name = f"{gpu_operator_release_name}-catalog"
+            gpu_op_catalog = next((catalog for catalog in catalogsources if catalog['metadata']['name'] == gpu_op_catalog_name), None)
+            if gpu_op_catalog:
+                ret_code, _, ret_stderr = k8_util.k8_delete_custom_resource("operators.coreos.com", "v1alpha1", "catalogsources",
+                                                                            environment.gpu_operator_namespace, gpu_op_catalog_name)
+                K8Helper.triage(environment, (ret_code == 0),
+                                f"Failed to delete catalogsources from openshift-cluster, error {ret_stderr}")
 
     Logger.info("Cleanup before starting test session")
     _cleanup_steps()
@@ -85,10 +99,10 @@ def init_testbed(request, gpu_cluster, release_name, environment):
         blacklist_enable = False
 
     ret_code, ret_stdout, ret_stderr = olm_util.olm_manage_amdgpu_driver_blacklist(enable = blacklist_enable,
-                                                                                   is_mini_kube_cluster = gpu_cluster.mini_kube_cluster)
+                                                                                   is_mini_kube_cluster = gpu_cluster.is_mini_kube())
     K8Helper.triage(environment, (ret_code == 0),
                     f"Failed to {'enable' if blacklist_enable else 'disable'} amdgpu_driver_blacklist, {ret_stdout}, error: {ret_stderr}")
-    status = k8_util.k8_wait_for_cluster_ready(gpu_cluster.mini_kube_cluster)
+    status = k8_util.k8_wait_for_cluster_ready(gpu_cluster.is_mini_kube())
     K8Helper.triage(environment, (status == 0),
                         f"Cluster is not Ready after amdgpu blacklist is {'enable' if blacklist_enable else 'disable'}")
 
@@ -101,7 +115,7 @@ def init_testbed(request, gpu_cluster, release_name, environment):
     return
 
 @pytest.fixture(scope="module")
-def gpu_operator_install(gpu_cluster, release_name, images, environment):
+def gpu_operator_install(gpu_cluster, gpu_operator_release_name, images, environment):
     global Logger
 
     # cleanup
@@ -117,16 +131,16 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
     # Check for subscriptions - nfd, kernel-module-management
     ret_code, subscriptions, ret_stderr = k8_util.k8_list_subscriptions()
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect subscriptions from openshift-cluster, error {ret_stderr}")
-    gpu_op_sub = next((sub for sub in subscriptions if sub['spec']['name'] == release_name), None)
+    gpu_op_sub = next((sub for sub in subscriptions if sub['spec']['name'] == gpu_operator_release_name), None)
 
     # remove existing gpu-operator olm-bundle
     if gpu_op_sub:
-        Logger.debug(f"Found active subscription for {release_name}, uninstalling")
-        ret_code, ret_stdout, ret_stderr = olm_util.olm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-        K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name}", expected_to_fail = True)
+        Logger.debug(f"Found active subscription for {gpu_operator_release_name}, uninstalling")
+        ret_code, ret_stdout, ret_stderr = olm_util.olm_cleanup(gpu_cluster, gpu_operator_release_name, environment.gpu_operator_namespace)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {gpu_operator_release_name}", expected_to_fail = True)
         time.sleep(10)
     else:
-        Logger.debug(f"No active subscription for {release_name} found")
+        Logger.debug(f"No active subscription for {gpu_operator_release_name} found")
 
     opts = {}
     url = images['gpu-operator.olm-bundle']
@@ -134,10 +148,10 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
         opts["pull-secret-name"] = images["controllerManager.manager.image.secret"]
 
     ret_code, ret_stdout, ret_stderr = olm_util.olm_install(gpu_cluster, url, environment.gpu_operator_namespace, **opts)
-    K8Helper.triage(environment, (ret_code == 0), f"Failed to install {release_name}, stdout: {ret_stdout}, error: {ret_stderr}")
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install {gpu_operator_release_name}, stdout: {ret_stdout}, error: {ret_stderr}")
     time.sleep(30)
     ret_code, subscriptions, ret_stderr = k8_util.k8_list_subscriptions()
-    mandatory_subscriptions = ["nfd", "kernel-module-management", release_name]
+    mandatory_subscriptions = ["nfd", "kernel-module-management", gpu_operator_release_name]
     for item in mandatory_subscriptions:
         found = next((sub for sub in subscriptions if sub['spec']['name'] == item), None)
         K8Helper.triage(environment, (found != None), f"Failed to find subscription {item}")
@@ -152,67 +166,7 @@ def gpu_operator_install(gpu_cluster, release_name, images, environment):
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
 
-    ret_code, ret_stdout, ret_stderr = olm_util.olm_cleanup(gpu_cluster, release_name, environment.gpu_operator_namespace)
-    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {release_name}, error : {ret_stderr}")
+    ret_code, ret_stdout, ret_stderr = olm_util.olm_cleanup(gpu_cluster, gpu_operator_release_name, environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {gpu_operator_release_name}, error : {ret_stderr}")
     return
-
-@pytest.fixture(scope="module")
-def amd_smi_collect(gpu_cluster, gpu_operator_install, deviceconfig_install, environment):
-    if environment.amd_smi_collection_complete:
-        Logger.debug("amd-smi information already collected, skip now")
-        return
-
-    # Derive gpu information using amd-smi information
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-
-    # Enable metricsExporter in gpu-operator deviceconfig CR, if not already enabled
-    revert = False
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        if tcfg['metricsExporter.enable'] == False:
-            revert = True
-            tcfg['metricsExporter.enable'] = True
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
-            K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
-
-    # Watch for all pod creation
-    '''
-    test-deviceconfig-device-plugin-8f7px                        1/1     Running       0                 12d
-    test-deviceconfig-metrics-exporter-27gq9                     2/2     Running       0                 12d
-    '''
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
-    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
-
-    time.sleep(30) # Wait for exporter to start working
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.get_worker_node(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_name = k8_util.k8_get_node_hostname(node)
-        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
-        # Collect gpu information from the node
-        cmd = [K8Helper.get_amd_smi_path(environment), "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                          cmd, exporter_pod_name, "metrics-exporter-container")
-        K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
-                        f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
-        amdgpu_util.extract_amdgpu_info(cluster_node, node, amd_smi_info)
-        cluster_node.host_name = node_name
-
-    if revert:
-        # Disable metricsExporter in gpu-operator deviceconfig CR, if previously not enabled
-        for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-            tcfg['metricsExporter.enable'] = False
-            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
-            K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
-    environment.amd_smi_collection_complete = True
-    Logger.info("Collected amd-smi information for all cluster nodes")
 

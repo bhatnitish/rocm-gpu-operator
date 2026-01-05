@@ -13,42 +13,47 @@ images:
             kind        : container
 
         gpu-operator:
-            location    : file:///gpu-operator/tests/pytests/downloads/gpu-operator-helm-k8s-v1.4.1-v1.4.1-23.tgz
-            version     : v1.4.1-23
+            location    : file:///gpu-operator/tests/pytests/downloads/gpu-operator-helm-k8s-v1.4.1-v1.4.1-28.tgz
+            version     : v1.4.1-28
             kind        : helm-chart
+
+        exporter:
+            location    : file:///gpu-operator/tests/pytests/downloads/device-metrics-exporter-charts-v1.4.1-20.tgz
+            kind        : helm-chart
+            version     : v1.4.1-20
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
             location    : container://<registry>/amdpsdo/gpu-operator
-            version     : v1.4.1-23
+            version     : v1.4.1-28
             kind        : container
             secret      : docker-amdpsdo-auth
 
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://<registry>/amdpsdo/device-metrics-exporter
-            version     : v1.4.1-15
+            version     : v1.4.1-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         test-runner:
             key         : testRunner.image
             location    : container://<registry>/amdpsdo/test-runner
-            version     : v1.4.1-15
+            version     : v1.4.1-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         test-runner-agfhc:
             key         : testRunnerAgfhc.image
             location    : container://<registry>/amdpsdo/test-runner
-            version     : agfhc-v1.4.1-15
+            version     : agfhc-v1.4.1-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         config-manager:
             key         : configManager.image
             location    : container://<registry>/amdpsdo/device-config-manager
-            version     : v1.4.1-5
+            version     : v1.4.1-8
             kind        : container
             secret      : docker-amdpsdo-auth
         
@@ -112,35 +117,35 @@ images:
         gpu-controller-manager:
             key         : controllerManager.manager.image
             location    : container://<registry>/amdpsdo/gpu-operator
-            version     : v1.4.1-23
+            version     : v1.4.1-28
             kind        : container
             secret      : docker-amdpsdo-auth
 
         device-metrics-exporter:
             key         : metricsExporter.image
             location    : container://<registry>/amdpsdo/device-metrics-exporter
-            version     : v1.4.1-15
+            version     : v1.4.1-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         test-runner:
             key         : testRunner.image
             location    : container://<registry>/amdpsdo/test-runner
-            version     : v1.4.1-15
+            version     : v1.4.1-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         test-runner-agfhc:
             key         : testRunnerAgfhc.image
             location    : container://<registry>/amdpsdo/test-runner
-            version     : agfhc-v1.4.1-15
+            version     : agfhc-v1.4.1-20
             kind        : container
             secret      : docker-amdpsdo-auth
 
         config-manager:
             key         : configManager.image
             location    : container://<registry>/amdpsdo/device-config-manager
-            version     : v1.4.1-5
+            version     : v1.4.1-8
             kind        : container
             secret      : docker-amdpsdo-auth
         

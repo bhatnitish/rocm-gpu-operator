@@ -181,8 +181,8 @@ def test_node_driver_version(gpu_cluster, deviceconfig_install, environment, inb
 
     # check the version in the deviceconfig
     config_version = environment.amdgpu_driver_spec["default-version"]
-    rocm_version = amdgpu.get_rocm_version(config_version)
-    K8Helper.check_node_driver_version(gpu_cluster, config_version, rocm_version, environment)
+    driver_version = amdgpu.get_matching_driver_version(config_version)
+    K8Helper.check_node_driver_version(gpu_cluster, config_version, driver_version, environment)
 
 def test_driver_blacklist_file_present(gpu_cluster, deviceconfig_install, environment, inbox_driver_skip):
     global Logger
@@ -268,7 +268,7 @@ def test_driver_upgrade_cycle(request, gpu_cluster, deviceconfig_install, enviro
     global Logger
     if environment.gpu_operator_version in ["v1.0.0", "v1.1.0"]:
         pytest.skip(f"Skipping driver-upgrade testcase for current version {environment.gpu_operator_version}")
-    if gpu_cluster.mini_kube_cluster:
+    if gpu_cluster.is_mini_kube():
         pytest.skip("Using mini-kube cluster - skip driver upgrade testcases")
 
     current_version = environment.amdgpu_driver_spec["default-version"]
@@ -295,8 +295,8 @@ def test_driver_upgrade_cycle(request, gpu_cluster, deviceconfig_install, enviro
         for devcfg in deviceconfig_install.devicecfg_list:
             K8Helper.wait_kmm_worker_completion(environment, devcfg)
 
-        rocm_version = amdgpu.get_rocm_version(current_version)
-        K8Helper.check_node_driver_version(gpu_cluster, current_version, rocm_version, environment)
+        driver_version = amdgpu.get_matching_driver_version(current_version)
+        K8Helper.check_node_driver_version(gpu_cluster, current_version, driver_version, environment)
 
     request.addfinalizer(_restore)
 
@@ -331,8 +331,8 @@ def test_driver_upgrade_cycle(request, gpu_cluster, deviceconfig_install, enviro
             ret_code = k8_util.reboot_node(gpu_cluster, node_name)
             K8Helper.triage(environment, ret_code == 0, f"Failed to reboot node {node_name}")
 
-    rocm_version = amdgpu.get_rocm_version(upgrade_version)
-    K8Helper.check_node_driver_version(gpu_cluster, upgrade_version, rocm_version, environment)
+    driver_version = amdgpu.get_matching_driver_version(upgrade_version)
+    K8Helper.check_node_driver_version(gpu_cluster, upgrade_version, driver_version, environment)
 
 def test_deviceplugin_create_delete_gpu_workload(request, deviceconfig_install, images, environment):
     global Logger
@@ -597,7 +597,7 @@ def test_upgrade_driver_using_label(request, environment, driver_version=version
     K8Helper.triage(environment, (ret_code == 0), "gpu-operator failed to find amd/gpu nodes in the cluster")
     for node in gpu_nodes:
         node_ip = k8_util.k8_get_node_address(node)
-        worker_node = gpu_cluster.get_worker_node(node_ip)
+        worker_node = gpu_cluster.find_node_by_ip(node_ip)
         node_name = k8_util.k8_get_node_hostname(node)
         ret_code, resp_stdout, resp_stderr = gpu_cluster.k8_master.run_command(f"kubectl label node {node_name} \
                   --overwrite kmm.node.kubernetes.io/version-module.<namespace>.test-device-config=driver_version")

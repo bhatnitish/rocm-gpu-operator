@@ -337,7 +337,7 @@ class K8Helper:
         else:
             if environment.tech_support_tool:
                 Logger.info(f"Running tech-support tool {environment.tech_support_tool}")
-                cmd = [environment.tech_support_tool, "all"]
+                cmd = [environment.tech_support_tool["tool"], *(environment.tech_support_tool.get("args", []))]
                 cmd_resp = subprocess.run(cmd, check=False,
                                           stdout=subprocess.PIPE,
                                           stderr=subprocess.PIPE,
@@ -369,7 +369,7 @@ class K8Helper:
         workload_config = copy.deepcopy(kwargs)
         node_name = workload_config.get("node_name", None)
 
-        if node_name == None:
+        if node_name is None:
             # Take one node with gpu
             ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
             K8Helper.triage(environment, ret_code == 0, "gpu-operator failed to find amd/gpu nodes in the cluster")

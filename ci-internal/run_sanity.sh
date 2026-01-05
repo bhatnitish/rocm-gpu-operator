@@ -177,7 +177,19 @@ function launch_pytest() {
         CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
     fi
     echo "Running k8 pytests with CMD_OPTS: ${CMD_OPTS}"
-    TECH_SUPPORT_TOOL=/gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
+    if [[ "${APP_NAME}" == "gpu-operator" ]];
+    then
+        cp /gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/gpu_operator_techsupport_dump.sh
+        chmod +x /gpu-operator/tests/pytests/gpu_operator_techsupport_dump.sh
+        export TECH_SUPPORT_TOOL=/gpu-operator/tests/pytests/gpu_operator_techsupport_dump.sh
+    fi
+    if [[ "${APP_NAME}" == "exporter" ]];
+    then
+        cp /device-metrics-exporter/tools/techsupport_dump.sh /gpu-operator/tests/pytests/exporter_techsupport_dump.sh
+        chmod +x /gpu-operator/tests/pytests/exporter_techsupport_dump.sh
+        export TECH_SUPPORT_TOOL=/gpu-operator/tests/pytests/exporter_techsupport_dump.sh
+    fi
+    /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
     RET=$?
     echo ""
     /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
