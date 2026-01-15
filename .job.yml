@@ -130,6 +130,22 @@ builds:
      - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
      - /device-metrics-exporter/tools/techsupport_dump.sh
 
+  build-external-device-metrics-exporter-debian-package-ub22.04:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub22.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub22.04 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+
+  build-external-device-metrics-exporter-debian-package-ub24.04:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub24.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub24.04 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+
 targets:
   gpu-operator-sanity:
     commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make generate && make vet && make lint && make unit-test"]

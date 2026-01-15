@@ -1191,7 +1191,7 @@ def k8_get_node_address(node_info, address_type = "InternalIP"):
             return addr.get("address", None)
     assert f"Missing address-type : {address_type} in k8 node, {node_info}"
 
-def k8_lookup_node_address(node_name):
+def k8_lookup_node_by_name(node_name):
     global Logger
     ret_code, k8_nodes = k8_get_nodes()
     if ret_code != 0:
@@ -1211,6 +1211,26 @@ def k8_get_node_hostname(node_info, address_type = "Hostname"):
         if addr.get("type", None) == address_type:
             return addr.get("address", None)
     assert f"Missing address-type : {address_type} in k8 node, {node_info}"
+
+def k8_get_node_os_info(node_info):
+    assert 'status' in node_info, f"k8 node missing status section, {node_info}"
+    assert 'node_info' in node_info['status'], f"k8 node missing status.node_info, {node_info}"
+    os_type = node_info['status']['node_info'].get('operating_system', 'unknown').lower()
+    os_img = node_info['status']['node_info'].get('os_image', 'unknown 0.0')
+    if os_type != "linux":
+        return (os_type, "unknown", "0.0")
+
+    os_info = os_img.split()
+    if "Ubuntu" in os_img:
+        if len(os_info) > 1 and "22.04" in os_info[1]:
+            return (os_type, "Ubuntu", "22.04")
+        if len(os_info) > 1 and "24.04" in os_info[1]:
+            return (os_type, "Ubuntu", "24.04")
+        return (os_type, "Ubuntu", os_info[1] if len(os_info) > 1 else "unknown")
+    if "Debian" in os_img:
+        if "12" in os_img:
+            return (os_type, "Debian", "12")
+    return (os_type, os_info[0] if len(os_info) > 0 else "unknown", os_info[1] if len(os_info) > 1 else "unknown")
 
 @log_arguments
 def k8_cordon_node(node_name : str):

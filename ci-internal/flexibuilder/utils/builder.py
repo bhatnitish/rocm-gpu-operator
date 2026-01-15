@@ -109,10 +109,14 @@ class BuilderInterface:
         def _find_matching_file_with_release_tag(self, asset_entry):
             basename = os.path.basename(asset_entry)
             asset_prefix = str(basename)
+            fname, ext = os.path.splitext(basename)
             if '.tar.gz' in basename:
                 asset_prefix = f"{str(basename).replace('.tar.gz', '')}-{self.__hourly_bld}"
-            elif '.tgz' in basename:
+            elif ext == '.tgz':
                 asset_prefix = f"{str(basename).replace('.tgz', '')}-{self.__hourly_bld}"
+            elif ext == '.deb':
+                package, os_ver, arch = fname.split("_")
+                asset_prefix = f"{package}_{self.__hourly_bld}~{os_ver}_{arch}{ext}"
             for entry in self.__file_names:
                 if asset_prefix in entry:
                     return entry
@@ -121,10 +125,14 @@ class BuilderInterface:
         def _find_matching_file_with_no_release_tag(self, asset_entry):
             basename = os.path.basename(asset_entry)
             asset_prefix = str(basename)
+            fname, ext = os.path.splitext(basename)
             if '.tar.gz' in basename:
                 asset_prefix = f"{str(basename).replace('.tar.gz', '')}"
-            elif '.tgz' in basename:
+            elif ext == '.tgz':
                 asset_prefix = f"{str(basename).replace('.tgz', '')}"
+            elif ext == '.deb':
+                package, os_ver, arch = fname.split("_")
+                asset_prefix = f"{package}_{self.__hourly_bld[1:]}~{os_ver}_{arch}{ext}"
             for entry in self.__file_names:
                 if asset_prefix in entry:
                     return entry

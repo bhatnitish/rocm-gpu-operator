@@ -57,9 +57,12 @@ class cluster_node(object):
         self._connect_kwargs = {}
         self._amdgpu_driver_version = None
         if self._password:
-            self._connect_kwargs['password'] = self._password 
+            self._connect_kwargs['password'] = self._password
         elif self._identity:
             self._connect_kwargs['key_filename'] = self._identity
+        self._host_os_type = "unknown"
+        self._host_os_name = "unknown"
+        self._host_os_version = "0.0"
 
     @property
     def ip_address(self):
@@ -69,9 +72,18 @@ class cluster_node(object):
     def user_name(self):
         return self._user_name
 
+    @user_name.setter
+    def user_name(self, user_name):
+        self._user_name = user_name
+
     @property
     def password(self):
         return self._password
+
+    @password.setter
+    def password(self, password):
+        self._password = password
+        self._connect_kwargs['password'] = self._password
 
     @property
     def identity(self):
@@ -116,6 +128,30 @@ class cluster_node(object):
     @device_id.setter
     def device_id(self, device_id):
         self._device_id = device_id
+
+    @property
+    def host_os_type(self):
+        return self._host_os_type
+
+    @host_os_type.setter
+    def host_os_type(self, host_os):
+        self._host_os_type = host_os
+
+    @property
+    def host_os_name(self):
+        return self._host_os_name
+
+    @host_os_name.setter
+    def host_os_name(self, os_name):
+        self._host_os_name = os_name
+
+    @property
+    def host_os_version(self):
+        return self._host_os_version
+
+    @host_os_version.setter
+    def host_os_version(self, os_version):
+        self._host_os_version = os_version
 
     def is_gpu_node(self):
         if self._gpu_series != None:

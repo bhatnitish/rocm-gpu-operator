@@ -6,7 +6,8 @@ function usage() {
     echo ""
     echo "Usage: $0 [options]"
     echo "          --help print help/usage information"
-    echo "          --app <app-name> Eg: gpu-operator, exporter, network-operator"
+    echo "          --deployment <deployment> Eg: k8, openshift, standalone"
+    echo "          --app <app-name> Eg: gpu-operator, exporter, network-operator, debian, docker"
     echo "          --type <selection: sanity|compat>"
     echo "          --registry <selection: local|master|global>"
     echo "          --testbed /path/to/testbed.json, default /warmd.json"
@@ -18,6 +19,7 @@ function usage() {
 LOCAL_REGISTRY_PORT="5000"
 REGISTRY_SELECTION="local"
 TESTBED_JSON="/warmd.json"
+DEPLOYMENT="NA"
 AMDGPU_DRIVER="deviceconfig"
 IMAGE_MANIFEST="/tmp/images.yaml"
 GLOBAL_REGISTRY="registry.test.pensando.io:5000"
@@ -43,7 +45,7 @@ function upload_reports() {
         final_report="${TARGET_ID}.html"
         sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "rm -rf /var/www/html/${TARGET_NAME}/${TARGET_ID}"
         sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "mkdir -p /var/www/html/${TARGET_NAME}/${TARGET_ID}"
-        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/k8/${APP_NAME}.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
+        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/${DEPLOYMENT}/${APP_NAME}.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
 
         echo "Links:"
         echo "Consolidated report       : http://10.11.18.6/${TARGET_NAME}/${TARGET_ID}/${final_report}"
@@ -114,7 +116,7 @@ function load_images() {
     echo "    (2) generate image-manifest-yaml for test"
     echo ""
 
-    /gpu-operator/ci-internal/k8_jobd_ctl.py image --load-images --registry $REGISTRY --image-manifest $IMAGE_MANIFEST --testbed $TESTBED_JSON --setup-insecure-registry
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --load-images --registry $REGISTRY --image-manifest $IMAGE_MANIFEST --testbed $TESTBED_JSON --setup-insecure-registry --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -127,7 +129,7 @@ function load_images() {
     echo "Run k8_jobd_ctl to "
     echo "    (1) update insecure-registry for each node in the cluster"
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --setup-insecure-registry
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --setup-insecure-registry --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -140,7 +142,7 @@ function load_images() {
     echo "Run k8_jobd_ctl to "
     echo "    (1) pull images for each worker node in the cluster"
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --pull-images
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --pull-images --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -162,9 +164,10 @@ function prepare_cluster() {
         exit $RET
     fi
     echo ""
+    jq .Instances[].RawJSON ${TESTBED_JSON} | tee /gpu-operator/tests/pytests/testbed.json
 }
 
-function launch_pytest() {
+function launch_pytest_k8() {
     echo "Launching k8_test_launcher"
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
@@ -202,8 +205,55 @@ function launch_pytest() {
     fi
 }
 
+function launch_pytest_openshift() {
+    echo "Launching oc_test_launcher"
+    local SECRETS="/tmp/secrets.json"
+    curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
+    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
+    CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    echo "Running openshift pytests with CMD_OPTS: ${CMD_OPTS}"
+    TECH_SUPPORT_TOOL=/gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/oc_test_launcher.sh ${CMD_OPTS}
+    RET=$?
+    echo ""
+    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
+    echo ""
+    upload_reports
+    collect_logs
+    if [[ "$RET" != "0" ]]
+    then
+        exit $RET
+    fi
+}
+
+function launch_pytest_standalone() {
+    echo "Launching standalone_test_launcher"
+    local SECRETS="/tmp/secrets.json"
+    curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
+    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
+    CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    CMD_OPTS+=" --testbed /gpu-operator/tests/pytests/testbed.json"
+    echo "Running standalone pytests with CMD_OPTS: ${CMD_OPTS}"
+    /gpu-operator/tests/pytests/standalone_test_launcher.sh ${CMD_OPTS}
+    RET=$?
+    echo ""
+    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
+    RPT=$?
+    echo ""
+    upload_reports
+    collect_logs
+    if [[ "$RET" != "0" ]]
+    then
+        exit $RET
+    fi
+    exit $RPT
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --deployment)
+            DEPLOYMENT="$2"
+            shift
+        ;;
         --app)
             APP_NAME="$2"
             shift
@@ -257,7 +307,19 @@ function main() {
     fi
     prepare_cluster
     echo "Completed setting up environment for ${TYPE}-run, launching pytest"
-    launch_pytest
+    if [[ "${DEPLOYMENT}" == "k8" ]];
+    then
+        launch_pytest_k8
+    elif [[ "${DEPLOYMENT}" == "openshift" ]];
+    then
+        launch_pytest_openshift
+    elif [[ "${DEPLOYMENT}" == "standalone" ]];
+    then
+        launch_pytest_standalone
+    else
+        echo "Invalid selection for DEPLOYMENT=${DEPLOYMENT}"
+        exit 1
+    fi
 }
 
 main

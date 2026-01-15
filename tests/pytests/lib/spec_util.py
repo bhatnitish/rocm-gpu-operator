@@ -97,6 +97,9 @@ device_config_template_v1_2_0 = {
                 },
                 'rebootRequired' : False,
             },
+            'imageBuild' : {
+                'baseImageRegistry' : 'docker.io',
+            },
         },
         'devicePlugin' : {
             'devicePluginImagePullPolicy' : 'Always',
@@ -163,6 +166,9 @@ device_config_template_v1_3_0 = {
                     'timeoutSeconds' : 300,
                 },
                 'rebootRequired' : True,
+            },
+            'imageBuild' : {
+                'baseImageRegistry' : 'docker.io',
             },
         },
         'devicePlugin' : {
@@ -262,6 +268,9 @@ device_config_template_v1_4_1 = {
                     'timeoutSeconds' : 300,
                 },
                 'rebootRequired' : True,
+            },
+            'imageBuild' : {
+                'baseImageRegistry' : 'docker.io',
             },
         },
         'devicePlugin' : {
@@ -509,6 +518,12 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
             device_config['spec']['driver']['upgradePolicy']['maxUnavailableNodes'] = spec.get('driver.upgradePolicy.maxUnavailableNodes', "25%")
             device_config['spec']['driver']['upgradePolicy']['nodeDrainPolicy']['force'] = spec.get('driver.upgradePolicy.nodeDrainPolicy.force', False)
             device_config['spec']['driver']['upgradePolicy']['nodeDrainPolicy']['timeoutSeconds'] = spec.get('driver.upgradePolicy.nodeDrainPolicy.timeoutSeconds', 300)
+            if spec.get('driver.imageBuild.baseImageRegistry', None):
+                device_config['spec']['driver']['imageBuild']['baseImageRegistry'] = spec.get('driver.imageBuild.baseImageRegistry')
+                device_config['spec']['driver']['imageBuild']['baseImageRegistryTLS'] = {
+                    'insecure' : True,
+                    'insecureSkipTLSVerify' : True,
+                }
     else:
         del device_config['spec']['driver']
 

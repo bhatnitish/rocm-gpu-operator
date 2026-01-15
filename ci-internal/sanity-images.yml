@@ -99,3 +99,65 @@ images:
             version     : latest
             kind        : container
 
+    standalone:
+        driver:
+          key           : driver.image
+          kind          : container
+
+        gpu-operator:
+            image       : /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.4.1.tgz
+            kind        : helm-chart
+            version     : v1.4.1
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            image       : /gpu-operator/amd-gpu-operator-latest.tar.gz
+            kind        : container
+
+        exporter-debian-Ubuntu-22.04:
+            image       : /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+            kind        : debian
+            version     : v1.4.1
+
+        exporter-debian-Ubuntu-24.04:
+            image       : /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+            kind        : debian
+            version     : v1.4.1
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            kind        : container
+
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            image       : /kernel-module-management/kernel-module-management-signimage.tar.gz
+            kind        : container
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            image       : /kernel-module-management/kernel-module-management-worker.tar.gz
+            kind        : container
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            image       : /kernel-module-management/kernel-module-management-operator.tar.gz
+            kind        : container
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            image       : /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://<registry>/busybox
+            version     : 1.36
+            kind        : container
+

@@ -70,6 +70,7 @@ def _init_cmdline_args():
     image_cmd.add_argument("--pull-images", action='store_true', default=False, help = "Download images on each nodes of the cluster")
     image_cmd.add_argument("--registry", default=None, help = "Destination Registry")
     image_cmd.add_argument("--image-manifest", default='/tmp/images.yaml', help = "output images yaml")
+    image_cmd.add_argument("--target", default='k8', choices=["k8", "openshift", "standalone"], help = "Target deployment")
 
     report_cmd = subparsers.add_parser("report", help="Reporting related commands")
     report_cmd.add_argument("--testbed", required = True, help = "jobd testbed json file")
@@ -361,7 +362,7 @@ def _generate_testbed_yaml(testbed_info, file_name):
         yaml.dump(testbed_info, fp)
     return True
 
-def _load_images(logger, registry, image_manifest):
+def _load_images(logger, registry, image_manifest, target):
     import docker
 
     if not registry:
@@ -379,19 +380,23 @@ def _load_images(logger, registry, image_manifest):
         image_manifest_templ = yaml.load(fp)
 
     client = docker.from_env(timeout=300)
-    for artifact_name in list(image_manifest_templ['images']['k8'].keys()):
+    for artifact_name in list(image_manifest_templ['images'][target].keys()):
         logger.info(f"Processing {artifact_name} section")
-        artifact_info = image_manifest_templ['images']['k8'][artifact_name]
+        artifact_info = image_manifest_templ['images'][target][artifact_name]
         if artifact_info.get('image', None) != None:
             image_file = artifact_info['image']
             if not os.path.exists(image_file):
                 logger.warning(f"Specified image-file {image_file} missing - ignore for now")
-                del image_manifest_templ['images']['k8'][artifact_name]
+                del image_manifest_templ['images'][target][artifact_name]
                 continue
 
             if artifact_info['kind'] == 'helm-chart':
                 artifact_info['location'] = f"file://{image_file}"
                 #artifact_info['version'] = 'sanity' # TODO derive correct version for each artifact
+            elif artifact_info['kind'] == 'olm-bundle':
+                artifact_info['location'] = f"file://{image_file}"
+            elif artifact_info['kind'] == 'debian':
+                artifact_info['location'] = f"file://{image_file}"
             elif artifact_info['kind'] == 'container':
                 try:
                     with open(image_file, 'rb') as fp:
@@ -462,8 +467,9 @@ def _load_images(logger, registry, image_manifest):
     if result:
         # Update driver section
         artifact_name = 'driver'
-        driver_info = image_manifest_templ['images']['k8'][artifact_name]
-        driver_info['location'] = f"container://{registry}/driver-builds"
+        driver_info = image_manifest_templ['images'][target][artifact_name]
+        # driver_info['location'] = f"container://{registry}/driver-builds"
+        driver_info['location'] = f"container://registry.test.pensando.io:5000/amdgpu_kmod"
         with open(image_manifest, 'w') as fp:
             yaml.dump(image_manifest_templ, fp)
     return result
@@ -556,7 +562,7 @@ def _upload_crio_registry_conf(logger, registry, testbed_info):
         # Ignore error as image cleanup would fail as some images are still in use
     return 0
 
-def _pull_images(logger, node, image_manifest_file):
+def _pull_images(logger, node, image_manifest_file, target):
     from ruamel.yaml import YAML
     yaml = YAML()
     yaml.preserve_quotes = True
@@ -575,9 +581,9 @@ def _pull_images(logger, node, image_manifest_file):
             if image_metadata['registry']['mirror'].get('enable', 'no') == 'yes':
                 registry = image_metadata['registry']['mirror']['url']
 
-    for artifact_name in list(images['images']['k8'].keys()):
+    for artifact_name in list(images['images'][target].keys()):
         logger.info(f"Processing {artifact_name} section")
-        artifact_info = images['images']['k8'][artifact_name]
+        artifact_info = images['images'][target][artifact_name]
         if artifact_name == "driver":
             continue
         if artifact_info.get('location', None) != None and artifact_info['kind'] == 'container':
@@ -644,7 +650,7 @@ def _run_testbed_commands(logger):
 
 def _run_image_commands(logger):
     if GlobalOptions.load_images:
-        if _load_images(logger, GlobalOptions.registry, GlobalOptions.image_manifest):
+        if _load_images(logger, GlobalOptions.registry, GlobalOptions.image_manifest, GlobalOptions.target):
             logger.info(f"Images loaded to specified registry, Successfully generated image-manifest - {GlobalOptions.image_manifest}")
         else:
             logger.error(f"Failed to load images into the registry: {GlobalOptions.registry}")
@@ -665,7 +671,7 @@ def _run_image_commands(logger):
             logger.info("pulling images for this cluster")
             workers = _get_worker_nodes(testbed_info)
             for node in workers:
-                if _pull_images(logger, node, GlobalOptions.image_manifest):
+                if _pull_images(logger, node, GlobalOptions.image_manifest, GlobalOptions.target):
                     logger.info("Successfully downloaded images in each node (for speedup)")
                 else:
                     logger.warning("Failed to download images in each node - ignoring error")

@@ -43,7 +43,7 @@ def pytest_addoption(parser):
             "--testbed",
             action="store",
             default=None,
-            help="Testbed YAML file with details about platform/cluster",
+            help="Testbed JSON file with details about platform/cluster",
     )
 
     parser.addoption(
@@ -224,74 +224,35 @@ def environment(request):
     setattr(tenv, 'exporter_namespace', os.getenv('EXPORTER_NAMESPACE', 'kube-amd-exporter'))
     setattr(tenv, 'gpu_operator_namespace', os.getenv('GPU_OPERATOR_NAMESPACE', 'kube-amd-gpu'))
     setattr(tenv, "amd_smi_collection_complete", False)
-    '''
-    request.config._metadata['Helm-Chart Version'] = request.config.option.gpu_operator_version
-    request.config._metadata['Metrics Exporter Version'] = request.config.option.metrics_exporter_version
-    request.config._metadata['Deployment'] = request.config.option.deployment.upper()
-    '''
     return tenv
 
 @pytest.fixture(scope="session")
 def gpu_cluster(request, environment):
     global Logger
-    if environment.deployment_mode in ["k8", "openshift"]:
-        k8_util.k8_lib_init(environment.kube_config_file)
-        ret_code, k8_nodes = k8_util.k8_get_nodes()
-        assert ret_code == 0, "Failed to collect nodes from cluster"
-        nodes = list()
-        nodes_version = {}
-        for node in k8_nodes:
-            nodes_version[node['metadata']['name']] = node['status']['node_info']['kubelet_version']
-            node_ip = k8_util.k8_get_node_address(node)
-            if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
-                nodes.append(common.Node(node_ip, None, None, None, "master", None))
-            else:
-                nodes.append(common.Node(node_ip, None, None, None, "worker", None))
-        k8_cluster_inst = common.k8_cluster.BuildK8Cluster(nodes)
-        k8_cluster_inst.k8_kube_config = environment.kube_config_file
-        assert len(k8_cluster_inst.cluster_nodes) > 0, f"Failed to collect worker nodes from k8/cluster"
-        if hasattr(environment, "k8_secrets_file"):
-            with open(environment.k8_secrets_file) as fp:
-                k8_cluster_inst.k8_secrets = json.load(fp)
-        setattr(pytest, "_nodes_version",  nodes_version)
-        setattr(pytest, "_k8_cluster_inst", k8_cluster_inst)
-        return k8_cluster_inst
-    else:
-        # Build testbed_info from testbed-yaml file
-        from ruamel.yaml import YAML
-        from ruamel.yaml import comments
-        from ruamel.yaml import scalarstring
-        import shutil
-
-        yaml = YAML()
-        yaml.preserve_quotes = True
-
-        file_obj = Path(request.config.option.testbed)
-        testbed_info = yaml.load(file_obj)
-        gpu_node_list = list()
-        k8_master_node_list = list()
-        k8_master_docker_regsitry = False
-        for inst in testbed_info["instances"]:
-            node_types = inst.get("type", "worker").split(",")
-            if 'master' in node_types:
-                node = common.Node(inst["ip"], inst.get("username"),
-                                   inst.get("password", None), inst.get("identity", None),
-                                   "master", None)
-                k8_master_node_list.append(node)
-                k8_master_docker_regsitry = inst.get("registry", "no") == "yes"
-            if 'worker' in node_types:
-                node = common.Node(inst["ip"], inst.get("username"),
-                                   inst.get("password", None), inst.get("identity", None),
-                                   "worker", inst.get("gpu_series", "MI210"))
-                gpu_node_list.append(node)
-
-        assert len(k8_master_node_list) > 0
-        assert len(gpu_node_list) > 0
-        request.config._metadata['Testbed'] = request.config.option.testbed
-        return common.standalone_gpu_nodes(gpu_node_list)
+    k8_util.k8_lib_init(environment.kube_config_file)
+    ret_code, k8_nodes = k8_util.k8_get_nodes()
+    assert ret_code == 0, "Failed to collect nodes from cluster"
+    nodes = list()
+    nodes_version = {}
+    for node in k8_nodes:
+        nodes_version[node['metadata']['name']] = node['status']['node_info']['kubelet_version']
+        node_ip = k8_util.k8_get_node_address(node)
+        if 'node-role.kubernetes.io/control-plane' in node['metadata']['labels']:
+            nodes.append(common.Node(node_ip, None, None, None, "master", None))
+        else:
+            nodes.append(common.Node(node_ip, None, None, None, "worker", None))
+    k8_cluster_inst = common.k8_cluster.BuildK8Cluster(nodes)
+    k8_cluster_inst.k8_kube_config = environment.kube_config_file
+    assert len(k8_cluster_inst.cluster_nodes) > 0, f"Failed to collect worker nodes from k8/cluster"
+    if hasattr(environment, "k8_secrets_file"):
+        with open(environment.k8_secrets_file) as fp:
+            k8_cluster_inst.k8_secrets = json.load(fp)
+    setattr(pytest, "_nodes_version",  nodes_version)
+    setattr(pytest, "_k8_cluster_inst", k8_cluster_inst)
+    return k8_cluster_inst
 
 @pytest.fixture(scope="session")
-def images(request, environment, gpu_cluster):
+def images(request, gpu_cluster, environment):
     image_info = None
     from ruamel.yaml import YAML
     from ruamel.yaml import comments
@@ -320,44 +281,22 @@ def images(request, environment, gpu_cluster):
             setattr(environment, "builtin_gpuctl_support", True)
     else:
         setattr(environment, "builtin_gpuctl_support", True)
-    gpu_cluster.k8_registry = environment.default_registry
     assert environment.deployment_mode in image_manifest['images'], f"Missing images for {environment.deployment_mode}"
     if environment.deployment_mode == "standalone":
-        image_info = images_standalone(request, environment, image_manifest['images'])
+        image_info = _build_image_info(environment, image_manifest['images'])
 
     if environment.deployment_mode in ["k8", "openshift"]:
-        image_info = images_k8(request, environment, gpu_cluster, image_manifest['images'])
+        image_info = _build_image_info(environment, image_manifest['images'])
 
     assert image_info != None, f"Failed to build images for {environment.deployment_mode}"
+    gpu_cluster.k8_registry = environment.default_registry
+    image_info['driver.imageBuild.baseImageRegistry'] = environment.default_registry
     setattr(pytest, "_image_info", image_info)
     return image_info
 
-def images_standalone(request, environment, image_manifest):
-    images = image_manifest['standalone']
-    file_name = 'amdgpu-exporter_1.0.0_amd64.deb'
-    exp_image_folder = os.path.join(environment.download_folder, environment.metrics_exporter_version)
-    os.makedirs(exp_image_folder, exist_ok=True)
-
-    Logger.info(f"Downloading device-metric-exporter images for version {environment.metrics_exporter_version}")
-    url = f'http://assets-hq.pensando.io/builds/hourly-device-metrics-exporter/{environment.metrics_exporter_version}/{file_name}'
-    local_file = os.path.join(exp_image_folder, file_name)
-    if not os.path.exists(local_file):
-        try:
-            resp = requests.get(url)
-            if resp.status_code == 200:
-                with open(local_file, 'wb') as fp:
-                    fp.write(resp.content)
-            else:
-                raise Exception(f"Failed to download file {file_name}, error: {resp.status_code}")
-        except Exception as e:
-            Logger.error(f"Failed to download {file_name} from {url}, error : {e}")
-            pytest.fail("Could not download images - abort")
-
-    return local_file
-
-def images_k8(request, environment, gpu_cluster, image_manifest):
+def _build_image_info(environment, image_manifest):
     '''
-    Download image from the asset-server/minio/hourly and load to local registry if needed
+    Build image-info used for testing
     '''
     global Logger
     image_info = dict()
@@ -368,17 +307,12 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
         setattr(environment, 'gpu_operator_version', images['gpu-operator']['version'])
     if images.get('exporter', None) and images['exporter']['kind'] == 'helm-chart':
         setattr(environment, 'exporter_version', images['exporter']['version'])
-    if 'build' in images['gpu-operator']:
-        setattr(environment, 'gpu_operator_build', images['gpu-operator']['build'])
-    setattr(environment, 'metrics_exporter_version', images['device-metrics-exporter']['version'])
-    if 'build' in images['device-metrics-exporter']:
-        setattr(environment, 'metrics_exporter_build', images['device-metrics-exporter']['build'])
 
     os.makedirs(environment.download_folder, exist_ok=True)
     image_info['image_folder'] = environment.download_folder
 
     for artifact, artifact_info in images.items():
-        Logger.info(f"Downloading {artifact}")
+        Logger.debug(f"Processing {artifact}")
         if 'repo://' in artifact_info['location']:
             pattern = r"repo://([a-zA-Z0-9.-]+/[^:]+):([^/]+)"
             match = re.search(pattern, artifact_info['location'])
@@ -404,6 +338,10 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
                 image_info[f'{artifact}.olm-bundle'] = file_path
                 image_info[f'{artifact}.olm-bundle.version'] = artifact_info['version']
                 image_info[f'{artifact}.olm-bundle.repository'] = file_path
+            elif artifact_info['kind'] == 'debian':
+                image_info[f'{artifact}.debian'] = file_path
+                image_info[f'{artifact}.debian.version'] = artifact_info['version']
+                image_info[f'{artifact}.debian.repository'] = file_path
         elif 'http://' in artifact_info['location'] or 'https://' in artifact_info['location']:
             # Download the file
             url = artifact_info['location']
@@ -448,7 +386,7 @@ def images_k8(request, environment, gpu_cluster, image_manifest):
     return image_info
 
 @pytest.fixture(scope="session", autouse=True)
-def gather_device_info(gpu_cluster, environment):
+def gather_device_info(gpu_cluster, images, environment):
     # Derive gpu information using amd-smi information
     ret_code, k8_nodes = k8_util.k8_get_nodes()
     if ret_code != 0:
@@ -465,8 +403,12 @@ def gather_device_info(gpu_cluster, environment):
     for node in k8_nodes:
         node_name = k8_util.k8_get_node_hostname(node)
         node_ip = k8_util.k8_get_node_address(node)
+        os_type, os_name, os_version = k8_util.k8_get_node_os_info(node)
         cluster_node = gpu_cluster.find_node_by_ip(node_ip)
         cluster_node.host_name = node_name
+        cluster_node.host_os_type = os_type
+        cluster_node.host_os_name = os_name
+        cluster_node.host_os_version = os_version
         cmd = ["lspci", "-nn", "-d", "1002:"]
         ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd)
         if ret_code != 0:

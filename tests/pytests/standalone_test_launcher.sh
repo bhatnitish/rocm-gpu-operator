@@ -20,7 +20,11 @@ function usage() {
     echo ""
     echo "Usage: $0 [options]"
     echo "          --help print help/usage information"
-    echo "          --testbed <path-to-testbed-yaml>"
+    echo "          --testbed <path/to/testbed/json>"
+    echo "          --app <app-name>. Eq: debian, docker"
+    echo "          --secrets secrets.json file"
+    echo "          --amdgpu-driver-spec <driver-version-spec>"
+    echo "          --workload-selection <workload-name>"
     echo "          --image-manifest <path-to-image-manifest>"
     echo "          --module <module-name>. Eq: test_<module_name>.py"
     echo "          --testcase <testcase-name> Eq: def test_<tc_name>"
@@ -28,18 +32,17 @@ function usage() {
     echo ""
 }
 
+TESTBED="NA"
 IMAGE_MANIFEST="NA"
-TB_YAML="NA"
-GPU_OPERATOR_VERSION="NA"
-EXPORTER_VERSION="NA"
+SECRETS="NA"
+APP_NAME="NA"
 DEPLOYMENT="standalone"
 TC_MODULE="ALL"
 TC_NAME="ALL"
 ENABLE_DEBUGGING="NA"
-
-function collect_tech_support() {
-    echo "Collect tech-support"
-}
+DRIVER_SPEC="NA"
+WORKLOAD_NAME="NA"
+TECH_SUPPORT_TOOL=${TECH_SUPPORT_TOOL:-"${PWD}/techsupport_dump.sh"}
 
 function setup_pyenv() {
     if [[ -f venv/bin/activate ]] ;
@@ -48,27 +51,42 @@ function setup_pyenv() {
         source venv/bin/activate &> /dev/null
     else
         echo "Setup pyenv with all required packages"
-        sh scripts/prepare_env.sh &> /dev/null
-        source venv/bin/activate &> /dev/null
+        $PWD/scripts/prepare_env.sh $PWD/venv &> /dev/null
+        source $PWD/venv/bin/activate &> /dev/null
     fi
     export PYTHONPATH=$PYTHONPATH:$PWD
 }
 
+function install_helm_tool() {
+    echo "Download helm utility and install in local folder"
+    if [[ -f $PWD/bin/helm ]];
+    then
+        echo "helm tool already downloaded"
+    else
+        mkdir -p $PWD/bin
+        curl -fsSL -o $PWD/bin/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 $PWD/bin/get_helm.sh
+        HELM_INSTALL_DIR=$PWD/bin $PWD/bin/get_helm.sh --no-sudo
+    fi
+    export PATH=$PATH:$PWD/bin
+}
+
 function launch_pytest() {
-    setup_pyenv
     mkdir -p logs
-    local test_sel=${DEPLOYMENT}
+    setup_pyenv
+    install_helm_tool
+    local test_sel=${DEPLOYMENT}/${APP_NAME}
     local html_file=logs/${test_sel}.html
-    local sml_file=logs/${test_sel}.xml
+    local xml_file=logs/${test_sel}.xml
     if [[ "${TC_MODULE}" != "ALL" ]];
     then
         if [[ "${TC_NAME}" != "ALL" ]];
         then
             html_file=logs/${DEPLOYMENT}_${TC_MODULE}_${TC_NAME}.html
             xml_file=logs/${DEPLOYMENT}_${TC_MODULE}_${TC_NAME}.xml
-            test_sel=${DEPLOYMENT}/test_${TC_MODULE}.py::test_${TC_NAME}
+            test_sel=${DEPLOYMENT}/${APP_NAME}/test_${TC_MODULE}.py::test_${TC_NAME}
         else
-            test_sel=${DEPLOYMENT}/test_${TC_MODULE}.py
+            test_sel=${DEPLOYMENT}/${APP_NAME}/test_${TC_MODULE}.py
             html_file=logs/${test_sel}.html
             xml_file=logs/${test_sel}.xml
         fi
@@ -76,26 +94,54 @@ function launch_pytest() {
     CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"
     if [[ "${ENABLE_DEBUGGING}" == "YES" ]];
     then
-        CMD_OPT="${CMD_OPT} --pause-on-failure"
+        CMD_OPT+=" --pdb"
     fi
+    if [[ "${SECRETS}" != "NA" ]];
+    then
+        CMD_OPT+=" --secrets-json ${SECRETS}"
+    fi
+    if [[ "${DRIVER_SPEC}" != "NA" ]];
+    then
+        CMD_OPT+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
+    fi
+    if [[ "${WORKLOAD_NAME}" != "NA" ]];
+    then
+        CMD_OPT+=" --workload-selection ${WORKLOAD_NAME}"
+    fi
+    if [[ "${TESTBED}" != "NA" ]];
+    then
+        CMD_OPT+=" --testbed ${TESTBED}"
+    fi
+    CMD_OPT+=" --image-manifest ${IMAGE_MANIFEST}"
+    echo ""
+    echo "****** USING FOLLOWING IMAGES FOR THE TEST ******"
+    cat ${IMAGE_MANIFEST}
+    cp $IMAGE_MANIFEST logs/
+    echo ""
+
+    echo "Running test with cmd-opt ${CMD_OPT}"
+    export PYTHONIOENCODING=utf-8
     pytest ${test_sel} --log-file=logs/${DEPLOYMENT}_test_run.log \
-        --junit-xml=${xml_file} --html ${html_file} --testbed ${TB_YAML} --deployment ${DEPLOYMENT} \
-        --image-manifest ${IMAGE_MANIFEST} ${CMD_OPT}
+        --junit-xml=${xml_file} --deployment ${DEPLOYMENT} ${CMD_OPT} \
+        --html ${html_file}
     ret=$?
-    collect_tech_support
     exit $ret
 }
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --testbed)
-            TB_YAML="$2"
-            shift
-        ;;
         --image-manifest)
             IMAGE_MANIFEST="$2"
             shift
         ;;
+	--testbed)
+	    TESTBED="$2"
+	    shift
+	;;
+	--app)
+	    APP_NAME="$2"
+	    shift
+	;;
 	--module)
 	    TC_MODULE="$2"
 	    shift
@@ -104,6 +150,18 @@ while [[ $# -gt 0 ]]; do
 	    TC_NAME="$2"
 	    shift
 	;;
+        --secrets)
+            SECRETS="$2"
+            shift
+        ;;
+        --amdgpu-driver-spec)
+            DRIVER_SPEC="$2"
+            shift
+        ;;
+        --workload-selection)
+            WORKLOAD_NAME="$2"
+            shift
+        ;;
 	--debug)
             ENABLE_DEBUGGING="YES"
 	;;
@@ -118,13 +176,6 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-
-if [[ "${TB_YAML}" == "NA" ]];
-then
-    echo "ERROR: Missing argument --testbed"
-    usage
-    exit 1
-fi
 
 if [[ "${IMAGE_MANIFEST}" == "NA" ]];
 then

@@ -14,7 +14,8 @@ e2e-targets:
         "/bin/sh",
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
-         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -74,7 +75,67 @@ e2e-targets:
         "/bin/sh",
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
-         /gpu-operator/ci-internal/run_sanity.sh --app exporter --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-helm-artifact
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        props:
+          - name: driver
+            value: devcfg
+
+  exporter-debian-pytest-sanity:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app debian \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-debian-package-ub22.04
+      - build-external-device-metrics-exporter-debian-package-ub24.04
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        props:
+          - name: driver
+            value: devcfg
+
+  exporter-docker-pytest-sanity:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app docker \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -88,7 +149,6 @@ e2e-targets:
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
       - build-external-kernel-module-worker
-      - build-external-device-metrics-exporter-helm-artifact
     resources:
     - generic:
       - type: K8-GPU-Node
