@@ -1,0 +1,308 @@
+---
+version: 2.0
+meta:
+
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+
+e2e-targets:
+  gpu-operator-regression-mi210:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-test-runner
+      - build-external-test-runner-agfhc
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-config-manager
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-MI210
+        count: 1
+
+  gpu-operator-regression-mi300x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-test-runner
+      - build-external-test-runner-agfhc
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-config-manager
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-MI300X
+        count: 1
+
+  gpu-operator-regression-mi325x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver inbox \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-test-runner
+      - build-external-test-runner-agfhc
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-config-manager
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-MI325X
+        count: 1
+
+              #exporter-helmchart-inbox-driver-pytest-sanity:
+              #  commands: [
+              #      "/bin/sh",
+              #      "-c",
+              #      "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+              #       /gpu-operator/ci-internal/run_sanity.sh --app exporter --type sanity --registry local --testbed /warmd.json --amdgpu-driver inbox"
+              #  ]
+              #  owners: ["email:srivatsa.sangli@amd.com"]
+              #  tcp-ports: [5000]
+              #  area:
+              #  sub-area:
+              #  build-dependencies:
+              #    - build-gpu-operator
+              #    - build-gpu-operator-k8s
+              #    - build-external-device-metrics-exporter-v1.4.2
+              #    - build-external-kernel-module-manager
+              #    - build-external-kernel-module-signimage
+              #    - build-external-kernel-module-webhook-server
+              #    - build-external-kernel-module-worker
+              #    - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+              #  resources:
+              #  - generic:
+              #    - type: K8-GPU-Node
+              #      vendor: Pensando
+              #      count: 1
+              #      props:
+              #        - name: driver
+              #          value: inbox
+
+  exporter-helmchart-regression-mi210x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI210
+
+  exporter-helmchart-regression-mi300x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI300X
+
+  exporter-helmchart-regression-mi325x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver inbox \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI325X
+
+  exporter-debian-regression-ubuntu-2204:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app debian \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.2
+      - build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.2
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI210
+
+  exporter-debian-regression-ubuntu-2404:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app debian \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+      - build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.2
+      - build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.2
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI210
+
+  exporter-docker-regression:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app docker \
+         --type sanity --registry local --testbed /warmd.json --amdgpu-driver deviceconfig \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-kernel-module-manager
+      - build-external-kernel-module-signimage
+      - build-external-kernel-module-webhook-server
+      - build-external-kernel-module-worker
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI210
+
+logfiles:
+  - /gpu-operator/tests/pytests/pytest_logs.tgz

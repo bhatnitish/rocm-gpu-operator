@@ -69,7 +69,8 @@ def _init_cmdline_args():
     image_cmd.add_argument("--setup-insecure-registry", action='store_true', default=False, help = "Load images into the registry")
     image_cmd.add_argument("--pull-images", action='store_true', default=False, help = "Download images on each nodes of the cluster")
     image_cmd.add_argument("--registry", default=None, help = "Destination Registry")
-    image_cmd.add_argument("--image-manifest", default='/tmp/images.yaml', help = "output images yaml")
+    image_cmd.add_argument("--image-manifest", default='/tmp/images.yaml', help = "generated images yaml")
+    image_cmd.add_argument("--seed-image-manifest", default='/gpu-operator/ci-internal/sanity-images.yml', help = "generated images yaml")
     image_cmd.add_argument("--target", default='k8', choices=["k8", "openshift", "standalone"], help = "Target deployment")
 
     report_cmd = subparsers.add_parser("report", help="Reporting related commands")
@@ -362,21 +363,20 @@ def _generate_testbed_yaml(testbed_info, file_name):
         yaml.dump(testbed_info, fp)
     return True
 
-def _load_images(logger, registry, image_manifest, target):
+def _load_images(logger, registry, seed_image_manifest, image_manifest, target):
     import docker
 
     if not registry:
         return False
 
     result = True
-    # Load /gpu-operator/ci-internal/sanity-images.yml
+    # Load seed_image_manifest
     from ruamel.yaml import YAML
     yaml = YAML()
     yaml.preserve_quotes = True
     yaml.indent(sequence=4, offset=2)
 
-    template_file = f'/gpu-operator/ci-internal/sanity-images.yml'
-    with open(template_file, 'r') as fp:
+    with open(seed_image_manifest, 'r') as fp:
         image_manifest_templ = yaml.load(fp)
 
     client = docker.from_env(timeout=300)
@@ -650,7 +650,8 @@ def _run_testbed_commands(logger):
 
 def _run_image_commands(logger):
     if GlobalOptions.load_images:
-        if _load_images(logger, GlobalOptions.registry, GlobalOptions.image_manifest, GlobalOptions.target):
+        if _load_images(logger, GlobalOptions.registry, GlobalOptions.seed_image_manifest, 
+                        GlobalOptions.image_manifest, GlobalOptions.target):
             logger.info(f"Images loaded to specified registry, Successfully generated image-manifest - {GlobalOptions.image_manifest}")
         else:
             logger.error(f"Failed to load images into the registry: {GlobalOptions.registry}")

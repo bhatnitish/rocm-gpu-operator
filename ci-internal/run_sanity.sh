@@ -12,7 +12,7 @@ function usage() {
     echo "          --registry <selection: local|master|global>"
     echo "          --testbed /path/to/testbed.json, default /warmd.json"
     echo "          --amdgpu-driver <selection: inbox|deviceconfig, default deviceconfig"
-    echo "          --image-manifest <path-to-image-manifest>"
+    echo "          --seed-image-manifest <path-to-seed-image-manifest>"
     echo ""
 }
 
@@ -21,7 +21,8 @@ REGISTRY_SELECTION="local"
 TESTBED_JSON="/warmd.json"
 DEPLOYMENT="NA"
 AMDGPU_DRIVER="deviceconfig"
-IMAGE_MANIFEST="/tmp/images.yaml"
+GEN_IMAGE_MANIFEST="/tmp/images.yaml"
+SEED_IMAGE_MANIFEST="/gpu-operator/ci-internal/sanity-images.yml"
 GLOBAL_REGISTRY="registry.test.pensando.io:5000"
 TYPE="NA"
 APP_NAME="NA"
@@ -116,7 +117,7 @@ function load_images() {
     echo "    (2) generate image-manifest-yaml for test"
     echo ""
 
-    /gpu-operator/ci-internal/k8_jobd_ctl.py image --load-images --registry $REGISTRY --image-manifest $IMAGE_MANIFEST --testbed $TESTBED_JSON --setup-insecure-registry --target $DEPLOYMENT
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --load-images --seed-image-manifest $SEED_IMAGE_MANIFEST --registry $REGISTRY --image-manifest $GEN_IMAGE_MANIFEST --testbed $TESTBED_JSON --setup-insecure-registry --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -129,7 +130,7 @@ function load_images() {
     echo "Run k8_jobd_ctl to "
     echo "    (1) update insecure-registry for each node in the cluster"
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --setup-insecure-registry --target $DEPLOYMENT
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --seed-image-manifest $SEED_IMAGE_MANIFEST --registry $REGISTRY --testbed $TESTBED_JSON --setup-insecure-registry --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -142,7 +143,7 @@ function load_images() {
     echo "Run k8_jobd_ctl to "
     echo "    (1) pull images for each worker node in the cluster"
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py image --registry $REGISTRY --testbed $TESTBED_JSON --pull-images --target $DEPLOYMENT
+    /gpu-operator/ci-internal/k8_jobd_ctl.py image --seed-image-manifest $SEED_IMAGE_MANIFEST --registry $REGISTRY --testbed $TESTBED_JSON --pull-images --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -171,7 +172,7 @@ function launch_pytest_k8() {
     echo "Launching k8_test_launcher"
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
-    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
+    CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
     if [[ "${AMDGPU_DRIVER}" == "inbox" ]];
     then
         CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
@@ -209,7 +210,7 @@ function launch_pytest_openshift() {
     echo "Launching oc_test_launcher"
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
-    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
+    CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
     CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
     echo "Running openshift pytests with CMD_OPTS: ${CMD_OPTS}"
     TECH_SUPPORT_TOOL=/gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/oc_test_launcher.sh ${CMD_OPTS}
@@ -229,7 +230,7 @@ function launch_pytest_standalone() {
     echo "Launching standalone_test_launcher"
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
-    CMD_OPTS=" --image-manifest ${IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
+    CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
     CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
     CMD_OPTS+=" --testbed /gpu-operator/tests/pytests/testbed.json"
     echo "Running standalone pytests with CMD_OPTS: ${CMD_OPTS}"
@@ -274,8 +275,8 @@ while [[ $# -gt 0 ]]; do
             AMDGPU_DRIVER="$2"
             shift
         ;;
-        --image-manifest)
-            IMAGE_MANIFEST="$2"
+        --seed-image-manifest)
+            SEED_IMAGE_MANIFEST="$2"
             shift
         ;;
         --help)

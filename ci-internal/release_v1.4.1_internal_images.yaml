@@ -1,0 +1,163 @@
+---
+
+images:
+    meta:
+        registry:
+            default: docker.io
+            mirror:
+                enable: yes
+                url: registry.test.pensando.io:5000
+    k8:
+        driver:
+          key           : driver.image
+          kind          : container
+
+        gpu-operator:
+            location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
+            version     : v1.4.1
+            kind        : helm-chart
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/rocm/gpu-operator
+            version     : v1.4.1
+            kind        : container
+
+        exporter:
+            image       : /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+            kind        : helm-chart
+            version     : v1.4.2
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            kind        : container
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://<registry>/rocm/test-runner
+            version     : v1.4.1
+            kind        : container
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            location    : container://<registry>/rocm/test-runner
+            version     : agfhc-v1.4.1
+            kind        : container
+
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/rocm/device-config-manager
+            version     : v1.4.1
+            kind        : container
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://<registry>/rocm/kernel-module-management-signimage
+            version     : v1.4.1
+            kind        : container
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://<registry>/rocm/kernel-module-management-worker
+            version     : v1.4.1
+            kind        : container
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://<registry>/rocm/kernel-module-management-operator
+            version     : v1.4.1
+            kind        : container
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://<registry>/rocm/kernel-module-management-webhook-server
+            version     : v1.4.1
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+
+    standalone:
+        driver:
+          key           : driver.image
+          kind          : container
+
+        gpu-operator:
+            location    : repo://rocm.github.io/gpu-operator:gpu-operator-charts
+            version     : v1.4.1
+            kind        : helm-chart
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/rocm/gpu-operator
+            version     : v1.4.1
+            kind        : container
+
+        exporter:
+            image       : /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+            kind        : helm-chart
+            version     : v1.4.2
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            kind        : container
+
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://<registry>/rocm/kernel-module-management-signimage
+            version     : v1.4.1
+            kind        : container
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://<registry>/rocm/kernel-module-management-worker
+            version     : v1.4.1
+            kind        : container
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://<registry>/rocm/kernel-module-management-operator
+            version     : v1.4.1
+            kind        : container
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://<registry>/rocm/kernel-module-management-webhook-server
+            version     : v1.4.1
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+
