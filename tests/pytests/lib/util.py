@@ -404,6 +404,8 @@ class K8Helper:
             workload_pods = [
                 common.PodInfo(pod_name, 1, 1),
             ]
+            if workload_config.get("no_look", False):
+                return None
             for _ in range(20):
                 status_info = k8_util.k8_check_pod_status(cr_spec['metadata']['namespace'], workload_pods)
                 Logger.debug(f"workload pod status: {status_info}")

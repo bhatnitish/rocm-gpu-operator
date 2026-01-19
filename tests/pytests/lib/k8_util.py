@@ -845,6 +845,36 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
     else:
         container_name = "amd-test-runner"
 
+    # Define volume mounts
+    volume_mounts = [
+        client.V1VolumeMount(mount_path="/dev/dri", name="dri"),
+        client.V1VolumeMount(mount_path="/dev/kfd", name="kfd"),
+        client.V1VolumeMount(mount_path=f"/var/log/{container_name}", name="host-logs")
+    ]
+
+    # Define volumes
+    volumes = [
+        client.V1Volume(
+            name="kfd",
+            host_path=client.V1HostPathVolumeSource(
+                path="/dev/kfd", type="CharDevice"
+            ),
+        ),
+        client.V1Volume(
+            name="dri",
+            host_path=client.V1HostPathVolumeSource(
+                path="/dev/dri", type="Directory"
+            ),
+        ),
+        client.V1Volume(
+            name="host-logs",
+            host_path=client.V1HostPathVolumeSource(
+                path=f"/var/log/{container_name}",
+                type="DirectoryOrCreate"
+            )
+        )
+    ]
+
     if healthy and not schedule:
         # Define resource limits for the container
         # Note: Custom resources like 'amd.com/gpu' are strings in the limits dictionary.
@@ -859,48 +889,11 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
             image=f"{repository}:{version}",
             image_pull_policy="IfNotPresent",
             security_context=client.V1SecurityContext(privileged=True),
+            volume_mounts=volume_mounts,
             env=env_vars,
             resources=resources
         )
-        # Define pod template spec
-        pod_template_spec = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"app": "test-runner"}), # Add a label for easier identification
-            spec=client.V1PodSpec(
-                service_account_name=sa_name,
-                node_selector={"kubernetes.io/hostname": worker},
-                containers=[container],
-                restart_policy="Never",
-            ),
-        )
-    else:    # Define volume mounts
-        volume_mounts = [
-            client.V1VolumeMount(mount_path="/dev/dri", name="dri"),
-            client.V1VolumeMount(mount_path="/dev/kfd", name="kfd"),
-            client.V1VolumeMount(mount_path="/var/log/amd-test-runner", name="host-logs")
-        ]
-
-        # Define volumes
-        volumes = [
-            client.V1Volume(
-                name="kfd",
-                host_path=client.V1HostPathVolumeSource(
-                    path="/dev/kfd", type="CharDevice"
-                ),
-            ),
-            client.V1Volume(
-                name="dri",
-                host_path=client.V1HostPathVolumeSource(
-                    path="/dev/dri", type="Directory"
-                ),
-            ),
-            client.V1Volume(
-                name="host-logs",
-                host_path=client.V1HostPathVolumeSource(
-                    path="/var/log/amd-test-runner",
-                    type="DirectoryOrCreate"
-                )
-            )
-        ]
+    else:
         # Define containers
         container = client.V1Container(
             name=container_name,
@@ -911,17 +904,17 @@ def k8_create_test_runner_job(namespace : str, images : dict, worker : str, sa_n
             env=env_vars,
         )
 
-        # Define pod template spec
-        pod_template_spec = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"app": "test-runner"}), # Add a label for easier identification
-            spec=client.V1PodSpec(
-                service_account_name=sa_name,
-                node_selector={"kubernetes.io/hostname": worker},
-                volumes=volumes,
-                containers=[container],
-                restart_policy="Never",
-            ),
-        )
+    # Define pod template spec
+    pod_template_spec = client.V1PodTemplateSpec(
+        metadata=client.V1ObjectMeta(labels={"app": "test-runner"}), # Add a label for easier identification
+        spec=client.V1PodSpec(
+            service_account_name=sa_name,
+            node_selector={"kubernetes.io/hostname": worker},
+            volumes=volumes,
+            containers=[container],
+            restart_policy="Never",
+        ),
+    )
 
     # Define job spec
     job_spec = client.V1JobSpec(

@@ -28,6 +28,7 @@ import random
 import datetime
 import yaml
 import copy
+import functools
 import lib.common as common
 import lib.helm_util as helm_util
 import lib.k8_util as k8_util
@@ -36,6 +37,7 @@ import lib.metric_util as metric_util
 import lib.amdgpu as amdgpu_util
 from lib.util import K8Helper
 from kubernetes import client, config, utils
+from test_test_runner import update_test_runner_configmap, create_configmap, update_test_runner_image, metrics_fields
 
 Logger = logging.getLogger("k8.test_config_manager")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
@@ -125,6 +127,7 @@ def deviceconfig_install(images, gpu_operator_install, add_tolerations, environm
             'driver.enable' : True,
             'devicePlugin.enableNodeLabeller' : True,
             'metricsExporter.enable' : True,
+            'metricsExporter.serviceType' : 'NodePort',
             'testRunner.enable' : False,
             'configManager.enable' : True,
         }
@@ -181,7 +184,7 @@ def get_gpu_series(gpu_cluster, environment):
     debug_on_failure(environment, gpu_series, f"didn't find gpu_series from cluster")
 
 @pytest.fixture(scope="module")
-def create_configmap(gpu_cluster, deviceconfig_install, environment):
+def create_dcm_configmap(deviceconfig_install, gpu_cluster, environment):
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
 
@@ -397,10 +400,8 @@ def parse_amd_smi_json(environment, output, profile, gpu_series):
 """
 
 @pytest.mark.level11
-def test_deviceconfig_config_manager_deploy(gpu_cluster, deviceconfig_install, create_configmap, environment):
-    
+def test_deviceconfig_config_manager_deploy(deviceconfig_install, gpu_cluster, environment):
     global Logger
-    namespace = environment.gpu_operator_namespace
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
@@ -413,6 +414,173 @@ def test_deviceconfig_config_manager_deploy(gpu_cluster, deviceconfig_install, c
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
     reset_dcm_profile(gpu_cluster, environment)
+
+
+def exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    # Generate set of config-maps in the k8 cluster with different set of labels and metrics
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # Restore default mode (non-rbac) for this testcase
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.serviceType'] = 'NodePort'
+        tcfg['metricsExporter.rbacConfig.enable'] = False
+        tcfg['metricsExporter.rbacConfig.disableHttps'] = False
+
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
+
+    exporter_config_defn = {}
+    label_support_info = metric_util.get_label_details(environment.gpu_operator_version)
+    non_mandatory_labels = list(filter(lambda x: label_support_info[x] == "no", label_support_info.keys()))
+    mandatory_labels = list(filter(lambda x: label_support_info[x] == "yes", label_support_info.keys()))
+
+    # Build common list of metrics across all nodes in the cluster (if different gpu-series are part of cluster)
+    list_of_metrics_set = []
+    for node in gpu_nodes:
+        node_ip = k8_util.k8_get_node_address(node)
+        cluster_node = gpu_cluster.get_worker_node(node_ip)
+        if not cluster_node:
+            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
+        metrics_data = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
+                                                         amdgpu_driver = cluster_node.amdgpu_driver_version)
+        list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
+    common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
+    Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")
+
+    for idx in range(2):
+        label_subset = random.sample(non_mandatory_labels, 5)
+        metric_subset = random.sample(common_metrics, 5)
+        config_map = {
+            "GPUConfig" : {
+                "Labels" : label_subset,
+                "Fields" : metric_subset,
+            },
+        }
+        exp_config_name = f"exporter-config-{idx}"
+        configmap_file = os.path.join(environment.logdir, f"{exp_config_name}.json")
+        with open(configmap_file, "w") as fp:
+            fp.write(json.dumps(config_map, indent=4))
+
+        configmap_file = os.path.join(environment.logdir, f"config.json")
+        with open(configmap_file, "w") as fp:
+            fp.write(json.dumps(config_map, indent=4))
+
+        # Delete if there is any previous instance with same name
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(environment.gpu_operator_namespace,
+                                                                       exp_config_name)
+        Logger.debug(f"Result of configmap delete operation, ret_code:{ret_code}, ret_stdout: {ret_stdout.strip()}, err: {ret_stderr.strip()}")
+        # ignore ret_code
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_create_configmap(environment.gpu_operator_namespace,
+                                                                       exp_config_name,
+                                                                       configmap_file)
+        K8Helper.triage(environment, ret_code == 0,
+                        f"Failed to create configmap {exp_config_name} for {configmap_file}, err: {ret_stderr.strip()}")
+        exporter_config_defn[exp_config_name] = (label_subset, metric_subset)
+        Logger.info(f"Created configmap {exp_config_name} with labels: {label_subset} and metrics: {metric_subset}")
+
+    def _cleanup_configmap():
+        # Restore/Revert back test configuration
+        for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+            if tcfg.get('metricsExporter.config'):
+                del tcfg['metricsExporter.config']
+            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+            if ret_code != 0:
+                Logger.warn(f"Failed to create deviceconfig, stderr: {ret_stderr}")
+
+            # Check for corresponding deviceconfig updated
+            K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+
+        for exp_config, _ in exporter_config_defn.items():
+            # Delete
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(environment.gpu_operator_namespace,
+                                                                           exp_config)
+            if ret_code != 0:
+                Logger.warn(f"Failed to delete metrics-exporter configmap {exp_config}")
+        return
+
+    request.addfinalizer(_cleanup_configmap)
+
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_exp_config_metrics = []
+    failed_exp_config_labels = []
+    failed_endpoints = set()
+    for exp_config, label_metrics_tuple in exporter_config_defn.items():
+        Logger.info(f"Testing with exporter-config {exp_config}")
+        for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+            tcfg['metricsExporter.config'] = exp_config
+            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+            K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
+
+            # Check for corresponding deviceconfig created
+            K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+
+            failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+            K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+            time.sleep(30) # Wait for config-map is read by exporter pod
+            expected_metrics = set(label_metrics_tuple[1])
+            expected_metrics.update(['promhttp_metric_handler_errors_total'])
+            expected_labels = set(label_metrics_tuple[0])
+            expected_labels.update(mandatory_labels)
+            for node in gpu_nodes:
+                node_ip = k8_util.k8_get_node_address(node)
+                cluster_node = gpu_cluster.get_worker_node(node_ip)
+                if not cluster_node:
+                    pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
+                node_hostname = k8_util.k8_get_node_hostname(node)
+                node_port = deviceconfig_install.exporter_port_map[node_hostname]
+                ret_code, resp, _ = cluster_node.http_get(node_port, "metrics")
+                # Commenting out following as this rely on ssh access to each node
+                #if ret_code != 0:
+                #    # try from node itself
+                #    ret_code, resp, _ = cluster_node.proxy_http_get(node_ip, node_port, "metrics", token = token)
+
+                if ret_code != 0:
+                    Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
+                    failed_endpoints.add(node_ip)
+                    continue
+                metric_util.dump_metrics(resp, os.path.join(environment.logdir, f"{node_ip}_{exp_config}_metrics.txt"))
+                obs_metric_info = metric_util.parse_metric_data(resp)
+                obs_metrics = set(obs_metric_info.keys())
+
+                # Check for metrics
+                if obs_metrics != expected_metrics:
+                    Logger.error(f"Mismatch in metrics Expected : {expected_metrics} vs Observed : {obs_metrics} config-map:{exp_config}")
+                    if expected_metrics - obs_metrics:
+                        Logger.error(f"Missing: {expected_metrics - obs_metrics}")
+                    if obs_metrics - expected_metrics:
+                        Logger.error(f"Unexpected: {obs_metrics - expected_metrics}")
+                    failed_exp_config_metrics.append((exp_config, f"Expected:{expected_metrics}, Observed:{obs_metrics}"))
+
+                # Check for labels associated with each exported metric
+                for metric_name, metric_data_list in obs_metric_info.items():
+                    if metric_name in {'promhttp_metric_handler_errors_total', 'gpu_nodes_total'}:
+                        continue
+                    label_check_failed = False
+                    for metric_data in metric_data_list:
+                        observed_labels = set(metric_data['labels'].keys())
+                        if len(expected_labels - observed_labels) > 0:
+                            Logger.error(f"Missing labels with config-map:{exp_config}, error: {expected_labels - observed_labels}")
+                            label_check_failed = True
+                    if label_check_failed and exp_config not in failed_exp_config_labels:
+                        failed_exp_config_labels.append((exp_config, f"Expected:{expected_labels}, Observed:{observed_labels}"))
+
+    # Do final verification
+    K8Helper.triage(environment, len(failed_endpoints) == 0, f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
+    K8Helper.triage(environment, (len(failed_exp_config_metrics) == 0),
+                    f"Export ConfigMap (Fields) failed for {failed_exp_config_metrics} cases")
+    K8Helper.triage(environment, (len(failed_exp_config_labels) == 0),
+                    f"Export ConfigMap (Labels) failed for {failed_exp_config_labels} cases")
+
 
 def verify_gpu_capacity_status(environment, worker):
     i = 0
@@ -466,7 +634,7 @@ def verify_logs(environment, log_msg_list, pod_str="config-manager", since="1800
 
     flag = False
     for log_msg in log_msg_list:
-        while log_msg not in stdout and i < 3:
+        while log_msg not in stdout and i < 30:
             time.sleep(30)
             i = i + 1
             ret_code, stdout, stderr = k8_util.k8_get_pod_logs(pod_str, namespace, since, container)
@@ -496,7 +664,7 @@ def wait_for_pods(local_workload_ctxts):
 #Unsupported compute partition combination
 @pytest.mark.level12
 @pytest.mark.parametrize("profile", ["invalidgpucount", "invalidmissingfields", "highgpucount_mostly_invalid"])
-def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, create_configmap, environment, profile):
+def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, create_dcm_configmap, environment, profile):
     global Logger
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if 'MI2' in gpu_series:
@@ -791,7 +959,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
 @pytest.mark.level2
 @pytest.mark.parametrize("profile", ["QPX_NPS1", "DPX_NPS2", "QPX_NPS2", "DPX_NPS1", "CPX_NPS1", "CPX_NPS2", "SPX_NPS1"])
 def test_partitioning_no_workload_MI350X(gpu_cluster, deviceconfig_install, environment, request, 
-                                         create_configmap, profile):
+                                         create_dcm_configmap, profile):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series != 'MI350X':
         pytest.skip(f"Testcases specifically designed for MI350X")
@@ -800,7 +968,7 @@ def test_partitioning_no_workload_MI350X(gpu_cluster, deviceconfig_install, envi
 @pytest.mark.level2
 @pytest.mark.parametrize("profile", ["QPX_NPS1", "DPX_NPS2", "QPX_NPS2", "DPX_NPS1", "CPX_NPS1", "CPX_NPS2", "SPX_NPS1"])
 def test_partitioning_workload_MI350X(gpu_cluster, deviceconfig_install, environment, request, 
-                                         create_configmap, profile):
+                                         create_dcm_configmap, profile):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series != 'MI350X':
         pytest.skip(f"Testcases specifically designed for MI350X")
@@ -809,7 +977,7 @@ def test_partitioning_workload_MI350X(gpu_cluster, deviceconfig_install, environ
 @pytest.mark.level2
 @pytest.mark.parametrize("profile", ["QPX_NPS1", "DPX_NPS1", "QPX_NPS4", "CPX_NPS1", "CPX_NPS4", "SPX_NPS1"])
 def test_partitioning_no_workload_MI300X(gpu_cluster, deviceconfig_install, environment, request, 
-                                         create_configmap, profile):
+                                         create_dcm_configmap, profile):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series != 'MI300X':
         pytest.skip(f"Testcases specifically designed for MI300X")
@@ -818,7 +986,7 @@ def test_partitioning_no_workload_MI300X(gpu_cluster, deviceconfig_install, envi
 @pytest.mark.level2
 @pytest.mark.parametrize("profile", ["QPX_NPS1", "DPX_NPS1", "QPX_NPS4", "CPX_NPS1", "CPX_NPS4", "SPX_NPS1"])
 def test_partitioning_workload_MI300X(gpu_cluster, deviceconfig_install, environment, request, 
-                                         create_configmap, profile):
+                                         create_dcm_configmap, profile):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series != 'MI300X':
         pytest.skip(f"Testcases specifically designed for MI300X")
@@ -827,7 +995,7 @@ def test_partitioning_workload_MI300X(gpu_cluster, deviceconfig_install, environ
 @pytest.mark.level2
 @pytest.mark.parametrize("profile", ["QPX_NPS1", "DPX_NPS2", "QPX_NPS4", "DPX_NPS1", "CPX_NPS1", "CPX_NPS4", "SPX_NPS1"])
 def test_partitioning_no_workload_MI325X(gpu_cluster, deviceconfig_install, environment, request, 
-                                         create_configmap, profile):
+                                         create_dcm_configmap, profile):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series != 'MI325X':
         pytest.skip(f"Testcases specifically designed for MI325X")
@@ -836,14 +1004,146 @@ def test_partitioning_no_workload_MI325X(gpu_cluster, deviceconfig_install, envi
 @pytest.mark.level2
 @pytest.mark.parametrize("profile", ["QPX_NPS1", "DPX_NPS2", "QPX_NPS4", "DPX_NPS1", "CPX_NPS1", "CPX_NPS4", "SPX_NPS1"])
 def test_partitioning_workload_MI325X(gpu_cluster, deviceconfig_install, environment, request, 
-                                      create_configmap, profile):
+                                      create_dcm_configmap, profile):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if gpu_series != 'MI325X':
         pytest.skip(f"Testcases specifically designed for MI325X")
     run_partition_test_scenario(gpu_cluster, environment, request, profile, workload = True)
 
+
+@pytest.mark.level23
+@pytest.mark.parametrize("profile", ["CPX_NPS1"])
+def test_partitioning_63_workloads_MI350X(gpu_cluster, deviceconfig_install, environment, request,
+                                          create_dcm_configmap, profile):
+    gpu_series = get_gpu_series(gpu_cluster, environment)
+    if 'MI350x' not in gpu_series:
+        pytest.skip(f"Testcases specifically designed for MI350X")
+    run_partition_test_scenario(gpu_cluster, environment, request, profile, workload = False)
+    def _cleanup_workload():
+        k8_util.k8_delete_all_pods("default")
+
+    request.addfinalizer(_cleanup_workload)
+    _cleanup_workload()
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    for node in gpu_nodes:
+        worker = k8_util.k8_get_node_hostname(node)
+        for i in range(63):
+            params = {
+                "node_name" : worker,
+                "num_gpu_reqd" : 1,
+                "workload_selection" : "alexnet-tf-gpu"
+            }
+            wl_ctxt = K8Helper.workload_operation(environment, K8Helper.WorkloadOp.START_WORKLOAD, **params)
+    time.sleep(60)
+    list_of_pods = k8_util.k8_get_pods("default")
+
+    debug_on_failure(environment, len(list_of_pods) == 63,
+                     f"found no running workloads in {pprint.pformat(list_of_pods)}")
+
+    exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, environment)
+
+@pytest.mark.level23
+@pytest.mark.parametrize("profile", ["CPX_NPS4", "DPX_NPS2"])
+def test_partitioning_test_runner(gpu_cluster, deviceconfig_install, environment, request,
+                                  images, create_dcm_configmap, profile):
+    gpu_series = get_gpu_series(gpu_cluster, environment)
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    if 'MI3' not in gpu_series:
+        pytest.skip(f"Testcases specifically designed for MI350X")
+
+    framework = "RVS"
+    recipe = "gst_single"
+    configmap = {}
+    for node in gpu_nodes:
+        worker = k8_util.k8_get_node_hostname(node)
+        update_test_runner_configmap(recipe, worker, configmap, framework)
+
+    configmap_name = create_configmap(request, deviceconfig_install, environment, framework, configmap)
+    update_test_runner_image(deviceconfig_install, environment, framework, configmap_name)
+
+    run_partition_test_scenario(gpu_cluster, environment, request, profile, workload = False)
+
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
+
+    job_name = "test-runner-manual-trigger"
+    namespace = environment.gpu_operator_namespace
+    sa_name = "test-run"
+    cluster_role_name = "test-run-cluster-role"
+    crb_name = 'test-run-rb'
+
+    def _cleanup_jobs():
+        k8_util.k8_delete_job(namespace, job_name)
+        k8_util.k8_delete_cluster_role_binding(crb_name)
+        k8_util.k8_delete_cluster_role(cluster_role_name)
+        k8_util.k8_delete_service_account(sa_name, namespace)
+    request.addfinalizer(_cleanup_jobs)
+    _cleanup_jobs()
+
+        # Create ServiceAccount
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_service_account(sa_name, namespace)
+    debug_on_failure(environment, (ret_code == 0),
+                     f"Failed to create service-account, error:{ret_stderr}")
+
+    # Define ClusterRole: verb=get
+
+    #rules = k8_util.k8_create_rules_from_endpoint_list([("/test_runner", "get")])
+    rules = list()
+    rules.append(
+        k8_util.k8_create_rules_from_verbs(
+            resources=["events"],
+            verbs=["get", "list", "watch", "create", "update"],
+            api_groups=[""]
+        )
+    )
+    rules.append(
+        k8_util.k8_create_rules_from_verbs(
+            resources=["nodes"],
+            verbs=["patch"],
+            api_groups=[""]
+        )
+    )
+    # Define ClusterRole: verb=get
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(cluster_role_name, rules)
+    debug_on_failure(environment, (ret_code == 0),
+                     f"Failed to create test_runner clusterrole with GET, error:{ret_stderr}")
+
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding(crb_name, namespace, cluster_role_name, sa_name)
+    debug_on_failure(environment, (ret_code == 0),
+                              f"Failed to create test_runner clusterrole with verbs, error:{ret_stderr}")
+    # Create token for ServiceAccount
+    token = k8_util.k8_create_token(namespace, sa_name, "1h")
+    debug_on_failure(environment, token != None,
+                     f"Failed to create token for the service-account : {sa_name}")
+    Logger.info(f"TOKEN={token}")
+
+    time.sleep(30) # Wait for exporter to start working
+    # Get endpoint for each node
+
+    # Create Job
+    k8_util.k8_create_test_runner_job(namespace,
+                                      images,
+                                      worker,
+                                      sa_name,
+                                      job_name,
+                                      framework,
+                                      True,
+                                      False,
+                                      datetime.datetime.utcnow().minute + 2)
+    job_status = k8_util.k8_get_job_status(namespace, job_name)
+    debug_on_failure(environment, job_status == "Running",
+                     f"job should be in Running state")
+    #no need to wait for completion GPUOP-520
+    verify_logs(environment, [f'Starting iteration 1 of 1 for test: {recipe}'], 'test-runner-manual')
+    k8_util.k8_delete_job(namespace, job_name)
+
 @pytest.mark.level1
-def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, create_configmap, environment):
+def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, create_dcm_configmap, environment):
     global Logger
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
