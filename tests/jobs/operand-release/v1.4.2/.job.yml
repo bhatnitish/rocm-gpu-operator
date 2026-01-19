@@ -150,6 +150,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
@@ -178,6 +179,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
@@ -206,6 +208,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
+      - build-external-device-metrics-exporter-v1.4.2
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server

@@ -234,8 +234,8 @@ jobs:
     labels: ["CI-Pytest-Sanity"]
   tests/jobs/regression:
     labels: ["CI-Sanity-Build", "CI-Pytest-Regression"]
-  tests/jobs/operand-release:
-    labels: ["CI-Sanity-Build", "CI-Pytest-Operand-Release"]
+  tests/jobs/operand-release/v1.4.2:
+    labels: ["CI-Sanity-Build", "CI-Pytest-Operand-Release-v1.4.2"]
       # ci-internal:
     #    labels: [""]
 host_mounts:
