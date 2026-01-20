@@ -16,6 +16,7 @@
  limitations under the License.
 '''
 
+import os
 import pdb
 import time
 import json
@@ -464,8 +465,7 @@ def k8_create_cluster_role(cluster_role_name : str, rules : List) -> (int, str, 
     except ApiException as e:
         return -1, "", str(e)
 
-@log_arguments
-def k8_create_role_binding(crb_name : str,  namespace : str, cluster_role_name : str, sa_name : str) -> (int, str, str):
+def k8_create_role_binding_generic(crb_name: str, cluster_role_name: str, subject_kind: str, subject_name: str, namespace: None,) -> (int, str, str):
     """
     API to create cluster-role-binding
 
@@ -479,31 +479,53 @@ def k8_create_role_binding(crb_name : str,  namespace : str, cluster_role_name :
     int : 0 on success else failure
     str : stdout
     str : stderr
+    kwargs["name"]
+    kwargs["namespace"]
     """
     global Logger
+    subject_kwargs = {"kind": subject_kind, "name": subject_name}
+    if subject_kind == "ServiceAccount" and namespace:
+        subject_kwargs["namespace"] = namespace
+
     cluster_role_binding = client.V1ClusterRoleBinding(
-            api_version = "rbac.authorization.k8s.io/v1",
-            kind = "ClusterRoleBinding",
-            metadata=client.V1ObjectMeta(name=crb_name),
-            subjects=[
-                client.RbacV1Subject(
-                    kind="ServiceAccount",
-                    name=sa_name,
-                    namespace=namespace)
-            ],
-            role_ref=client.V1RoleRef(
-                kind="ClusterRole",
-                name=cluster_role_name,
-                api_group="rbac.authorization.k8s.io")
+        api_version="rbac.authorization.k8s.io/v1",
+        kind="ClusterRoleBinding",
+        metadata=client.V1ObjectMeta(name=crb_name),
+        subjects=[client.RbacV1Subject(**subject_kwargs)],
+        
+        role_ref=client.V1RoleRef(
+            kind="ClusterRole",
+            name=cluster_role_name,
+            api_group="rbac.authorization.k8s.io",
+        ),
     )
     api = client.RbacAuthorizationV1Api()
     try:
         # Create the ClusterRoleBinding
-        api_response = api.create_cluster_role_binding(cluster_role_binding)
+        api.create_cluster_role_binding(cluster_role_binding)
         return 0, "", ""
     except ApiException as e:
         return -1, "", str(e)
 
+@log_arguments
+def k8_create_role_binding(crb_name: str, namespace: str, cluster_role_name: str, sa_name: str) -> (int, str, str):
+    return k8_create_role_binding_generic(
+        crb_name=crb_name,
+        cluster_role_name=cluster_role_name,
+        subject_kind="ServiceAccount",
+        subject_name=sa_name,
+        namespace=namespace,
+    )
+
+@log_arguments
+def k8_create_role_binding_user(crb_name: str, cluster_role_name: str, user_name: str) ->(int, str, str):
+    return k8_create_role_binding_generic(
+        crb_name=crb_name,
+        cluster_role_name=cluster_role_name,
+        subject_kind="User",
+        subject_name=user_name,
+        namespace=None,
+    )
 @log_arguments
 def k8_delete_pod(pod_name : str, namespace : str, force : bool = False):
     """
@@ -1140,16 +1162,29 @@ def k8_create_configmap(namespace : str, configmap_name : str, configmap_json_fi
     API to create configmap in a k8-cluster
 
     Example: kubectl create configmap -n kube-amd-gpu exporter-config --from-file=config.json
+    - If the input file has .json extension, store raw file content under "config.json".
+    - If the input file has .crt extension, store raw file content under file name.
     """
-    global Logger
-    with open(configmap_json_file) as fp:
-        data = json.load(fp)
+    global Logger 
+    if os.path.splitext(configmap_json_file)[1] == '.json' : 
+        with open(configmap_json_file) as fp:
+            data = json.load(fp)
+        data = {"config.json" : json.dumps(data)}
+    elif os.path.splitext(configmap_json_file)[1] == '.crt' : 
+        with open(configmap_json_file, "r", encoding="utf-8") as fp:
+            raw_text = fp.read()
+        data = {os.path.basename(configmap_json_file) : raw_text}
+    else:
+        Logger.error(
+            f"Unsupported file type for '{configmap_json_file}'. "
+            "Expected a file with .json or .crt extension.")
+        return -1, "", f"Unsupported file type: {configmap_json_file}"
     api = client.CoreV1Api()
     config_map = client.V1ConfigMap(
             api_version = "v1",
             kind = "ConfigMap",
             metadata = client.V1ObjectMeta(name=configmap_name, namespace=namespace),
-            data = {"config.json" : json.dumps(data)}
+            data = data
         )
     try:
         api_response = api.create_namespaced_config_map(namespace, config_map)
@@ -1698,9 +1733,29 @@ def k8_create_secret(secret_name : str,
             data=secret_data,
             type="kubernetes.io/dockerconfigjson"
         )
+    elif secret_type == "tls":
+        cert_path = kwargs.get("cert_path")
+        key_path = kwargs.get("key_path")
+    
+        if not cert_path or not key_path:
+            return 1, "", "cert_path and key_path are required for TLS secrets"
+
+        with open(cert_path, "r") as f:
+            cert_pem = f.read()
+        with open(key_path, "r") as f:
+            key_pem = f.read()
+
+        secret = client.V1Secret(
+            metadata=client.V1ObjectMeta(name=secret_name),
+            string_data={
+                "tls.crt": cert_pem,
+                "tls.key": key_pem,
+            },
+            type="kubernetes.io/tls",
+        )
     elif secret_type == "generic":
         data = {}
-        for key, value in kwargs:
+        for key, value in kwargs.items():
             if key == 'namespace':
                 continue
             data[key] = value

@@ -16,6 +16,7 @@
  limitations under the License.
 '''
 
+import pdb
 import sys
 import os
 import copy
@@ -591,6 +592,29 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         if gpu_operator_version >= 'v1.4.1':
             device_config['spec']['metricsExporter']['podAnnotations'] = spec.get('metricsExporter.podAnnotations', {})
             device_config['spec']['metricsExporter']['serviceAnnotations'] = spec.get('metricsExporter.serviceAnnotations', {})
+            if spec.get('metricsExporter.rbacConfig.secret.name' ,None):
+                device_config['spec']['metricsExporter']['rbacConfig'].setdefault('secret', {})
+                device_config['spec']['metricsExporter']['rbacConfig']['secret']['name'] = spec.get('metricsExporter.rbacConfig.secret.name', None)
+            if spec.get('metricsExporter.rbacConfig.clientCAConfigMap.name' ,None):
+                device_config['spec']['metricsExporter']['rbacConfig'].setdefault('clientCAConfigMap', {})
+                device_config['spec']['metricsExporter']['rbacConfig']['clientCAConfigMap']['name'] = spec.get('metricsExporter.rbacConfig.clientCAConfigMap.name', None)
+            if spec.get('prometheus.serviceMonitor.labels',None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['labels'] = spec.get('prometheus.serviceMonitor.labels', {})
+            if spec.get('prometheus.serviceMonitor.tlsConfig.ca.configMap', None) :
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor'].setdefault('tlsConfig', {}).setdefault('ca', {})
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['tlsConfig']['ca']['configMap'] = spec.get('prometheus.serviceMonitor.tlsConfig.ca.configMap', {})
+            if spec.get('prometheus.serviceMonitor.tlsConfig.cert.secret', None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor'].setdefault('tlsConfig', {}).setdefault('cert', {})
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['tlsConfig']['cert']['secret'] = spec.get('prometheus.serviceMonitor.tlsConfig.cert.secret',{})
+            if spec.get('prometheus.serviceMonitor.tlsConfig.keySecret', None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor'].setdefault('tlsConfig', {})
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['tlsConfig']['keySecret'] = spec.get('prometheus.serviceMonitor.tlsConfig.keySecret',"")
+            if spec.get('prometheus.serviceMonitor.tlsConfig.serverName', None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor'].setdefault('tlsConfig', {})
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['tlsConfig']['serverName'] = spec.get('prometheus.serviceMonitor.tlsConfig.serverName', None)
+            if spec.get('prometheus.serviceMonitor.tlsConfig.insecureSkipVerify', None):
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor'].setdefault('tlsConfig', {})
+                device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['tlsConfig']['insecureSkipVerify'] = spec.get('prometheus.serviceMonitor.tlsConfig.insecureSkipVerify', False)
     else:
         del device_config['spec']['metricsExporter']
 
@@ -829,7 +853,7 @@ def generate_cluster_role_spec(file_name, cluster_role_name, endpoint_verbs):
 
     return dump_yaml(file_name, cluster_role_spec)
 
-def generate_clusterrolebinding_yaml(file_name, crb_name, namespace, cluster_role, sa_name):
+def generate_clusterrolebinding_yaml(file_name, crb_name,cluster_role, subject_kind='ServiceAccount', subject_name=None, namespace=None):    
     """
     Example:
         apiVersion: rbac.authorization.k8s.io/v1
@@ -860,9 +884,9 @@ def generate_clusterrolebinding_yaml(file_name, crb_name, namespace, cluster_rol
         },
         'subjects' : [
             {
-                'kind' : 'ServiceAccount',
-                'name' : sa_name,
-                'namespace' : namespace,
+                'kind': subject_kind,
+                'name': subject_name,
+                **({'namespace': namespace} if subject_kind == 'ServiceAccount' else {})
             }
         ]
     }

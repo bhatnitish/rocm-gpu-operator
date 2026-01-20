@@ -72,7 +72,7 @@ def verify_events(gpu_cluster, environment, profile, before, after):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if not gpu_series or 'MI2' in gpu_series:
         pytest.skip(f"testcase not supported")
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
     with open(file_path) as fp:
         profiles = json.load(fp)
         if not profiles.get("gpu-config-profiles"):
@@ -191,7 +191,7 @@ def create_dcm_configmap(deviceconfig_install, gpu_cluster, environment):
     gpu_series = get_gpu_series(gpu_cluster, environment)
     debug_on_failure(environment, gpu_series != None, f"Missing gpu-series information - collect tech-support to debug cluster")
 
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
     if os.path.exists(file_path):
         ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(namespace, configmap)
         k8_util.k8_create_configmap(namespace, configmap, file_path)
@@ -672,7 +672,7 @@ def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, creat
     local_workload_ctxts = []
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
     with open(file_path) as fp:
         profiles = json.load(fp)
         if not profiles.get("gpu-config-profiles"):
@@ -790,7 +790,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
     local_workload_ctxts = []
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.yaml")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
     before_events = k8_util.k8_get_events(namespace=environment.gpu_operator_namespace)
 
     with open(file_path) as fp:

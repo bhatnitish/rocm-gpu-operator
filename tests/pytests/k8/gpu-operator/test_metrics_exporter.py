@@ -33,6 +33,7 @@ import lib.spec_util as spec_util
 import lib.metric_util as metric_util
 import lib.amdgpu as amdgpu_util
 from lib.util import K8Helper
+import subprocess
 
 #pytestmark = pytest.mark.skip("debugging")
 Logger = logging.getLogger("k8.test_metrics_exporter")
@@ -1596,3 +1597,238 @@ def test_exporter_service_annotations(gpu_cluster, deviceconfig_install, environ
                     val = f"svc-value-{i}"
                     K8Helper.triage(environment, (lbl not in svc_annots), f"Persistent annotation after cleanup: {svc_annots}")
 
+def test_exporter_rbac_mTLS_cert_support(gpu_cluster, deviceconfig_install, environment):
+    global Logger
+    
+    # Pre-check cluster has AMD GPU nodes
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, ret_code == 0, "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, len(gpu_nodes) > 0, "No nodes with AMD/GPU found in the cluster")       
+    
+    # Generate CA
+    ca_key_path = os.path.join(environment.logdir, "ca.key")
+    cmd = ["openssl", "genrsa", "-out", ca_key_path, "2048"]
+    result = subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to create ca.key")
+   
+    ca_crt_path = os.path.join(environment.logdir, "ca.crt")
+    cmd = ["openssl", "req", "-x509", "-new", "-nodes", "-key", ca_key_path, "-subj", "/CN=my-ca", "-days", "3650", "-out", ca_crt_path ]
+    result= subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to create ca.crt")
+        
+    # Create server SAN config file
+    san_server_cnf = """
+    [req]
+    distinguished_name = req_distinguished_name
+    req_extensions = v3_req
+    prompt = no
+
+    [req_distinguished_name]
+    CN = my-metrics-service
+
+    [v3_req]
+    keyUsage = keyEncipherment, dataEncipherment
+    extendedKeyUsage = serverAuth
+    subjectAltName = @alt_names
+
+    [alt_names]
+    DNS.1 = my-metrics-service
+    """
+    san_server_cnf_path = os.path.join(environment.logdir, "san-server.cnf")
+    with open(san_server_cnf_path, "w") as fp:
+        fp.write(san_server_cnf)
+    
+    # Generate server cert for kube-rbac-proxy
+    server_key_path = os.path.join(environment.logdir, "server.key")
+    cmd = ["openssl", "genrsa", "-out", server_key_path, "2048"]
+    result = subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to  Generate server private key")
+        
+    # Generate CSR using the server key and SAN config
+    server_csr_path = os.path.join(environment.logdir, "server.csr")
+    cmd = [ "openssl", "req", "-new", "-key", server_key_path , "-out", server_csr_path, "-config", san_server_cnf_path,]
+    result = subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to Generate CSR using the server key and SAN config")
+
+    # Sign the CSR with the CA to produce the server certificate
+    server_crt_path = os.path.join(environment.logdir, "server.crt")
+    cmd = [ "openssl", "x509", "-req","-in", server_csr_path, "-CA", ca_crt_path,"-CAkey", ca_key_path, "-CAcreateserial", "-out", server_crt_path, "-days", "365", "-sha256", "-extensions", "v3_req", "-extfile", san_server_cnf_path,]
+    result = subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to Sign the CSR with the CA to produce the server certificate")
+        
+    # Create client SAN config file
+    san_client_cnf = """
+    [req]
+    distinguished_name = req_distinguished_name
+    req_extensions = v3_req
+    prompt = no
+
+    [req_distinguished_name]
+    CN = prometheus-client
+
+    [v3_req]
+    keyUsage = critical, digitalSignature, keyEncipherment
+    extendedKeyUsage = clientAuth
+    subjectAltName = @alt_names
+
+    [alt_names]
+    DNS.1 = prometheus-client
+    """
+    san_client_cnf_path = os.path.join(environment.logdir, "san-client.cnf")
+    with open(san_client_cnf_path, "w") as fp:
+        fp.write(san_client_cnf)
+
+    # Generate client private key
+    client_key_path = os.path.join(environment.logdir, "client.key")
+    cmd = ["openssl", "genrsa", "-out", client_key_path, "2048"]
+    result = subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to Generate client private key")
+        
+    # Generate client CSR using SAN config
+    client_csr_path = os.path.join(environment.logdir, "client.csr")
+    cmd = [ "openssl", "req", "-new", "-key", client_key_path , "-out", client_csr_path, "-config", san_client_cnf_path,]
+    result = subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to Generate client CSR using SAN config")
+
+    # Sign the client CSR with the CA to produce the client certificate (with SAN)
+    client_crt_path = os.path.join(environment.logdir, "client.crt")
+    cmd = [ "openssl", "x509", "-req", "-in", client_csr_path , "-CA", ca_crt_path, "-CAkey", ca_key_path, "-CAcreateserial", "-out", client_crt_path, "-days", "365", "-sha256", "-extensions", "v3_req", "-extfile", san_client_cnf_path,]
+    result = subprocess.run(cmd, check=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding='utf-8')
+    K8Helper.triage(environment, (result.returncode == 0), f"failed to Sign the client CSR with the CA to produce the client certificate (with SAN)")
+    
+    # Server TLS Secret (for kube-rbac-proxy):
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_secret("server-metrics-tls" ,"tls", environment.gpu_operator_namespace)
+    if ret_code != 0:
+        Logger.warn(f"secret deletion failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
+        
+    ret_code, ret_stdout, ret_stderr =  k8_util.k8_create_secret("server-metrics-tls" ,"tls", cert_path= server_crt_path, key_path = server_key_path, namespace = environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"failed to create secret server-metrics-tls ")
+    
+    # Client TLS Secret (for Prometheus, in GPU Operator namespace):
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_secret("prom-client-cert" ,"generic", environment.gpu_operator_namespace)
+    if ret_code != 0:
+        Logger.warn(f"secret deletion failed, code: {ret_code}, stdout: {ret_stdout}, stderr: {ret_stderr}")
+        
+    ret_code, ret_stdout, ret_stderr =  k8_util.k8_create_secret("prom-client-cert" ,"generic", client_cert=client_crt_path, client_key=client_key_path, namespace=environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"failed to create secret prom-client-cert ")
+        
+    # Delete if there is any previous instance with same name then create configmap client-ca
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(environment.gpu_operator_namespace,"client-ca")
+    
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_configmap(environment.gpu_operator_namespace,"client-ca", ca_crt_path)
+    K8Helper.triage(environment,ret_code == 0,f"Failed to create configmap client-ca for {ca_crt_path}, err: {ret_stderr.strip()}")
+    
+    # Delete if there is any previous instance with same name then create configmap prom-server-ca
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(environment.gpu_operator_namespace,"prom-server-ca")
+    
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_configmap(environment.gpu_operator_namespace,"prom-server-ca", ca_crt_path)
+    K8Helper.triage(environment,ret_code == 0,f"Failed to create configmap prom-server-ca for {ca_crt_path}, err: {ret_stderr.strip()}")
+    
+    # RBAC for CN "prometheus-client" to GET /metrics via SAR
+    cluster_role_name = "metrics"
+    cluster_rolebinding_name = "metrics-cert-user"
+    client_cn_user = "prometheus-client"  # Must match CN in client certificate
+
+    # Clean up any stale RBAC
+    k8_util.k8_delete_cluster_role_binding(cluster_rolebinding_name)
+    k8_util.k8_delete_cluster_role(cluster_role_name)
+
+    # Create ClusterRole allowing GET on /metrics nonResourceURL
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_cluster_role(
+        cluster_role_name, k8_util.k8_create_rules_from_endpoint_list([("/metrics", "get")]))
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to create ClusterRole '{cluster_role_name}', error: {ret_stderr}")
+
+    # create cluster role binding
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_create_role_binding_user(
+        cluster_rolebinding_name, cluster_role_name, client_cn_user)
+    K8Helper.triage(environment, (ret_code == 0),f"Failed to create ClusterRoleBinding '{cluster_rolebinding_name}' for user '{client_cn_user}', error: {ret_stderr}")
+    
+    # Configure DeviceConfig for mTLS + certificate-based RBAC
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.serviceType'] = 'NodePort'
+        tcfg['metricsExporter.rbacConfig.enable'] = True
+        tcfg['metricsExporter.rbacConfig.disableHttps'] = False
+        tcfg['metricsExporter.rbacConfig.secret.name'] = 'server-metrics-tls'
+        tcfg['metricsExporter.rbacConfig.clientCAConfigMap.name'] = 'client-ca'
+
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
+
+    #  Check for corresponding deviceconfig created
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(environment, devcfg)
+
+    # Expect 2 containers in metrics-exporter pod: exporter + kube-rbac-proxy
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 2),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    
+    # Discover endpoints
+    ret_code, endpoint_values = k8_util.k8_get_endpoints(environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Error while collecting kubectl endpoints")
+
+    # Try NodePort scrape from outside
+    for node in gpu_nodes:
+        node_ip = k8_util.k8_get_node_address(node)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
+        if not cluster_node:
+            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
+        node_hostname = k8_util.k8_get_node_hostname(node)
+        node_port = deviceconfig_install.exporter_port_map[node_hostname]
+        # Use curl with mTLS client cert
+        cmd = [ "curl", "--cert", client_crt_path, "--key", client_key_path, "--cacert", ca_crt_path, "-s", "-v", "-k", "--resolve", f"my-metrics-service:{node_port}:{node_ip}",f"https://my-metrics-service:{node_port}/metrics"]
+        result = subprocess.run(cmd,check=False, stdout=subprocess.PIPE,stderr=subprocess.PIPE, encoding="utf-8")
+        K8Helper.triage(environment, (result.returncode == 0), (f"Failed to get metrics via mTLS from service endpoint {node_ip}:{node_port}, stdout: {result.stdout} stderr: {result.stderr}"))
+
+    # Teardown / Restore: Disable rbac (https) in DeviceConfig
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['metricsExporter.enable'] = True
+        tcfg['metricsExporter.serviceType'] = 'NodePort'
+        tcfg['metricsExporter.rbacConfig.enable'] = False
+        tcfg['metricsExporter.rbacConfig.disableHttps'] = True
+        tcfg['metricsExporter.rbacConfig.secret.name'] = None
+        tcfg['metricsExporter.rbacConfig.clientCAConfigMap.name'] = None
+
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        K8Helper.triage(environment, (ret_code == 0), f"Failed to modify deviceconfig, stderr: {ret_stderr}")
+
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    for devcfg in deviceconfig_install.devicecfg_list:
+        K8Helper.wait_kmm_worker_completion(environment, devcfg)
+
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    
+    # delete configmap 
+    k8_util.k8_delete_configmap(environment.gpu_operator_namespace,"client-ca")
+    k8_util.k8_delete_configmap(environment.gpu_operator_namespace,"prom-server-ca")
+
+    # delete cluster_role and cluster_role_binding
+    k8_util.k8_delete_cluster_role_binding(cluster_rolebinding_name)
+    k8_util.k8_delete_cluster_role(cluster_role_name)
+    
+    # delete secrets
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_secret("server-metrics-tls" ,"tls", environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to delete secret, stderr: {ret_stderr}")
+    
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_secret("prom-client-cert" ,"generic", environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to delete secret, stderr: {ret_stderr}")
+    
+    # delete certificates  
+    for path in [ ca_key_path, ca_crt_path, san_server_cnf_path, server_key_path , server_csr_path, server_crt_path, san_client_cnf_path, client_key_path, client_csr_path ,  client_crt_path, os.path.join(environment.logdir, "ca.srl") ]:
+        try: 
+            os.remove(path)
+        except Exception as e:
+             Logger.debug(f"Failed to remove file {path}: {e}")
+            
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
