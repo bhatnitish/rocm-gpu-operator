@@ -35,6 +35,8 @@ setup_dir () {
 copy_artifacts () {
     # copy gpu-opertar container image
     cp /gpu-operator/amd-gpu-operator-latest.tar.gz $BUNDLE_DIR/amd-gpu-operator-latest-$RELEASE.tar.gz
+    # copy gpu-operator utils container image
+    cp /gpu-operator/amd-gpu-operator-utils-latest.tar.gz $BUNDLE_DIR/amd-gpu-operator-utils-latest-$RELEASE.tar.gz
     # copy internal k8s helm package
     cp /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/internal-gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
     # copy amdpsdo k8s helm package
@@ -57,6 +59,11 @@ docker_push () {
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator:latest | grep "HOURLY"
     docker tag registry.test.pensando.io:5000/amd-gpu-operator:latest registry.test.pensando.io:5000/amd-gpu-operator:$tag
     docker push registry.test.pensando.io:5000/amd-gpu-operator:$tag
+    # push utils image to internal registry
+    docker load -i /gpu-operator/amd-gpu-operator-utils-latest.tar.gz
+    docker inspect registry.test.pensando.io:5000/amd-gpu-operator-utils:latest | grep "HOURLY"
+    docker tag registry.test.pensando.io:5000/amd-gpu-operator-utils:latest registry.test.pensando.io:5000/amd-gpu-operator-utils:$tag
+    docker push registry.test.pensando.io:5000/amd-gpu-operator-utils:$tag
     # push OLM bundle image to internal registry
     docker load -i /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz
     docker inspect registry.test.pensando.io:5000/amd-gpu-operator-bundle:$PROJECT_VERSION | grep "HOURLY"
@@ -79,6 +86,11 @@ docker_push () {
       # push OLM bundle images 
       docker tag amdpsdo/gpu-operator-bundle:$PROJECT_VERSION amdpsdo/gpu-operator-olm-bundle:$RELEASE
       docker push amdpsdo/gpu-operator-olm-bundle:$RELEASE
+      # push utils image
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator-utils:$tag amdpsdo/gpu-operator-utils:$tag
+      docker push amdpsdo/gpu-operator-utils:$tag
+      docker tag registry.test.pensando.io:5000/amd-gpu-operator-utils:$tag amdpsdo/gpu-operator-utils:$RELEASE
+      docker push amdpsdo/gpu-operator-utils:$RELEASE
     fi
 }
 

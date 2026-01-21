@@ -80,3 +80,6 @@ deviceConfig:
       image: registry.test.pensando.io:5000/device-config-manager:latest
     testRunner:
       image: registry.test.pensando.io:5000/test-runner:latest
+    commonConfig:
+      utilsContainer:
+        image: registry.test.pensando.io:5000/amd-gpu-operator-utils:latest

@@ -38,6 +38,9 @@ DEVICE_CONFIG_MANAGER_IMAGE_TAG ?= latest
 DEVICE_CONFIG_MANAGER_IMG = $(DOCKER_REGISTRY)/device-config-manager:$(DEVICE_CONFIG_MANAGER_IMAGE_TAG)
 TEST_RUNNER_IMAGE_TAG ?= latest
 TEST_RUNNER_IMG = $(DOCKER_REGISTRY)/test-runner:$(TEST_RUNNER_IMAGE_TAG)
+UTILS_IMAGE_TAG ?= latest
+UTILS_IMAGE_NAME ?= $(IMAGE_NAME)-utils
+UTILS_IMG ?= $(DOCKER_REGISTRY)/$(UTILS_IMAGE_NAME):$(UTILS_IMAGE_TAG)
 
 #######################
 # Helm Charts variables
@@ -203,6 +206,7 @@ update-registry: ## Update all image URLs based on the image variables
 		yq eval -i '.deviceConfig.spec.metricsExporter.image = "$(METRICS_EXPORTER_IMG)"' $$file; \
 		yq eval -i '.deviceConfig.spec.configManager.image = "$(DEVICE_CONFIG_MANAGER_IMG)"' $$file; \
 		yq eval -i '.deviceConfig.spec.testRunner.image = "$(TEST_RUNNER_IMG)"' $$file; \
+		yq eval -i '.deviceConfig.spec.commonConfig.utilsContainer.image = "$(UTILS_IMG)"' $$file; \
 	done
 	sed -i -e 's|tag:.*$$|tag: ${KMM_IMAGE_TAG}|' \
 	-e 's|repository:.*operator.*$$|repository: ${KMM_OPERATOR_IMG_NAME}|' \
@@ -307,6 +311,18 @@ docker-push: ## Push docker image with the manager.
 .PHONY: docker-save
 docker-save: ## save the container image with the manager.
 	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
+
+.PHONY: docker-build-utils
+docker-build-utils: ## Build docker image for utils container.
+	DOCKER_BUILDKIT=1 docker build -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
+
+.PHONY: docker-push-utils
+docker-push-utils: ## Push docker image for utils container.
+	docker push $(UTILS_IMG)
+
+.PHONY: docker-save-utils
+docker-save-utils: ## Save the utils container image as tar.gz.
+	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils-$(IMAGE_TAG).tar.gz
 
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container

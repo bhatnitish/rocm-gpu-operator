@@ -88,7 +88,7 @@ deviceConfig:
       initContainerImage: busybox:1.36
       utilsContainer:
         # -- gpu operator utility container image
-        image: docker.io/rocm/gpu-operator-utils:v1.4.0
+        image: registry.test.pensando.io:5000/amd-gpu-operator-utils:latest
         # -- utility container image pull policy
         imagePullPolicy: IfNotPresent
         # -- utility container image pull secret, e.g. {"name": "mySecretName"}

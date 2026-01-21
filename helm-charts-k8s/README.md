@@ -154,7 +154,7 @@ Kubernetes: `>= 1.29.0-0`
 | crds.defaultCR.install | bool | `true` | Deploy default DeviceConfig during helm chart installation |
 | crds.defaultCR.upgrade | bool | `false` | Deploy / Patch default DeviceConfig during helm chart upgrade. Be careful about this option: 1. Your customized change on default DeviceConfig may be overwritten 2. Your existing DeviceConfig may conflict with upgraded default DeviceConfig  |
 | deviceConfig.spec.commonConfig.initContainerImage | string | `"busybox:1.36"` | init container image |
-| deviceConfig.spec.commonConfig.utilsContainer.image | string | `"docker.io/rocm/gpu-operator-utils:v1.4.0"` | gpu operator utility container image |
+| deviceConfig.spec.commonConfig.utilsContainer.image | string | `"registry.test.pensando.io:5000/amd-gpu-operator-utils:latest"` | gpu operator utility container image |
 | deviceConfig.spec.commonConfig.utilsContainer.imagePullPolicy | string | `"IfNotPresent"` | utility container image pull policy |
 | deviceConfig.spec.commonConfig.utilsContainer.imageRegistrySecret | object | `{}` | utility container image pull secret, e.g. {"name": "mySecretName"} |
 | deviceConfig.spec.configManager.config | object | `{}` | config map for config manager, e.g. {"name": "myConfigMap"} |
