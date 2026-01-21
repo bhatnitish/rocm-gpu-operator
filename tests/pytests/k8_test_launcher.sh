@@ -25,6 +25,7 @@ function usage() {
     echo "          --amdgpu-driver-spec <driver-version-spec>"
     echo "          --workload-selection <workload-name>"
     echo "          --image-manifest <path-to-image-manifest>"
+    echo "          --alt-image-manifest <path-to-image-manifest>"
     echo "          --module <module-name>. Eq: test_<module_name>.py"
     echo "          --testcase <testcase-name> Eq: def test_<tc_name>"
     echo "          --debug"
@@ -35,6 +36,7 @@ function usage() {
 }
 
 IMAGE_MANIFEST="NA"
+ALT_IMAGE_MANIFEST="NA"
 SECRETS="NA"
 APP_NAME="NA"
 DEPLOYMENT="k8"
@@ -110,6 +112,10 @@ function launch_pytest() {
         CMD_OPT+=" --workload-selection ${WORKLOAD_NAME}"
     fi
     CMD_OPT+=" --image-manifest ${IMAGE_MANIFEST}"
+    if [[ "${ALT_IMAGE_MANIFEST}" != "NA" ]];
+    then
+        CMD_OPT+=" --alternative-image-manifest ${ALT_IMAGE_MANIFEST}"
+    fi
     echo ""
     echo "****** USING FOLLOWING IMAGES FOR THE TEST ******"
     cat ${IMAGE_MANIFEST}
@@ -137,6 +143,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --image-manifest)
             IMAGE_MANIFEST="$2"
+            shift
+        ;;
+        --alt-image-manifest)
+            ALT_IMAGE_MANIFEST="$2"
             shift
         ;;
 	--app)

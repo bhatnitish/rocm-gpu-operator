@@ -63,6 +63,13 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+            "--alternative-image-manifest",
+            action = "store",
+            default = None,
+            help = "Alternative Image manifest listing images to use for upgrade testing"
+    )
+
+    parser.addoption(
             "--secrets-json",
             action = "store",
             default = None,
@@ -263,6 +270,9 @@ def images(request, gpu_cluster, environment):
     yaml.preserve_quotes = True
 
     file_obj = Path(request.config.option.image_manifest)
+    if not file_obj.exists():
+        pytest.fail(f"Missing {request.config.option.image_manifest}")
+
     image_manifest = dict(yaml.load(file_obj))
 
     # Process metadata section of image-manifest
@@ -292,6 +302,47 @@ def images(request, gpu_cluster, environment):
     gpu_cluster.k8_registry = environment.default_registry
     image_info['driver.imageBuild.baseImageRegistry'] = environment.default_registry
     setattr(pytest, "_image_info", image_info)
+    return image_info
+
+@pytest.fixture(scope="session")
+def alternative_images(request, gpu_cluster, environment):
+    image_info = None
+    from ruamel.yaml import YAML
+    from ruamel.yaml import comments
+    from ruamel.yaml import scalarstring
+    import shutil
+
+    yaml = YAML()
+    yaml.preserve_quotes = True
+
+    if not request.config.option.alternative_image_manifest:
+        pytest.skip("No alterative image-manifest given. Skipping associated testcases")
+
+    file_obj = Path(request.config.option.alternative_image_manifest)
+    if not file_obj.exists():
+        pytest.fail("Missing alterative image-manifest")
+
+    image_manifest = dict(yaml.load(file_obj))
+
+    # Process metadata section of image-manifest
+    image_metadata = image_manifest['images'].get('meta', {})
+    registry = 'docker.io'
+    if 'registry' in image_metadata:
+        registry = image_metadata['registry'].get('default', 'docker.io')
+        if 'mirror' in image_metadata['registry']:
+            if image_metadata['registry']['mirror'].get('enable', 'no') == 'yes':
+                registry = image_metadata['registry']['mirror']['url']
+    assert environment.deployment_mode in image_manifest['images'], f"Missing images for {environment.deployment_mode}"
+    if environment.deployment_mode == "standalone":
+        image_info = _build_image_info(environment, image_manifest['images'])
+
+    if environment.deployment_mode in ["k8", "openshift"]:
+        image_info = _build_image_info(environment, image_manifest['images'])
+
+    assert image_info != None, f"Failed to build images for {environment.deployment_mode}"
+    gpu_cluster.k8_registry = environment.default_registry
+    image_info['driver.imageBuild.baseImageRegistry'] = environment.default_registry
+    setattr(pytest, "_alternative_image_info", image_info)
     return image_info
 
 def _build_image_info(environment, image_manifest):

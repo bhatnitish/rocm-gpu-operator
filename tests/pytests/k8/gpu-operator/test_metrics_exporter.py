@@ -1832,3 +1832,95 @@ def test_exporter_rbac_mTLS_cert_support(gpu_cluster, deviceconfig_install, envi
             
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+
+@pytest.mark.parametrize("upgrade_policy", ["RollingUpdate", "OnDelete"])
+def test_exporter_operand_upgrade(request, gpu_cluster, deviceconfig_install, environment, images, alternative_images, upgrade_policy):
+    global Logger
+    if environment.gpu_operator_version < "v1.2.0":
+        pytest.skip(f"DME Operand upgrade feature is not available in release before v1.2.0")
+
+    if (images['metricsExporter.image.version'] == alternative_images['metricsExporter.image.version']):
+        pytest.fail("Invalid input for operand upgrade testcase - both version same")
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # Check current version of the metricsExporter from deviceconfig-CR
+    def _modify_metrics_exporter_version(repo, version):
+        for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+            tcfg['metricsExporter.enable'] = True
+            tcfg['metricsExporter.serviceType'] = 'NodePort'
+            tcfg['metricsExporter.image.repository'] = repo
+            tcfg['metricsExporter.image.version'] = version
+            tcfg['metricsExporter.upgradePolicy.upgradeStrategy'] = upgrade_policy
+            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+            K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    def _restore_metrics_exporter():
+        _modify_metrics_exporter_version(images['metricsExporter.image.repository'],
+                                         images['metricsExporter.image.version'])
+        devicecfg_pods = [
+            common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+        ]
+        failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+        K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+
+    request.addfinalizer(_restore_metrics_exporter)
+
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    ret_code, orig_dme_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "metrics-exporter")
+    K8Helper.triage(environment, (ret_code == 0 and len(orig_dme_pods) > 0), f"Missing metrics-exporter pods or error")
+    _modify_metrics_exporter_version(alternative_images['metricsExporter.image.repository'],
+                                     alternative_images['metricsExporter.image.version'])
+
+    if upgrade_policy == "RollingUpdate":
+        Logger.debug("Wait until upgrade is complete...")
+    elif upgrade_policy == "OnDelete":
+        # Check no upgrade is kicked in
+        time.sleep(20)
+        ret_code, precheck_dme_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "metrics-exporter")
+        for old_pod, new_pod in zip(orig_dme_pods, precheck_dme_pods):
+            for o_s_info, n_s_info in zip(old_pod['status']['container_statuses'], new_pod['status']['container_statuses']):
+                if o_s_info['name'] == 'metrics-exporter-container' and n_s_info['name'] == 'metrics-exporter-container':
+                    K8Helper.triage(environment, (o_s_info['image'] == n_s_info['image']),
+                                    f"Version mismatch before pod-deletion with policy: {upgrade_policy}, {o_s_info}, {n_s_info}")
+        # explicitly delete the pod
+        k8_util.k8_delete_all_pods_with_name_pattern(environment.gpu_operator_namespace, 'metrics-exporter')
+
+    time.sleep(20)
+    devicecfg_pods = [
+        common.PodInfo('metrics-exporter', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    ret_code, new_dme_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "metrics-exporter")
+    K8Helper.triage(environment, (ret_code == 0 and len(new_dme_pods) > 0), f"Missing metrics-exporter pods or error")
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+
+    # Check latest version of the metricsExporter from deviceconfig-CR and match to alternative_images
+    for pod in new_dme_pods:
+        for s_info in pod['status']['container_statuses']:
+            if s_info['name'] == 'metrics-exporter-container':
+                K8Helper.triage(environment, (alternative_images['metricsExporter.image.version'] in s_info['image']),
+                                f"Unexpected version found in the metrics-exporter-container image post upgrade, {s_info}")
+                K8Helper.triage(environment, (alternative_images['metricsExporter.image.repository'] in s_info['image']),
+                                f"Unexpected version found in the metrics-exporter-container image post upgrade, {s_info}")
+
+    # Check if metrics are exported
+    failed_endpoints = set()
+    for node in gpu_nodes:
+        node_ip = k8_util.k8_get_node_address(node)
+        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
+        if not cluster_node:
+            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
+        node_hostname = k8_util.k8_get_node_hostname(node)
+        node_port = deviceconfig_install.exporter_port_map[node_hostname]
+        ret_code, ret_stdout, ret_stderr = cluster_node.http_get(node_port, "metrics")
+        if ret_code != 0:
+            failed_endpoints.add(node_ip)
+            Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
+    K8Helper.triage(environment, (len(failed_endpoints) == 0),
+                    f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
+

@@ -1161,7 +1161,7 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
                              ["metricsclient"],
                              "metrics-exporter",
                              "healthy")
-                k8_util.k8_delete_all_pods_with_prefix(namespace, 'pytorch-gpu-deployment')
+                k8_util.k8_delete_all_pods_with_name_pattern(namespace, 'pytorch-gpu-deployment')
                 time.sleep(20)
                 failed_pods = k8_util.k8_check_pod_running(namespace, devicecfg_pods, total_attempts=20)
                 debug_on_failure(environment, (not failed_pods),
@@ -1179,3 +1179,78 @@ def test_pre_job(request, gpu_cluster, deviceconfig_install, environment, images
     verify_logs(environment, match, 'pytorch-gpu-deployment', container='copy-rvs-logs')
 
     k8_util.k8_delete_deployment(namespace, deployment_name)
+
+@pytest.mark.parametrize("upgrade_policy", ["RollingUpdate", "OnDelete"])
+def test_test_runner_rolling_update(deviceconfig_install, environment, alternative_images, upgrade_policy):
+    global Logger
+    if environment.gpu_operator_version < "v1.2.0":
+        pytest.skip(f"Test-Runner Operand upgrade feature is not available in release before v1.2.0")
+
+    if (images['testRunner.image.version'] == alternative_images['testRunner.image.version']):
+        pytest.fail("Invalid input for operand upgrade testcase - both version same")
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # Check current version of the testRunner from deviceconfig-CR
+    def _modify_test_runner(repo, version):
+        for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+            tcfg['testRunner.enable'] = True
+            tcfg['testRunner.image.repository'] = repo
+            tcfg['testRunner.image.version'] = version
+            tcfg['testRunner.upgradePolicy.upgradeStrategy'] = upgrade_policy
+            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+            K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    def _restore_test_runner():
+        _modify_test_runner(images['testRunner.image.repository'],
+                                         images['testRunner.image.version'])
+        devicecfg_pods = [
+            common.PodInfo('test-runner', len(gpu_nodes), 1),
+        ]
+        failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+        K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+
+    request.addfinalizer(_restore_test_runner)
+
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    ret_code, orig_tr_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "test-runner")
+    K8Helper.triage(environment, (ret_code == 0 and len(orig_tr_pods) > 0), f"Missing test-runner pods or error")
+    _modify_test_runner(alternative_images['testRunner.image.repository'],
+                        alternative_images['testRunner.image.version'])
+
+    if upgrade_policy == "RollingUpdate":
+        Logger.debug("Wait until upgrade is complete...")
+    elif upgrade_policy == "OnDelete":
+        # Check no upgrade is kicked in
+        time.sleep(20)
+        ret_code, precheck_tr_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "test-runner")
+        for old_pod, new_pod in zip(orig_tr_pods, precheck_tr_pods):
+            for o_s_info, n_s_info in zip(old_pod['status']['container_statuses'], new_pod['status']['container_statuses']):
+                if o_s_info['name'] == 'test-runner-container' and n_s_info['name'] == 'test-runner-container':
+                    K8Helper.triage(environment, (o_s_info['image'] == n_s_info['image']),
+                                    f"Version mismatch before pod-deletion with policy: {upgrade_policy}, {o_s_info}, {n_s_info}")
+        # explicitly delete the pod
+        k8_util.k8_delete_all_pods_with_name_pattern(environment.gpu_operator_namespace, 'test-runner')
+
+    time.sleep(20)
+    devicecfg_pods = [
+        common.PodInfo('test-runner', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    ret_code, new_tr_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "test-runner")
+    K8Helper.triage(environment, (ret_code == 0 and len(new_tr_pods) > 0), f"Missing test-runner pods or error")
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+
+    # Check latest version of the testRunner from deviceconfig-CR and match to alternative_images
+    for pod in new_tr_pods:
+        for s_info in pod['status']['container_statuses']:
+            if s_info['name'] == 'test-runner-container':
+                K8Helper.triage(environment, (alternative_images['testRunner.image.version'] in s_info['image']),
+                                f"Unexpected version found in the test-runner-container image post upgrade, {s_info}")
+                K8Helper.triage(environment, (alternative_images['testRunner.image.repository'] in s_info['image']),
+                                f"Unexpected version found in the test-runner-container image post upgrade, {s_info}")
+

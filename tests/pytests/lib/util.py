@@ -74,18 +74,21 @@ class K8Helper:
                 K8Helper.triage(environment, devcfg_info != None and devcfg in devcfg_info,
                                 f"Failed to collect status of deviceconfig {devcfg}")
 
-                nodeStatusMap = devcfg_info[devcfg]['status']['nodeModuleStatus']
-                for node in gpu_nodes:
-                    node_name = node['metadata']['name']
-                    if node_name in nodeStatusMap:
-                        if 'status' in nodeStatusMap[node_name]:
-                            if nodeStatusMap[node_name]['status'] == 'Upgrade-Complete':
-                                if node_name in pending_nodes:
-                                    pending_nodes.remove(node_name)
-                            else:
-                                Logger.info(f"Node: {node_name} upgrade status pending : {nodeStatusMap[node_name]}")
-                        else:
-                            Logger.warn(f"DeviceConfig nodeModuleStatus does not have status information")
+                if devcfg_info[devcfg].get('status', None):
+                    nodeStatusMap = devcfg_info[devcfg]['status'].get('nodeModuleStatus', None)
+
+                    if nodeStatusMap:
+                        for node in gpu_nodes:
+                            node_name = node['metadata']['name']
+                            if node_name in nodeStatusMap:
+                                if 'status' in nodeStatusMap[node_name]:
+                                    if nodeStatusMap[node_name]['status'] == 'Upgrade-Complete':
+                                        if node_name in pending_nodes:
+                                            pending_nodes.remove(node_name)
+                                    else:
+                                        Logger.info(f"Node: {node_name} upgrade status pending : {nodeStatusMap[node_name]}")
+                                else:
+                                    Logger.warn(f"DeviceConfig nodeModuleStatus does not have status information")
             if len(pending_nodes) > 0:
                 Logger.info(f"Waiting for {pending_nodes} to complete upgrade process")
                 time.sleep(120)
@@ -199,7 +202,7 @@ class K8Helper:
                 elif status == 'Failed':
                     kmm_pod_status.add(K8Helper.PodStatus.FAILED)
                 else:
-                    Logger.warn(f"build pod status unknown, pod-name: {pod_name}")
+                    Logger.warn(f"kmm pod status unknown, pod-name: {pod_name}")
                     kmm_pod_status.add(K8Helper.PodStatus.UNKNOWN)
 
             if K8Helper.PodStatus.PENDING in kmm_pod_status or K8Helper.PodStatus.RUNNING in kmm_pod_status:
@@ -251,7 +254,7 @@ class K8Helper:
         return
 
     @staticmethod
-    def check_node_driver_version(gpu_cluster, config_version, rocm_version, environment):
+    def check_deviceconfig_driver_version(gpu_cluster, config_version, environment):
         global Logger
         global LogPrettyPrinter
         devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
@@ -261,14 +264,30 @@ class K8Helper:
             K8Helper.triage(environment, config_version == devcfg_driver_version,
                             f"Expected config_version: {config_version}, device_config: {devcfg_driver_version}")
 
-        # check the worker node driver version
+    @staticmethod
+    def check_node_driver_version(gpu_cluster, config_version, rocm_version, environment):
+        global Logger
+        global LogPrettyPrinter
+
+        # collect currently applied deviceconfigs
+        devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+
         ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
         for node in gpu_nodes:
             node_name = k8_util.k8_get_node_hostname(node)
-            version_module_label = f"kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.{devcfg_name}"
-            node_driver_version = node['metadata']['labels'][version_module_label]
-            K8Helper.triage(environment, config_version == node_driver_version,
-                            f"failed for node {node_name}: {node_driver_version}")
+            label_found = False
+            # Match to one of the deviceconfigs
+            for devcfg_name, _ in devcfg_map.items():
+                version_module_label = f"kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.{devcfg_name}"
+                node_driver_version = node['metadata']['labels'].get(version_module_label, None)
+                if node_driver_version:
+                    K8Helper.triage(environment, config_version == node_driver_version,
+                                    f"failed for node {node_name}: {node_driver_version}")
+                    label_found = True
+                    break
+            K8Helper.triage(environment, (label_found),
+                            f"Missing label kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.<devcfg_name> for node {node_name}")
+
             cmd = ["dmesg", "-T"]
             #cmd = ["sudo", "dmesg", "-T", "|", "grep", "'amdgpu version'", "|", "tail", "-1"]
             ret_code, resp_stdout = k8_util.run_command_on_node(gpu_cluster, node_name, cmd, skip_chroot = True)
@@ -568,10 +587,10 @@ class K8Helper:
     @staticmethod
     def delete_debug_pods(namespaces) -> None:
         for namespace in namespaces:
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "node-debug-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "curl-cmd-pod-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "gpu-workload-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "techsupport-")
-            k8_util.k8_delete_all_pods_with_prefix(namespace, "test-runner-manual-trigger-")
+            k8_util.k8_delete_all_pods_with_name_pattern(namespace, "node-debug-")
+            k8_util.k8_delete_all_pods_with_name_pattern(namespace, "curl-cmd-pod-")
+            k8_util.k8_delete_all_pods_with_name_pattern(namespace, "gpu-workload-")
+            k8_util.k8_delete_all_pods_with_name_pattern(namespace, "techsupport-")
+            k8_util.k8_delete_all_pods_with_name_pattern(namespace, "test-runner-manual-trigger-")
         return
 

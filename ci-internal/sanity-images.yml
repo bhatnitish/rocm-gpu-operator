@@ -105,9 +105,9 @@ images:
           kind          : container
 
         gpu-operator:
-            image       : /gpu-operator/helm-charts-k8s/gpu-operator-helm-k8s-v1.4.1.tgz
+            image       : /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz
             kind        : helm-chart
-            version     : v1.4.1
+            version     : v1.4.0
 
         gpu-controller-manager:
             key         : controllerManager.manager.image

@@ -118,7 +118,10 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_
     _uninstall_exporter_helmchart()
 
     options = {
-            "service.type" : "ClusterIP",
+        "service.type" : "ClusterIP",
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
@@ -182,8 +185,11 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
     _uninstall_exporter_helmchart()
 
     options = {
-            "service.type" : "ClusterIP",
-            "service.ClusterIP.port" : 4999,
+        "service.type" : "ClusterIP",
+        "service.ClusterIP.port" : 4999,
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
@@ -253,7 +259,10 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
 
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     options = {
-            "service.type" : "NodePort",
+        "service.type" : "NodePort",
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
         Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
@@ -310,9 +319,12 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
 
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     options = {
-            "service.type" : "NodePort",
-            "service.NodePort.nodePort" : 32600,
-            "service.NodePort.port" : 4999,
+        "service.type" : "NodePort",
+        "service.NodePort.nodePort" : 32600,
+        "service.NodePort.port" : 4999,
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
         Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
@@ -437,8 +449,11 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
 
         values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
         options = {
-                "service.type" : "NodePort",
-                'configMap' : exp_config
+            "service.type" : "NodePort",
+            'configMap' : exp_config,
+            "nodeSelector" : {
+                "feature.node.kubernetes.io/amd-gpu": "true",
+            },
         }
         if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
             Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
@@ -594,8 +609,11 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
 
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     options = {
-            "service.type" : "NodePort",
-            'configMap' : exp_config_name
+        "service.type" : "NodePort",
+        'configMap' : exp_config_name,
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
         Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
@@ -670,8 +688,11 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     _uninstall_exporter_helmchart()
 
     options = {
-            "service.type" : "ClusterIP",
-            "serviceMonitor.enabled" : True,
+        "service.type" : "ClusterIP",
+        "serviceMonitor.enabled" : True,
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
@@ -738,10 +759,13 @@ def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_i
 
     NUM_ANNOTATIONS = 10
     options = {
-            "service.type" : "ClusterIP",
-            "podAnnotations" : {
-                f"pod-annotation-{i}" : f"pod-value-{i}" for i in range(NUM_ANNOTATIONS)
-            }
+        "service.type" : "ClusterIP",
+        "podAnnotations" : {
+            f"pod-annotation-{i}" : f"pod-value-{i}" for i in range(NUM_ANNOTATIONS)
+        },
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):
@@ -821,10 +845,13 @@ def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconf
 
     NUM_ANNOTATIONS = 10
     options = {
-            "service.type" : "ClusterIP",
-            "service.annotations" : {
-                f"svc-annotation-{i}" : f"svc-value-{i}" for i in range(NUM_ANNOTATIONS)
-            }
+        "service.type" : "ClusterIP",
+        "service.annotations" : {
+            f"svc-annotation-{i}" : f"svc-value-{i}" for i in range(NUM_ANNOTATIONS)
+        },
+        "nodeSelector" : {
+            "feature.node.kubernetes.io/amd-gpu": "true",
+        },
     }
     values_yaml = os.path.join(environment.logdir, f"exporter_values_{environment.current_tc_name}.yaml")
     if spec_util.generate_exporter_helmchart_deployment_config(environment.exporter_version, images, values_yaml, **options):

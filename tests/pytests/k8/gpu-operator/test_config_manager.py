@@ -1189,3 +1189,77 @@ def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, 
     ]
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
+
+@pytest.mark.parametrize("upgrade_policy", ["RollingUpdate", "OnDelete"])
+def test_config_manager_operand_upgrade(deviceconfig_install, environment, alternative_images, upgrade_policy):
+    global Logger
+    if environment.gpu_operator_version < "v1.3.0":
+        pytest.skip(f"DCM Operand upgrade feature is not available in release before v1.2.0")
+
+    if (images['configManager.image.version'] == alternative_images['configManager.image.version']):
+        pytest.fail("Invalid input for operand upgrade testcase - both version same")
+
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # Check current version of the configManager from deviceconfig-CR
+    def _modify_config_manager_version(repo, version):
+        for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+            tcfg['configManager.image.repository'] = repo
+            tcfg['configManager.image.version'] = version
+            tcfg['configManager.upgradePolicy.upgradeStrategy'] = upgrade_policy
+            cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+            ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+            K8Helper.triage(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    def _restore_config_manager():
+        _modify_config_manager_version(images['configManager.image.repository'],
+                                       images['configManager.image.version'])
+        devicecfg_pods = [
+            common.PodInfo('config-manager', len(gpu_nodes), 1),
+        ]
+        failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+        K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+
+    request.addfinalizer(_restore_config_manager)
+
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+    ret_code, orig_dcm_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "config-manager")
+    K8Helper.triage(environment, (ret_code == 0 and len(orig_dcm_pods) > 0), f"Missing config-manager pods or error")
+    _modify_config_manager_version(alternative_images['configManager.image.repository'],
+                                     alternative_images['configManager.image.version'])
+
+    if upgrade_policy == "RollingUpdate":
+        Logger.debug("Wait until upgrade is complete...")
+    elif upgrade_policy == "OnDelete":
+        # Check no upgrade is kicked in
+        time.sleep(20)
+        ret_code, precheck_dcm_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "config-manager")
+        for old_pod, new_pod in zip(orig_dcm_pods, precheck_dcm_pods):
+            for o_s_info, n_s_info in zip(old_pod['status']['container_statuses'], new_pod['status']['container_statuses']):
+                if o_s_info['name'] == 'config-manager-container' and n_s_info['name'] == 'config-manager-container':
+                    K8Helper.triage(environment, (o_s_info['image'] == n_s_info['image']),
+                                    f"Version mismatch before pod-deletion with policy: {upgrade_policy}, {o_s_info}, {n_s_info}")
+        # explicitly delete the pod
+        k8_util.k8_delete_all_pods_with_name_pattern(environment.gpu_operator_namespace, 'config-manager')
+
+    time.sleep(20)
+    devicecfg_pods = [
+        common.PodInfo('config-manager', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
+    K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    ret_code, new_dcm_pods = k8_util.k8_get_pods(environment.gpu_operator_namespace, pod_name_pattern = "config-manager")
+    K8Helper.triage(environment, (ret_code == 0 and len(new_dcm_pods) > 0), f"Missing config-manager pods or error")
+    K8Helper.check_deviceconfig_status(environment, deviceconfig_install.devicecfg_list)
+
+    # Check latest version of the configManager from deviceconfig-CR and match to alternative_images
+    for pod in new_dcm_pods:
+        for s_info in pod['status']['container_statuses']:
+            if s_info['name'] == 'config-manager-container':
+                K8Helper.triage(environment, (alternative_images['configManager.image.version'] in s_info['image']),
+                                f"Unexpected version found in the config-manager-container image post upgrade, {s_info}")
+                K8Helper.triage(environment, (alternative_images['configManager.image.repository'] in s_info['image']),
+                                f"Unexpected version found in the config-manager-container image post upgrade, {s_info}")
+

@@ -185,7 +185,7 @@ def k8_get_node_gpu_allocatable(node_name: str) -> str:
 
 
 @log_arguments
-def k8_get_pods(namespace, node_name = None) -> (int, List):
+def k8_get_pods(namespace, node_name = None, pod_name_pattern = None) -> (int, List):
     """
     API to get all pods for a given namespace from a k8 cluster
     """
@@ -196,9 +196,13 @@ def k8_get_pods(namespace, node_name = None) -> (int, List):
             pod_info = api.list_namespaced_pod(namespace = namespace).to_dict()
         else:
             pod_info = api.list_pod_for_all_namespaces().to_dict()
+
+        sel_pods = pod_info['items']
         if node_name:
-            return 0, list(filter(lambda x: x['spec']['node_name'] == node_name, pod_info['items']))
-        return 0, pod_info['items']
+            sel_pods = list(filter(lambda x: x['spec']['node_name'] == node_name, sel_pods))
+        if pod_name_pattern:
+            sel_pods = list(filter(lambda x: pod_name_pattern in x['metadata']['name'], sel_pods))
+        return 0, sel_pods
     except ApiException as e:
         Logger.error(f"Failed to list all pods for give namespace {namespace} error : {e}")
         return -1, None
@@ -556,9 +560,9 @@ def k8_delete_all_pods(namespace : str):
     return 0, "", ""
 
 @log_arguments
-def k8_delete_all_pods_with_prefix(namespace : str, pod_name_prefix: str) -> int:
+def k8_delete_all_pods_with_name_pattern(namespace : str, pod_name_pattern: str) -> int:
     """
-    API to delete all pods with given name prefix
+    API to delete all pods with given name pattern
     """
     global Logger
     global LogPrettyPrinter
@@ -569,7 +573,7 @@ def k8_delete_all_pods_with_prefix(namespace : str, pod_name_prefix: str) -> int
     try:
         pods = api.list_namespaced_pod(namespace = namespace)
         for pod in pods.items:
-            if pod.metadata.name.startswith(pod_name_prefix):
+            if pod_name_pattern in pod.metadata.name:
                 delete_list.append(pod.metadata.name)
     except ApiException as e:
         Logger.error(f"Failed to get all pods from namespace {namespace}, error: {e}")

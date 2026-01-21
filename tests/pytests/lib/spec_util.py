@@ -764,6 +764,9 @@ def generate_exporter_helmchart_deployment_config(exporter_version, images, file
             helmchart_values['image']['pullSecrets'] = images['metricsExporter.image.secret']
         modifed = True
 
+    if 'nodeSelector' in kwargs:
+        helmchart_values['nodeSelector'] = kwargs['nodeSelector']
+
     if 'configMap' in kwargs:
         helmchart_values['configMap'] = kwargs['configMap']
     if 'service.type' in kwargs:

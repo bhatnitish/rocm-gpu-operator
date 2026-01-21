@@ -139,7 +139,6 @@ def deviceconfig_install(images, gpu_operator_install, environment):
 @pytest.fixture(scope="module")
 def metrics_samples(gpu_cluster, images, deviceconfig_install, environment):
     global Logger
-    global LogPrettyPrinter
     Logger.info(f"Collecting metrics-exporter curl output, amd-smi metrics and gpuctl metrics snapshot")
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
@@ -159,105 +158,9 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, environment):
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
     time.sleep(30) # Wait for exporter to start working
-    def _collect_amd_smi_output(cmd_responses, exporter_pod_name, num_samples = 10, interval = 1):
-        cmd = ["amd-smi", "metric", "--json"]
-        for _ in range(num_samples):
-            ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                             cmd, exporter_pod_name,
-                                                                             "metrics-exporter-container")
-            if ret_code != 0:
-                Logger.error(f"Cmd {cmd} failed on {exporter_pod_name}, error : {resp_stderr}")
-            else:
-                cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\"").replace("False", "\"False\""))
-            time.sleep(interval)
-        return
-
-    def _collect_gpuctl_output(cmd_responses, exporter_pod_name, num_samples = 10, interval = 1):
-        cmd = ["gpuctl", "show", "gpu", "--json"]
-        for _ in range(num_samples):
-            ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                             cmd, exporter_pod_name,
-                                                                             "metrics-exporter-container")
-            if ret_code != 0:
-                Logger.error(f"Cmd {cmd} failed on {exporter_pod_name}, error : {resp_stderr}")
-            else:
-                cmd_responses.append(resp_stdout.replace("'", "\"").replace("True", "\"True\"").replace("False", "\"False\""))
-            time.sleep(interval)
-        return
-
-    def _collect_exporter_metrics(cmd_responses, cluster_node, num_samples = 10, interval = 1):
-        for _ in range(num_samples):
-            # Collect 10 exporter_metrics
-            ret_code, ret_stdout, ret_stderr = cluster_node.http_get(node_port, "metrics")
-            #if ret_code != 0:
-            #    # try from node itself
-            #    ret_code, ret_stdout, ret_stderr = cluster_node.proxy_http_get(node_ip, node_port, "metrics")
-
-            if ret_code != 0:
-                Logger.error(f"Failed to get metrics from nodeport endpoint for {node_ip}, stdout: {ret_stdout} stderr: {ret_stderr}")
-            else:
-                cmd_responses.append(ret_stdout)
-            time.sleep(interval)
-        return
-
-    num_samples = 10
-    interval = 15
-    idle_metrics = {}
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_name = k8_util.k8_get_node_hostname(node)
-        node_port = deviceconfig_install.exporter_port_map[node_name]
-        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
-        # Collect gpu information from the node
-        cmd = ["amd-smi", "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                          cmd, exporter_pod_name,
-                                                                          "metrics-exporter-container")
-        K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
-                        f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
-
-        threads = []
-        exporter_metrics = []
-        smi_metrics = []
-        gpuctl_metrics = []
-
-        threads.append(threading.Thread(target = _collect_amd_smi_output, args=(smi_metrics, exporter_pod_name, num_samples, interval)))
-        threads.append(threading.Thread(target = _collect_exporter_metrics, args=(exporter_metrics, cluster_node, num_samples, interval)))
-        if environment.builtin_gpuctl_support:
-            threads.append(threading.Thread(target = _collect_gpuctl_output, args=(gpuctl_metrics, exporter_pod_name, num_samples, interval)))
-
-        # Start all the threads
-        for thr in threads:
-            thr.start()
-
-        time.sleep(num_samples * interval)
-
-        # Wait for all threads to complete
-        for thr in threads:
-            thr.join()
-
-        idle_metrics[node_name] = {}
-        idle_metrics[node_name]['title'] = f"Metrics for {node_name} under idle conditions"
-        idle_metrics[node_name]['num-samples'] = num_samples
-        idle_metrics[node_name]['gpu-series'] = cluster_node.gpu_series
-        idle_metrics[node_name]['gpu-info'] = amd_smi_info
-        idle_metrics[node_name]['exporter'] = exporter_metrics
-        idle_metrics[node_name]['amd-smi'] = smi_metrics
-        idle_metrics[node_name]['gpuctl'] = gpuctl_metrics
-        metric_util.dump_json_samples(smi_metrics, os.path.join(environment.logdir, f"idle_{cluster_node.gpu_series}_smi_metrics"))
-        metric_util.dump_json_samples([amd_smi_info], os.path.join(environment.logdir, f"idle_{cluster_node.gpu_series}_smi_info"))
-        metric_util.dump_all_samples(exporter_metrics, os.path.join(environment.logdir, f"idle_{node_name}_curl"))
-        metric_util.dump_json_samples(gpuctl_metrics, os.path.join(environment.logdir, f"idle_{cluster_node.gpu_series}_gpuctl"))
-        K8Helper.triage(environment, (len(smi_metrics) == num_samples),
-                        f"Failed to collect all required number of amd-smi-metrics samples for node {node_name}")
-        K8Helper.triage(environment, (len(exporter_metrics) == num_samples),
-                        f"Failed to collect all required number of metrics-exporter samples for node {node_name}")
-        if environment.builtin_gpuctl_support:
-            K8Helper.triage(environment, (len(gpuctl_metrics) == num_samples),
-                            f"Failed to collect all required number of gpucltl-metrics samples for node {node_name}")
+    idle_metrics = metric_util.collect_metrics_samples(gpu_cluster, gpu_nodes,
+                                                       deviceconfig_install.exporter_port_map,
+                                                       environment, ctxt_name = "idle")
 
     # Deploy workload (pytorch application) and check for metrics
     local_workload_ctxts = []
@@ -280,65 +183,14 @@ def metrics_samples(gpu_cluster, images, deviceconfig_install, environment):
         local_workload_ctxts.append(workload_ctxt)
 
     # Collect new sample of metrics
-    workload_metrics = {}
-    for node in gpu_nodes:
-        node_ip = k8_util.k8_get_node_address(node)
-        cluster_node = gpu_cluster.find_node_by_ip(node_ip)
-        if not cluster_node:
-            pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
-        node_name = k8_util.k8_get_node_hostname(node)
-        node_port = deviceconfig_install.exporter_port_map[node_name]
-        exporter_pod_name = k8_util.k8_get_pod_name("metrics-exporter", environment.gpu_operator_namespace, node_name)
+    workload_metrics = metric_util.collect_metrics_samples(gpu_cluster, gpu_nodes,
+                                                           deviceconfig_install.exporter_port_map,
+                                                           environment, ctxt_name = "load")
 
-        # Collect gpu information from the node
-        cmd = ["amd-smi", "static", "--json"]
-        ret_code, amd_smi_info, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
-                                                                          cmd, exporter_pod_name,
-                                                                          "metrics-exporter-container")
-        K8Helper.triage(environment, (ret_code == 0 and len(amd_smi_info) > 0),
-                        f"Unable to collect amd-smi static information from node {node_name}, error : {resp_stderr}")
-        threads = []
-        exporter_metrics = []
-        smi_metrics = []
-        gpuctl_metrics = []
-
-        threads.append(threading.Thread(target = _collect_amd_smi_output, args=(smi_metrics, exporter_pod_name, num_samples, interval)))
-        threads.append(threading.Thread(target = _collect_exporter_metrics, args=(exporter_metrics, cluster_node, num_samples, interval)))
-        if environment.builtin_gpuctl_support:
-            threads.append(threading.Thread(target = _collect_gpuctl_output, args=(gpuctl_metrics, exporter_pod_name, num_samples, interval)))
-
-        # Start all the threads
-        for thr in threads:
-            thr.start()
-
-        time.sleep(num_samples * interval)
-
-        # Wait for all threads to complete
-        for thr in threads:
-            thr.join()
-
-        workload_metrics[node_name] = {}
-        workload_metrics[node_name]['title'] = f"Metrics for {node_name} with workload"
-        workload_metrics[node_name]['num-samples'] = num_samples
-        workload_metrics[node_name]['gpu-series'] = cluster_node.gpu_series
-        workload_metrics[node_name]['gpu-info'] = amd_smi_info
-        workload_metrics[node_name]['exporter'] = exporter_metrics
-        workload_metrics[node_name]['amd-smi'] = smi_metrics
-        workload_metrics[node_name]['gpuctl'] = gpuctl_metrics
-        metric_util.dump_json_samples(smi_metrics, os.path.join(environment.logdir, f"load_{cluster_node.gpu_series}_smi_metrics"))
-        metric_util.dump_json_samples([amd_smi_info], os.path.join(environment.logdir, f"load_{cluster_node.gpu_series}_smi_info"))
-        metric_util.dump_all_samples(exporter_metrics, os.path.join(environment.logdir, f"load_{node_name}_curl"))
-        metric_util.dump_json_samples(gpuctl_metrics, os.path.join(environment.logdir, f"load_{cluster_node.gpu_series}_gpuctl"))
-
-        K8Helper.triage(environment, (len(smi_metrics) == num_samples),
-                        f"Failed to collect all required number of amd-smi-metrics samples for node {node_name}")
-        K8Helper.triage(environment, (len(exporter_metrics) == num_samples),
-                        f"Failed to collect all required number of metrics-exporter samples for node {node_name}")
-        if environment.builtin_gpuctl_support:
-            K8Helper.triage(environment, (len(gpuctl_metrics) == num_samples),
-                            f"Failed to collect all required number of gpucltl-metrics samples for node {node_name}")
+    # Stop all the workloads
     for ctxt in local_workload_ctxts:
         K8Helper.workload_operation(environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **ctxt)
+
     yield (idle_metrics, workload_metrics)
     return
 
@@ -706,7 +558,7 @@ def test_exporter_prof_metrics_support(gpu_cluster, metrics_samples, prof_metric
 
             # Atleast there should be some variation with workload
             # Relaxing passing conditions
-            K8Helper.triage(environment, (hit_count >= int(0.50 * num_samples)),
+            K8Helper.triage(environment, (variation >= int(0.50 * num_samples)),
                             f"Metric: {prof_metric_to_test} GPU: {gpu_id} too little variation, variation: {variation}, no-variation {no_variation}",
                             expected_to_fail = True)
 
