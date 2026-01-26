@@ -40,7 +40,7 @@ Logger = logging.getLogger("k8.test_metrics_exporter")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, environment):
+def amdgpu_driver_install(images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -51,9 +51,12 @@ def deviceconfig_install(images, gpu_operator_install, environment):
             Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
     time.sleep(10)
 
-    class DeviceConfigCRInfo(object):
-        pass
+    if environment.amdgpu_driver_spec["driver-deployment"] == "inbox":
+        Logger.info(f"Using inbox driver - no need to install device-config")
+        yield
+        return
 
+    # Setup deviceconfig CR to install amdgpu driver
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
@@ -67,19 +70,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     test_config.update(images)
 
     test_cfg_map = spec_util.build_deviceconfig_cr_template(test_config, gpu_nodes, 'exporter', environment.amdgpu_driver_spec)
-    exporter_port_map = {}
     devicecfg_list = []
-    if len(test_cfg_map) > 1:
-        # Assign unique NodePorts for each deviceconfig instance
-        for idx, cfg_name in enumerate(test_cfg_map.keys()):
-            cfg = test_cfg_map[cfg_name]
-            cfg['metricsExporter.nodePort'] = 32500 + idx * 100
-            exporter_port_map[cfg['selector.value']] = cfg['metricsExporter.nodePort']
-    else:
-        for node in gpu_nodes:
-            node_hostname = k8_util.k8_get_node_hostname(node)
-            exporter_port_map[node_hostname] = 32500
-
     for spec_name, tcfg in test_cfg_map.items():
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_create_deviceconfig_cr(cr_spec)
@@ -90,19 +81,14 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
-
-    devcfg_info = DeviceConfigCRInfo()
-    setattr(devcfg_info, "test_cfg_map", test_cfg_map)
-    setattr(devcfg_info, "exporter_port_map", exporter_port_map)
-    setattr(devcfg_info, "devicecfg_list", devicecfg_list)
-    yield devcfg_info
+    yield
 
     device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)
     for devcfg_name, _ in device_cfg_info.items():
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
     return
 
-def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
 
     # Install exporter helm-chart
@@ -142,8 +128,10 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -169,7 +157,7 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, deviceconfig_
 
     K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
 
     # Install exporter helm-chart
@@ -210,8 +198,10 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -242,7 +232,7 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, device
 
     K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
 
     # Install exporter helm-chart
@@ -282,8 +272,10 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -302,7 +294,7 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, deviceconfig_i
     K8Helper.triage(environment, (len(failed_endpoints) == 0),
                     f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
 
     # Install exporter helm-chart
@@ -344,8 +336,10 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -368,7 +362,7 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, devicec
     K8Helper.triage(environment, (len(failed_endpoints) == 0),
                     f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
 
-def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_nodeport_exp_config(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
     # Generate set of config-maps in the k8 cluster with different set of labels and metrics
 
@@ -474,6 +468,9 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         K8Helper.triage(environment,
                         helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                         "exporter helm-chart is in failed state")
+        K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                        f"Daemonset rollout failed")
+        time.sleep(10) # Wait for exporter pods to start working
         exporter_pods = []
         for node in gpu_cluster.cluster_nodes:
             if node.is_gpu_node():
@@ -528,7 +525,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
     K8Helper.triage(environment, (len(failed_exp_config_labels) == 0),
                     f"Export ConfigMap (Labels) failed for {failed_exp_config_labels} cases")
 
-def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_all_supported_metrics(request, gpu_cluster, amdgpu_driver_install, images, environment):
     """
     Testcase to check if all metrics supported for each of gpu-series is observed in the curl output of exporter endpoint
     """
@@ -547,7 +544,7 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
                 K8Helper.triage(environment, (label_name in entry['labels']),
                                 f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
                 lval = entry['labels'][label_name]
-                if lval != label_value:
+                if lval.lower() != label_value.lower():
                     continue
                 m_info_list.append(entry)
 
@@ -559,6 +556,11 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
             if metric_to_test.lower() in exporter_metrics:
                 Logger.info(f"Found {metric_to_test}")
                 return True
+        metric_types = metric_metadata.get("type", [])
+        if "contingent" in metric_types:
+            Logger.warning(f"Missing {metric_to_test} - contingent")
+            return True
+
         Logger.error(f"Missing {metric_to_test}")
         return False
 
@@ -633,6 +635,9 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -673,7 +678,7 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, deviceconfig_insta
     K8Helper.triage(environment, (len(failed_metrics) == 0),
                     f"Metics validation failed: {failed_metrics.keys()} from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
 
-def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -713,8 +718,10 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.num_gpus:
@@ -742,7 +749,7 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, deviceco
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect servicemonitors from namespace: {environment.exporter_namespace}, error : {err}")
     K8Helper.triage(environment, (len(resp) == 0), f"Found non-zero entries of servicemonitors in namespace: {exporter_release_name}")
 
-def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_pod_annotations(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
 
     # Install exporter helm-chart
@@ -786,8 +793,10 @@ def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_i
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -829,7 +838,7 @@ def test_exporter_helmchart_pod_annotations(request, gpu_cluster, deviceconfig_i
     failed_pods = k8_util.k8_check_pod_terminated(environment.exporter_namespace, exporter_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods still running - {failed_pods}")
 
-def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconfig_install, images, environment):
+def test_exporter_helmchart_service_annotations(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger
     # Install exporter helm-chart
     if images.get("exporter.repo", None):
@@ -872,8 +881,10 @@ def test_exporter_helmchart_service_annotations(request, gpu_cluster, deviceconf
     K8Helper.triage(environment,
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
+    K8Helper.triage(environment, (k8_util.k8_watch_daemon_set_rollout(environment.exporter_namespace)),
+                    f"Daemonset rollout failed")
 
-    time.sleep(30) # Wait for exporter pods to start working
+    time.sleep(10) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():

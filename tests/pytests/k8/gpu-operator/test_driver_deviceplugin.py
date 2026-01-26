@@ -605,7 +605,7 @@ def test_driver_deviceplugin_multiple_workloads_with_gpu(request, deviceconfig_i
     Logger.info(f"Delete the second workload with gpu")
     K8Helper.workload_operation(environment, K8Helper.WorkloadOp.STOP_WORKLOAD, **second_workload)
 
-def test_upgrade_driver_using_label(request, gpu_cluster, environment, deviceconfig_install, limited_upgrade_version):
+def test_upgrade_driver_using_label(request, gpu_cluster, environment, deviceconfig_install, limited_upgrade_version, inbox_driver_skip):
     global Logger
     '''
     Upgrade driver using label update method

@@ -29,7 +29,7 @@ import yaml
 from functools import wraps
 from collections import defaultdict
 from typing import List, Dict
-from kubernetes import client, config, stream
+from kubernetes import client, config, stream, watch
 from kubernetes.client.rest import ApiException
 import lib.common as common
 
@@ -1540,6 +1540,46 @@ def k8_patch_tolerations(namespace, toleration, tolerate_add=True):
     for statefulset in statefulsets.items:
         k8_patch_statefulset(statefulset, namespace, new_toleration, tolerate_add)
 
+@log_arguments
+def k8_watch_daemon_set_rollout(namespace, timeout = 300):
+    """
+    API to watch for rollout completion of the given daemon-set
+    """
+    global Logger
+
+    start_time = time.time()
+    v1_api = client.AppsV1Api()
+    watcher = watch.Watch()
+    for event in watcher.stream(v1_api.list_namespaced_daemon_set,
+                                namespace = namespace,
+                                timeout_seconds = 10):
+        daemon_set = event["object"]
+        status = daemon_set.status
+        if (time.time() - start_time) > timeout:
+            Logger.error(f"Daemonset in namespace {namespace} rollout timeout")
+            watcher.stop()
+            return False
+
+        # TODO: Enhancements
+        #labels = ",".join([f"{k}={v}" for k, v in ds.spec.selector.match_labels.items()])
+        #pods = core_v1.list_namespaced_pod(namespace, label_selector=labels)
+        #for pod in pods.items:
+        #    if pod.status.container_statuses:
+        #        for cs in pod.status.container_statuses:
+        #            if cs.state.waiting and cs.state.waiting.reason in ["ImagePullBackOff", "CrashLoopBackOff", "ErrImagePull"]:
+        #                watcher.stop()
+        #                return False
+
+        if daemon_set.metadata.generation == 1 or status.observed_generation > daemon_set.metadata.generation:
+            updated_scheduled = status.updated_number_scheduled or 0
+            desired_scheduled = status.desired_number_scheduled or 0
+            num_available = status.number_available or 0
+            if updated_scheduled == desired_scheduled and num_available == desired_scheduled:
+                Logger.info(f"Daemonset rollout complete")
+                watcher.stop()
+                return True
+    Logger.error(f"Daemonset rollout failed to complete within given time")
+    return False
 
 @log_arguments
 def k8_metrics_error(counts, error_list, namespace : str):
@@ -2069,35 +2109,36 @@ def exec_command_in_pod(namespace : str, cmds : List, pod_name : str, container_
     Returns:
         tuple: A tuple containing (stdout, stderr) of the executed command.
     """
-    try:
-        # Create a CoreV1Api client
-        v1 = client.CoreV1Api()
+    for _ in range(3):
+        try:
+            # Create a CoreV1Api client
+            v1 = client.CoreV1Api()
 
-        # Execute the command
-        # _preload_content=False is crucial for interactive sessions or streaming output
-        # For simple command execution, you might set it to True to get all output at once.
-        resp = stream.stream(
-                v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                command=cmds,
-                container=container_name,
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False,
-                _preload_content=True)  # Set to True to get all content at once
+            # Execute the command
+            # _preload_content=False is crucial for interactive sessions or streaming output
+            # For simple command execution, you might set it to True to get all output at once.
+            resp = stream.stream(
+                    v1.connect_get_namespaced_pod_exec,
+                    pod_name,
+                    namespace,
+                    command=cmds,
+                    container=container_name,
+                    stderr=True,
+                    stdin=False,
+                    stdout=True,
+                    tty=False,
+                    _preload_content=True)  # Set to True to get all content at once
 
-        # The 'resp' object contains the combined stdout and stderr if _preload_content is True
-        # Otherwise, you would read from the stream interactively.
-        return 0, resp, None
-    except client.ApiException as e:
-        print(f"Error executing command: {e}")
-        return -1, None, f"Error: {e}"
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return -1, None, f"Unexpected error: {e}"
-
+            # The 'resp' object contains the combined stdout and stderr if _preload_content is True
+            # Otherwise, you would read from the stream interactively.
+            return 0, resp, None
+        except client.ApiException as e:
+            Logger.error(f"Error executing command {cmds}, error: {e}")
+            time.sleep(10)
+        except Exception as e:
+            Logger.error(f"An unexpected error occurred while running command {cmds}, error: {e}")
+            time.sleep(10)
+    return -1, None, f"Unexpected error"
 
 @log_arguments
 def reboot_node(k8_cluster : common.k8_cluster, node_name : str):

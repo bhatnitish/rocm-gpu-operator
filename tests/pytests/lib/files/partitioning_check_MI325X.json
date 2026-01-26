@@ -207,7 +207,7 @@
                 }
             ]
         },
-        "invalidmissingfields":
+        "invalidmissingfields-numGPUs":
         {
             "skippedGPUs": {
                 "ids": [3, 4]
@@ -219,6 +219,40 @@
                 },
                 {
                     "computePartition": "SPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 4
+                }
+            ]
+        },
+        "invalidmissingfields-memPartition":
+        {
+            "skippedGPUs": {
+                "ids": [3, 4]
+            },
+            "profiles": [
+                {
+                    "computePartition": "CPX",
+                    "numGPUsAssigned": 2
+                },
+                {
+                    "computePartition": "SPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 4
+                }
+            ]
+        },
+        "invalidmissingfields-computePartition":
+        {
+            "skippedGPUs": {
+                "ids": [3, 4]
+            },
+            "profiles": [
+                {
+                    "computePartition": "CPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 2
+                },
+                {
                     "memoryPartition": "NPS1",
                     "numGPUsAssigned": 4
                 }

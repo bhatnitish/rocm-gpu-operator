@@ -106,7 +106,8 @@ def pytest_html_results_summary(prefix, summary, postfix):
     '''
     if hasattr(pytest, "_amdgpu_driver_spec"):
         ver = pytest._amdgpu_driver_spec.get('default-version', 'NA')
-        summary.append(html.h3(f"AMDGPU Driver Version : {ver}"))
+        deployment_mode = pytest._amdgpu_driver_spec.get('driver-deployment', 'NA')
+        summary.append(html.h3(f"AMDGPU Driver Version : {ver}/{deployment_mode}"))
         summary.append(html.br())
     if hasattr(pytest, "_k8_cluster_inst") and hasattr(pytest, "_nodes_version"):
         summary.append(html.h3("Cluster Information"))
@@ -479,3 +480,37 @@ def gather_device_info(gpu_cluster, images, environment):
         cluster_node.gpu_series = amdgpu_util.get_amdgpu_device_series(cluster_node.device_id)
 
     Logger.info("Collected amd-gpu information for all cluster nodes")
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+
+    if report.when == 'call':
+        # Get the docstring from the test function
+        description = str(item.function.__doc__) if item.function.__doc__ else ""
+
+        # Add the description to the report object
+        if description:
+            report.description = description
+
+        if report.failed:
+            # 1. Get the raw error message
+            error_msg = str(call.excinfo.value) if call.excinfo else "Unknown Error"
+
+            # Store these on the report object so the table hooks can see them
+            report.error_summary = error_msg[:50] + "..." # Truncated message
+        else:
+            # Default values for passing tests
+            report.error_summary = "-"
+
+def pytest_html_results_table_header(cells):
+    cells.insert(2, html.th("Description"))
+    cells.insert(3, html.th("Failure Message"))
+
+def pytest_html_results_table_row(report, cells):
+    # Retrieve the description we stored in the previous hook
+    description = getattr(report, 'description', "")
+    cells.insert(2, html.td(description))
+    msg = getattr(report, 'error_summary', "-")
+    cells.insert(3, html.td(msg))

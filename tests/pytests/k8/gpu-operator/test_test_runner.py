@@ -259,6 +259,7 @@ def wait_for_pod(environment, namespace, cmd_list, pod_str, result):
         ret_code, resp_stdout, resp_stderr = k8_util.exec_command_in_pod(environment.gpu_operator_namespace,
                                                                          cmd_list, pod_name)
         time.sleep(60)
+    debug_on_failure(environment, (resp_stdout is not None), f"Failed to collect response from {cmd_list} from {pod_str}")
     debug_on_failure(environment, result in resp_stdout, f"can't find {result} in {pod_name} output {resp_stdout}")
 
 def verify_gpu_capacity_status(environment, worker, gpus):

@@ -337,7 +337,12 @@ def reset_dcm_profile(gpu_cluster, environment, skip_reboot = True):
                 Logger.error(f"Failed to reboot node {node_name}")
  
 def extract_partition_info(environment, amd_smi_partition_json):
-    amd_smi_partition_info = json.loads(amd_smi_partition_json.replace("'", "\""))
+    try:
+        amd_smi_partition_info = json.loads(amd_smi_partition_json.replace("'", "\""))
+    except Exception as je:
+        Logger.error(f"Failed to parse amd_smi_partition JSON document, error : {je}")
+        Logger.debug(f"JSON : {amd_smi_partition_json}")
+        K8Helper.triage(environment, False, f"Failed to parse amd-smi-partition JSON")
 
     current_partitions = amd_smi_partition_info.get("current_partition", [])
     main_gpu_entries = [item for item in current_partitions if item["memory"] != "N/A" and item["accelerator_type"] != "N/A"]
@@ -414,7 +419,6 @@ def test_deviceconfig_config_manager_deploy(deviceconfig_install, gpu_cluster, e
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
     debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
     reset_dcm_profile(gpu_cluster, environment)
-
 
 def exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, environment):
     global Logger
@@ -663,12 +667,52 @@ def wait_for_pods(local_workload_ctxts):
 
 #Unsupported compute partition combination
 @pytest.mark.level12
-@pytest.mark.parametrize("profile", ["invalidgpucount", "invalidmissingfields", "highgpucount_mostly_invalid"])
+@pytest.mark.parametrize("profile", ["invalidgpucount",
+                                     "invalmemorytype",
+                                     "invalcomputetype",
+                                     "invalidmissingfields-numGPUs",
+                                     "invalidmissingfields-memoryPartition",
+                                     "invalidmissingfields-computePartition",
+                                     "highgpucount_mostly_invalid"])
 def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, create_dcm_configmap, environment, profile):
     global Logger
     gpu_series = get_gpu_series(gpu_cluster, environment)
     if 'MI2' in gpu_series:
         pytest.skip(f"skipping tests for gpu_series = {gpu_series}")
+
+    DCM_LOG_MATCH = {
+        "invalmemorytype" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+        ],
+        "invalcomputetype" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+        ],
+        "invalidgpucount" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+            "does not equal the total number of GPUs available on this node",
+        ],
+        "invalidmissingfields-numGPUs" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+            "does not equal the total number of GPUs available on this node",
+        ],
+        "invalidmissingfields-memoryPartition" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+        ],
+        "invalidmissingfields-computePartition" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+        ],
+        "highgpucount_mostly_invalid" : [
+            f"Selected Profile {profile} found in the configmap",
+            "Profile validation failed. Could not partition",
+            "does not equal the total number of GPUs available on this node",
+        ]
+    }
     local_workload_ctxts = []
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
@@ -679,9 +723,6 @@ def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, creat
             pytest.fail(f"check {file_path}, something wrong with the configmap")
         elif not profiles["gpu-config-profiles"].get(profile, False):
             pytest.skip(f"Profile {profile} is not supported for {gpu_series}. Refer {file_path}")
-        else:
-            memory = profiles["gpu-config-profiles"][profile]["profiles"][0]["memoryPartition"]
-            partition = profiles["gpu-config-profiles"][profile]["profiles"][0]["computePartition"]
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     for node in gpu_nodes:
@@ -764,13 +805,7 @@ def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, creat
         verify_no_label(environment, profile)
 
     time.sleep(20) # Time to reinit
-    verify_logs(environment,
-                [
-                    "Unsupported compute partition combination",
-                    "Error occurred in PartitionGPU: partition failed"
-                ],
-                optional=True)
-    verify_logs(environment, [f"Selected Profile {profile} found in the configmap"])
+    verify_logs(environment, DCM_LOG_MATCH.get(profile, []))
 
     post_partition_status = {}
     for node in gpu_nodes:
@@ -1142,54 +1177,6 @@ def test_partitioning_test_runner(gpu_cluster, deviceconfig_install, environment
     verify_logs(environment, [f'Starting iteration 1 of 1 for test: {recipe}'], 'test-runner-manual')
     k8_util.k8_delete_job(namespace, job_name)
 
-@pytest.mark.level1
-def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, create_dcm_configmap, environment):
-    global Logger
-    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
-    debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
-    debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
-
-    # reset and reload driver via reboot - to handle inbox driver case as well
-    gpu_series = get_gpu_series(gpu_cluster, environment)
-    skip_reboot = False
-    if 'MI2' in gpu_series:
-        skip_reboot = True
-    reset_dcm_profile(gpu_cluster, environment, skip_reboot = skip_reboot)
-    # disable config-manager
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        tcfg['configManager.enable'] = False
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
-
-    export_pods = [
-        common.PodInfo('config-manager', 1, 1),
-    ]
-    running_pods = k8_util.k8_check_pod_terminated(environment.gpu_operator_namespace, export_pods)
-    debug_on_failure(environment, not running_pods,
-                              f"Some of the pods are still running post uninstallation - {running_pods}")
-    # Watch for all pod creation
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
-    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
-
-    # re-enable config-manager
-    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
-        tcfg['configManager.enable'] = True
-        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
-        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
-        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
-
-    # Watch for all pod creation
-    devicecfg_pods = [
-        common.PodInfo('device-plugin', len(gpu_nodes), 1),
-        common.PodInfo('config-manager', len(gpu_nodes), 1),
-    ]
-    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
-    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
-
 @pytest.mark.parametrize("upgrade_policy", ["RollingUpdate", "OnDelete"])
 def test_config_manager_operand_upgrade(deviceconfig_install, environment, alternative_images, upgrade_policy):
     global Logger
@@ -1262,4 +1249,52 @@ def test_config_manager_operand_upgrade(deviceconfig_install, environment, alter
                                 f"Unexpected version found in the config-manager-container image post upgrade, {s_info}")
                 K8Helper.triage(environment, (alternative_images['configManager.image.repository'] in s_info['image']),
                                 f"Unexpected version found in the config-manager-container image post upgrade, {s_info}")
+
+@pytest.mark.level1
+def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, create_dcm_configmap, environment):
+    global Logger
+    ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+    debug_on_failure(environment, (ret_code == 0), "Error while getting gpu-nodes from k8-cluster")
+    debug_on_failure(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
+
+    # reset and reload driver via reboot - to handle inbox driver case as well
+    gpu_series = get_gpu_series(gpu_cluster, environment)
+    skip_reboot = False
+    if 'MI2' in gpu_series:
+        skip_reboot = True
+    reset_dcm_profile(gpu_cluster, environment, skip_reboot = skip_reboot)
+    # disable config-manager
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['configManager.enable'] = False
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    export_pods = [
+        common.PodInfo('config-manager', 1, 1),
+    ]
+    running_pods = k8_util.k8_check_pod_terminated(environment.gpu_operator_namespace, export_pods)
+    debug_on_failure(environment, not running_pods,
+                              f"Some of the pods are still running post uninstallation - {running_pods}")
+    # Watch for all pod creation
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
+
+    # re-enable config-manager
+    for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
+        tcfg['configManager.enable'] = True
+        cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
+        debug_on_failure(environment, (ret_code == 0), "Failed to modify deviceconfig CR")
+
+    # Watch for all pod creation
+    devicecfg_pods = [
+        common.PodInfo('device-plugin', len(gpu_nodes), 1),
+        common.PodInfo('config-manager', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 

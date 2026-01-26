@@ -117,12 +117,12 @@ images:
         exporter-debian-Ubuntu-22.04:
             image       : /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
             kind        : debian
-            version     : v1.4.1
+            version     : main
 
         exporter-debian-Ubuntu-24.04:
             image       : /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
             kind        : debian
-            version     : v1.4.1
+            version     : main
 
         device-metrics-exporter:
             key         : metricsExporter.image

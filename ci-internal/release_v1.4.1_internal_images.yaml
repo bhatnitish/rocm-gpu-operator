@@ -119,6 +119,16 @@ images:
             image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
             kind        : container
 
+        exporter-debian-Ubuntu-22.04:
+            image       : /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+            kind        : debian
+            version     : v1.4.2
+
+        exporter-debian-Ubuntu-24.04:
+            image       : /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+            kind        : debian
+            version     : v1.4.2
+
         device-plugin:
             key         : devicePlugin.devicePluginImage
             location    : container://<registry>/rocm/k8s-device-plugin

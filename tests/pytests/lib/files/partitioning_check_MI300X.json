@@ -113,33 +113,26 @@
         "invalcomputetype":
         {
             "skippedGPUs": {
-                "ids": [3, 7]
+                "ids": []
             },
             "profiles": [
                 {
                     "computePartition": "invalid",
                     "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 2
-                },
-                {
-                    "computePartition": "SPX",
-                    "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 5
+                    "numGPUsAssigned": 1
                 }
             ]
         },
         "invalmemorytype":
         {
+            "skippedGPUs": {
+                "ids": []
+            },
             "profiles": [
                 {
                     "computePartition": "CPX",
                     "memoryPartition": "invalid",
-                    "numGPUsAssigned": 4
-                },
-                {
-                    "computePartition": "SPX",
-                    "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 4
+                    "numGPUsAssigned": 1
                 }
             ]
         },
@@ -158,20 +151,39 @@
                 }
             ]
         },
-        "invalidmissingfields":
+        "invalidmissingfields-numGPUs":
         {
             "skippedGPUs": {
-                "ids": [3, 4]
+                "ids": []
             },
             "profiles": [
                 {
                     "computePartition": "CPX",
                     "memoryPartition": "NPS1"
-                },
+                }
+            ]
+        },
+        "invalidmissingfields-memPartition":
+        {
+            "skippedGPUs": {
+                "ids": []
+            },
+            "profiles": [
                 {
-                    "computePartition": "SPX",
+                    "computePartition": "CPX",
+                    "numGPUsAssigned": 1
+                }
+            ]
+        },
+        "invalidmissingfields-computePartition":
+        {
+            "skippedGPUs": {
+                "ids": []
+            },
+            "profiles": [
+                {
                     "memoryPartition": "NPS1",
-                    "numGPUsAssigned": 4
+                    "numGPUsAssigned": 1
                 }
             ]
         },

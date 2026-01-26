@@ -1420,6 +1420,9 @@ def test_servicemonitor_relabeling(gpu_cluster, deviceconfig_install, environmen
     K8Helper.triage(environment, (len(resp) == 0),f"Failed to delete servicemonitors in namespace: {environment.gpu_operator_namespace}")  
 
 def test_exporter_pod_annotations(gpu_cluster, deviceconfig_install, environment):
+    """
+    Testcase to verify pod-annotations of metrics-exporter
+    """
     global Logger
     # This feature was introduced in v1.4.1
     if environment.gpu_operator_version < "v1.4.1":
@@ -1505,6 +1508,7 @@ def test_exporter_pod_annotations(gpu_cluster, deviceconfig_install, environment
     ]
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
+    time.sleep(10) # time given for pod to be restarted and updated cluster-wide
     ret_code, pods = k8_util.k8_get_pods(environment.gpu_operator_namespace)
     K8Helper.triage(environment, (ret_code == 0), f"Failed to collect pods from {environment.gpu_operator_namespace}")
     for pod in pods:

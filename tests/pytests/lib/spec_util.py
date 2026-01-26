@@ -497,8 +497,9 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
 
     # commonConfig
     if not skip_sections.get('commonConfig', False):
-        if spec.get('commonConfig.initContainerImage', None):
-            device_config['spec']['commonConfig']['initContainerImage'] = spec.get('commonConfig.initContainerImage')
+        if spec.get('commonConfig.initContainerImage.repository', None) and spec.get('commonConfig.initContainerImage.version', None):
+            img = f"{spec['commonConfig.initContainerImage.repository']}:{spec['commonConfig.initContainerImage.version']}"
+            device_config['spec']['commonConfig']['initContainerImage'] = img
     else:
         del device_config['spec']['commonConfig']
 

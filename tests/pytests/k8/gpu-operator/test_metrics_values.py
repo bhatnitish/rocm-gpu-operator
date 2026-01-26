@@ -218,7 +218,7 @@ def pytest_generate_tests(metafunc):
 
 def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environment):
     """
-    Testcase to check if all metrics supported for each of gpu-series is observed in the curl output of exporter endpoint
+    Ensure the exporter endpoint returns all supported metrics for the designated GPU series via curl.
     """
     global Logger
     global LogPrettyPrinter
@@ -235,7 +235,7 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
                 K8Helper.triage(environment, (label_name in entry['labels']),
                                 f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
                 lval = entry['labels'][label_name]
-                if lval != label_value:
+                if lval.lower() != label_value.lower():
                     continue
                 m_info_list.append(entry)
 
@@ -247,7 +247,12 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
             if metric_to_test.lower() in exporter_metrics:
                 Logger.info(f"Found {metric_to_test}")
                 return True
-        Logger.error(f"Missing {metric_to_test}")
+        metric_types = metric_metadata.get("type", [])
+        if "contingent" in metric_types:
+            Logger.warning(f"Missing {metric_to_test} - contingent")
+            return True
+
+        Logger.error(f"Missing {metric_to_test}, types: {metric_types}")
         return False
 
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
@@ -287,7 +292,8 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
 
 def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to_test, environment):
     """
-    Parameterized testcase to test metric_to_test metric as set by pytest_generate_tests
+    To verify that the metrics published by the AMD Device Metrics Exporter (DME)
+    accurately reflect the real-time hardware state as reported by the amd-smi utility.
     """
 
     global Logger
@@ -469,7 +475,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
 
 def test_exporter_prof_metrics_support(gpu_cluster, metrics_samples, prof_metric_to_test, environment):
     """
-    Testcase to check if all metrics supported for each of gpu-series is observed in the curl output of exporter endpoint
+    Verify that variations are reflected in the profiler metrics published by the AMD Device Metrics Exporter (DME).
     """
     global Logger
     global LogPrettyPrinter
