@@ -56,7 +56,7 @@ def run_exporter_docker_container(gpu_cluster, images, amdgpu_driver_install, en
         url = "https://raw.githubusercontent.com/ROCm/device-metrics-exporter/refs/heads/main/example/config.json"
         resp = requests.get(url)
         K8Helper.triage(environment, (resp.status_code == 200), f"Failed to download reference config.json file")
-        with open(config_json_file, "w") as fp:
+        with open(config_json_file, "wb") as fp:
             fp.write(resp.content)
     except Exception as ae:
         Logger.error(f"Failed to download config.json from {url}, error : {ae}")
