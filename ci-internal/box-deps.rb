@@ -19,10 +19,10 @@ run "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
 
 copy "./daemon.json", "/etc/docker/daemon.json"
 
-run "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key |
+run "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key |
         gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg"
 
-run "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' |
+run "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' |
         tee /etc/apt/sources.list.d/kubernetes.list "
 
 run "curl -fsSL https://pkgs.k8s.io/addons:/cri-o:/stable:/v1.31/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg"
@@ -32,7 +32,7 @@ run "echo 'deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.
 
 run "apt update && apt install cri-o kubelet kubeadm -y"
 
-run "curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl' | chmod +x /usr/local/bin/kubectl"
+run "curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.34.3/bin/linux/amd64/kubectl' | chmod +x /usr/local/bin/kubectl"
 
 # download and install nerdctl for kind installation
 #run "curl -sSL https://github.com/containerd/nerdctl/releases/download/v2.0.0/nerdctl-2.0.0-linux-amd64.tar.gz | tar xzf -C /usr/local/bin && chmod +x /usr/local/bin/nerdctl"

@@ -40,6 +40,8 @@ e2e-targets:
         props:
           - name: driver
             value: devcfg
+          - name: testbed-type
+            value: K8
 
               #exporter-helmchart-inbox-driver-pytest-sanity:
               #  commands: [
@@ -99,6 +101,8 @@ e2e-targets:
         props:
           - name: driver
             value: devcfg
+          - name: testbed-type
+            value: K8
 
   exporter-debian-pytest-sanity:
     commands: [
@@ -129,6 +133,8 @@ e2e-targets:
         props:
           - name: driver
             value: devcfg
+          - name: testbed-type
+            value: K8
 
   exporter-docker-pytest-sanity:
     commands: [
@@ -158,6 +164,8 @@ e2e-targets:
         props:
           - name: driver
             value: devcfg
+          - name: testbed-type
+            value: K8
 
 logfiles:
   - /gpu-operator/tests/pytests/pytest_logs.tgz
