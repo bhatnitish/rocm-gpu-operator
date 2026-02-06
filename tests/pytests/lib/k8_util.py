@@ -1773,10 +1773,11 @@ def k8_create_secret(secret_name : str,
         }
 
         secret = client.V1Secret(
-            metadata=client.V1ObjectMeta(name=secret_name),
+            metadata=client.V1ObjectMeta(name=secret_name, namespace=namespace),
             data=secret_data,
             type="kubernetes.io/dockerconfigjson"
         )
+
     elif secret_type == "tls":
         cert_path = kwargs.get("cert_path")
         key_path = kwargs.get("key_path")
@@ -1837,6 +1838,50 @@ def k8_delete_secret(secret_name : str, secret_type : str, namespace : str = "de
             retval = 1
             errmsg = f"Exception when deleting secret {secret_name}, err: {e}"
     return retval, "", errmsg
+
+@log_arguments
+def k8_create_auth_file(secret_name : str, namespace : str) -> bool:
+    """
+    API to create $HOME/.config/containers/auth.json given secret-name and namespace
+
+    This is needed for OpenShift to pull olm-bundle from secure private registry
+    """
+    # Configuration
+    AUTH_JSON_FILE = os.path.join(os.getenv("HOME"), ".config/containers/auth.json")
+
+    try:
+        v1 = client.CoreV1Api()
+        # 2. Fetch the secret
+        print(f"Fetching secret {secret_name} from namespace {namespace}...")
+        secret = v1.read_namespaced_secret(name=secret_name, namespace=namespace)
+
+        # 3. Extract the '.dockerconfigjson' key
+        # The data is a dictionary where values are base64-encoded strings
+        encoded_data = secret.data.get(".dockerconfigjson")
+
+        if not encoded_data:
+            Logger.error(f"Error: Key '.dockerconfigjson' not found in secret {secret_name}")
+            return
+
+        # 4. Decode the Base64 data
+        decoded_data = base64.b64decode(encoded_data)
+
+        # 5. Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(AUTH_JSON_FILE), exist_ok=True)
+
+        # 6. Write to the file
+        with open(AUTH_JSON_FILE, "wb") as f:
+            f.write(decoded_data)
+
+        # Set restricted permissions (600) like a standard auth file
+        os.chmod(AUTH_JSON_FILE, 0o600)
+        Logger.debug(f"Successfully exported secret to {AUTH_JSON_FILE}")
+        return True
+    except ApiException as e:
+        Logger.error(f"Exception when calling CoreV1Api->read_namespaced_secret: {e}")
+    except Exception as e:
+        Logger.error(f"An unexpected error occurred: {e}")
+    return False
 
 @log_arguments
 def k8_get_deviceconfigs_info(namespace : str, deviceconfig_name : str = None) -> Dict:
@@ -2247,6 +2292,25 @@ def k8_list_catalogsources() -> (int, List, str):
     group = "operators.coreos.com"
     version = "v1alpha1"
     plural = "catalogsources"
+    try:
+        catalogsources = custom_objects_api.list_cluster_custom_object(group=group, version=version, plural=plural)
+        return 0, catalogsources.get("items", []), ""
+    except ApiException as e:
+        Logger.error(f"Failed to list CR, error: {e}")
+        return -1, [], str(e)
+    return 0, [], ""
+
+@log_arguments
+def k8_list_clusterserviceversions() -> (int, List, str):
+    """
+    API to list catalogsources (items) in openshift.
+    """
+    global Logger
+
+    custom_objects_api = client.CustomObjectsApi()
+    group = "operators.coreos.com"
+    version = "v1alpha1"
+    plural = "clusterserviceversions"
     try:
         catalogsources = custom_objects_api.list_cluster_custom_object(group=group, version=version, plural=plural)
         return 0, catalogsources.get("items", []), ""

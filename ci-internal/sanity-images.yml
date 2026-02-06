@@ -15,38 +15,43 @@ images:
           kind          : container
 
         gpu-operator:
-            image       : /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz
+            image       : file:///gpu-operator/build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz
             kind        : helm-chart
             version     : v1.4.0
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
-            image       : /gpu-operator/amd-gpu-operator-latest.tar.gz
+            image       : file:///gpu-operator/amd-gpu-operator-latest.tar.gz
             kind        : container
 
         exporter:
-            image       : /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+            image       : file:///device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+            metadata    : file:///device-metrics-exporter/helm-charts/device-metrics-exporter-charts.metadata
             kind        : helm-chart
             version     : v1.4.1
 
         device-metrics-exporter:
             key         : metricsExporter.image
-            image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            image       : file:///device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
             kind        : container
 
         test-runner:
             key         : testRunner.image
-            image       : /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
+            image       : file:///device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/testrunner/test-runner-latest.metadata
             kind        : container
 
         test-runner-agfhc:
             key         : testRunnerAgfhc.image
-            image       : /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+            image       : file:///device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.metadata
             kind        : container
 
         config-manager:
             key         : configManager.image
-            image       : /device-config-manager/docker/obj/device-config-manager.tgz
+            image       : file:///device-config-manager/docker/obj/device-config-manager.tgz
+            metadata    : file:///device-config-manager/docker/obj/device-config-manager.metadata
             kind        : container
 
         device-plugin:
@@ -63,22 +68,26 @@ images:
 
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
-            image       : /kernel-module-management/kernel-module-management-signimage.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-signimage.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-signimage.metadata
             kind        : container
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
-            image       : /kernel-module-management/kernel-module-management-worker.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-worker.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-worker.metadata
             kind        : container
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
-            image       : /kernel-module-management/kernel-module-management-operator.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-operator.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-operator.metadata
             kind        : container
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
-            image       : /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-webhook-server.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-webhook-server.metadata
             kind        : container
 
         init-container-image:
@@ -105,28 +114,31 @@ images:
           kind          : container
 
         gpu-operator:
-            image       : /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz
+            image       : file:///gpu-operator/build/charts/internal-gpu-operator-helm-k8s-v1.4.0.tgz
             kind        : helm-chart
             version     : v1.4.0
 
         gpu-controller-manager:
             key         : controllerManager.manager.image
-            image       : /gpu-operator/amd-gpu-operator-latest.tar.gz
+            image       : file:///gpu-operator/amd-gpu-operator-latest.tar.gz
             kind        : container
 
         exporter-debian-Ubuntu-22.04:
-            image       : /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+            image       : file:///device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+            metadata    : file:///device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.metadata
             kind        : debian
             version     : main
 
         exporter-debian-Ubuntu-24.04:
-            image       : /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+            image       : file:///device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+            metadata    : file:///device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.metadata
             kind        : debian
             version     : main
 
         device-metrics-exporter:
             key         : metricsExporter.image
-            image       : /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            image       : file:///device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
             kind        : container
 
         device-plugin:
@@ -137,27 +149,98 @@ images:
 
         kmm-controller-manager-image-sign:
             key         : kmm.controller.manager.env.relatedImageSign
-            image       : /kernel-module-management/kernel-module-management-signimage.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-signimage.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-signimage.metadata
             kind        : container
 
         kmm-controller-manager-worker:
             key         : kmm.controller.manager.env.relatedImageWorker
-            image       : /kernel-module-management/kernel-module-management-worker.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-worker.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-worker.metadata
             kind        : container
 
         kmm-controller-manager:
             key         : kmm.controller.manager.image
-            image       : /kernel-module-management/kernel-module-management-operator.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-operator.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-operator.metadata
             kind        : container
 
         kmm-webhook-server:
             key         : kmm.webhookServer.webhookServer.image
-            image       : /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+            image       : file:///kernel-module-management/kernel-module-management-webhook-server.tar.gz
+            metadata    : file:///kernel-module-management/kernel-module-management-webhook-server.metadata
             kind        : container
 
         init-container-image:
             key         : commonConfig.initContainerImage
             location    : container://<registry>/busybox
             version     : 1.36
+            kind        : container
+
+    openshift:
+        driver:
+            key         : driver.image
+            location    : container://image-registry.openshift-image-registry.svc:5000/openshift-amd-gpu/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            image       : container://docker.io/amdpsdo/gpu-operator-olm-bundle
+            metadata    : file:///gpu-operator/artifacts.metadata
+            kind        : olm-bundle
+            version     : v1.4.1
+            secret      : docker-amdpsdo-auth
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            image       : file:///device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
+            kind        : container
+
+        test-runner:
+            key         : testRunner.image
+            image       : file:///device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/testrunner/test-runner-latest.metadata
+            kind        : container
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            image       : file:///device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+            metadata    : file:///device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.metadata
+            kind        : container
+
+        config-manager:
+            key         : configManager.image
+            image       : file:///device-config-manager/docker/obj/device-config-manager.tgz
+            metadata    : file:///device-config-manager/docker/obj/device-config-manager.metadata
+            kind        : container
+
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://<registry>/busybox
+            version     : 1.36
+            kind        : container
+
+        tensorflow-image:
+            key         : workload.tensorflow
+            location    : container://registry.test.pensando.io:5000/rocm/tensorflow
+            version     : latest
+            kind        : container
+
+        pytorch-image:
+            key         : workload.pytorch
+            location    : container://docker.io/rocm/pytorch
+            version     : latest
             kind        : container
 

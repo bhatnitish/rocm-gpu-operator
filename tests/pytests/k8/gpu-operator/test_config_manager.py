@@ -70,9 +70,10 @@ def verify_events(gpu_cluster, environment, profile, before, after):
     global Logger
 
     gpu_series = get_gpu_series(gpu_cluster, environment)
+    dut_node = gpu_cluster.find_node_by_gpu_series(gpu_series)
     if not gpu_series or 'MI2' in gpu_series:
         pytest.skip(f"testcase not supported")
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}_{dut_node.num_gpus}.json")
     with open(file_path) as fp:
         profiles = json.load(fp)
         if not profiles.get("gpu-config-profiles"):
@@ -189,9 +190,11 @@ def create_dcm_configmap(deviceconfig_install, gpu_cluster, environment):
     configmap = "config-map-config-manager"
 
     gpu_series = get_gpu_series(gpu_cluster, environment)
+    dut_node = gpu_cluster.find_node_by_gpu_series(gpu_series)
+    num_gpus_on_dut = dut_node.num_gpus
     debug_on_failure(environment, gpu_series != None, f"Missing gpu-series information - collect tech-support to debug cluster")
 
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}_{dut_node.num_gpus}.json")
     if os.path.exists(file_path):
         ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_configmap(namespace, configmap)
         k8_util.k8_create_configmap(namespace, configmap, file_path)
@@ -223,6 +226,7 @@ def reset_dcm_profile(gpu_cluster, environment, skip_reboot = True):
         return any(partitioned)
 
     gpu_series = get_gpu_series(gpu_cluster, environment)
+    dut_node = gpu_cluster.find_node_by_gpu_series(gpu_series)
     debug_on_failure(environment, gpu_series != None, f"Missing gpu-series information - collect tech-support to debug cluster")
     if gpu_series and 'MI3' in gpu_series:
         if _any_gpu_partitioned(gpu_nodes):
@@ -716,7 +720,8 @@ def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, creat
     local_workload_ctxts = []
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
+    dut_node = gpu_cluster.find_node_by_gpu_series(gpu_series)
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}_{dut_node.num_gpus}.json")
     with open(file_path) as fp:
         profiles = json.load(fp)
         if not profiles.get("gpu-config-profiles"):
@@ -822,10 +827,11 @@ def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, creat
 def run_partition_test_scenario(gpu_cluster, environment, request, profile, workload):
     global Logger
     gpu_series = get_gpu_series(gpu_cluster, environment)
+    dut_node = gpu_cluster.find_node_by_gpu_series(gpu_series)
     local_workload_ctxts = []
     namespace = environment.gpu_operator_namespace
     configmap = "config-map-config-manager"
-    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}.json")
+    file_path = os.path.join("lib", "files", f"partitioning_check_{gpu_series}_{dut_node.num_gpus}.json")
     before_events = k8_util.k8_get_events(namespace=environment.gpu_operator_namespace)
 
     with open(file_path) as fp:
@@ -1259,9 +1265,7 @@ def test_deviceconfig_config_manager_disable(gpu_cluster, deviceconfig_install, 
 
     # reset and reload driver via reboot - to handle inbox driver case as well
     gpu_series = get_gpu_series(gpu_cluster, environment)
-    skip_reboot = False
-    if 'MI2' in gpu_series:
-        skip_reboot = True
+    skip_reboot = (gpu_series not in ["MI325X"])
     reset_dcm_profile(gpu_cluster, environment, skip_reboot = skip_reboot)
     # disable config-manager
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():

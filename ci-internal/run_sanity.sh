@@ -157,7 +157,8 @@ function prepare_cluster() {
     echo "    (1) reboot worker-nodes"
     echo "    (2) fetch kube-config"
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py testbed --testbed $TESTBED_JSON --reboot-workers --fetch-kube-config
+    mkdir -p $HOME/.kube
+    /gpu-operator/ci-internal/k8_jobd_ctl.py testbed --testbed $TESTBED_JSON --reboot-workers --fetch-kube-config --target $DEPLOYMENT
     RET=$?
     if [[ "$RET" != "0" ]]
     then
@@ -196,7 +197,7 @@ function launch_pytest_k8() {
     /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
     RET=$?
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
+    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON --target $DEPLOYMENT
     echo ""
     upload_reports
     collect_logs
@@ -210,13 +211,13 @@ function launch_pytest_openshift() {
     echo "Launching oc_test_launcher"
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
-    CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
+    CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS}"
     CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
     echo "Running openshift pytests with CMD_OPTS: ${CMD_OPTS}"
     TECH_SUPPORT_TOOL=/gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/oc_test_launcher.sh ${CMD_OPTS}
     RET=$?
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
+    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON --target $DEPLOYMENT
     echo ""
     upload_reports
     collect_logs
@@ -237,7 +238,7 @@ function launch_pytest_standalone() {
     /gpu-operator/tests/pytests/standalone_test_launcher.sh ${CMD_OPTS}
     RET=$?
     echo ""
-    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON
+    /gpu-operator/ci-internal/k8_jobd_ctl.py report --show --testbed $TESTBED_JSON --target $DEPLOYMENT
     RPT=$?
     echo ""
     upload_reports
@@ -292,6 +293,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 function main() {
+    prepare_cluster
     if [[ "${TYPE}" == "sanity" ]];
     then
         echo "Running sanity-setup"
@@ -306,7 +308,6 @@ function main() {
         usage
         exit 1
     fi
-    prepare_cluster
     echo "Completed setting up environment for ${TYPE}-run, launching pytest"
     if [[ "${DEPLOYMENT}" == "k8" ]];
     then

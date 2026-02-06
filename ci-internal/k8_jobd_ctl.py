@@ -7,6 +7,8 @@ import json
 import argparse
 import time
 import logging
+import requests
+import subprocess
 from urllib.parse import urlparse
 
 
@@ -59,9 +61,9 @@ def _init_cmdline_args():
 
     testbed_cmd = subparsers.add_parser("testbed", help="Testbed commands")
     testbed_cmd.add_argument("--testbed", required = True, help = "jobd testbed json file")
+    testbed_cmd.add_argument("--target", default='k8', choices=["k8", "openshift", "standalone"], help = "Target deployment")
     testbed_cmd.add_argument("--fetch-kube-config", action='store_true', default=False, help = "Optionally download /etc/kubernetes/config file from master")
     testbed_cmd.add_argument("--reboot-workers", action='store_true', default=False, help = "Reboot worker nodes")
-    testbed_cmd.add_argument("--testbed-yaml", default=None, help = "path to testbed yaml to be generated")
 
     image_cmd = subparsers.add_parser("image", help="Image management commands")
     image_cmd.add_argument("--testbed", required = True, help = "jobd testbed json file")
@@ -76,6 +78,7 @@ def _init_cmdline_args():
     report_cmd = subparsers.add_parser("report", help="Reporting related commands")
     report_cmd.add_argument("--testbed", required = True, help = "jobd testbed json file")
     report_cmd.add_argument("--show", action='store_true', default=False, help = "Print test report, uses pytest junit-xml")
+    report_cmd.add_argument("--target", default='k8', choices=["k8", "openshift", "standalone"], help = "Target deployment")
     cmd_opts = parser.parse_args()
     GlobalOptions.__dict__.update(cmd_opts.__dict__)
     return parser
@@ -97,6 +100,15 @@ def _is_pull_images_enabled(testbed_json):
 
         return data["Instances"][0]["Resource"].get("pull-images", "no") == "yes"
     return False
+
+def _get_cluster_name(testbed_json):
+    if testbed_json:
+        with open(testbed_json, "r") as fp:
+            data = json.load(fp)
+
+        return data["Instances"][0]["Resource"].get("cluster-name", None)
+    return None
+
 
 def run_command(node, cmd, timeout = 90):
     from fabric import Connection
@@ -353,16 +365,6 @@ def _reboot_workers(logger, master, workers):
             ret = False
     return ret
 
-def _generate_testbed_yaml(testbed_info, file_name):
-    from ruamel.yaml import YAML
-    yaml = YAML()
-    yaml.preserve_quotes = True
-    yaml.indent(sequence=4, offset=2)
-
-    with open(file_name, 'w') as fp:
-        yaml.dump(testbed_info, fp)
-    return True
-
 def _load_images(logger, registry, seed_image_manifest, image_manifest, target):
     import docker
 
@@ -379,25 +381,44 @@ def _load_images(logger, registry, seed_image_manifest, image_manifest, target):
     with open(seed_image_manifest, 'r') as fp:
         image_manifest_templ = yaml.load(fp)
 
+    for tgt in ['k8', 'standalone', 'openshift']:
+        if target != tgt:
+            del image_manifest_templ['images'][tgt]
+
     client = docker.from_env(timeout=300)
     for artifact_name in list(image_manifest_templ['images'][target].keys()):
         logger.info(f"Processing {artifact_name} section")
         artifact_info = image_manifest_templ['images'][target][artifact_name]
         if artifact_info.get('image', None) != None:
-            image_file = artifact_info['image']
-            if not os.path.exists(image_file):
-                logger.warning(f"Specified image-file {image_file} missing - ignore for now")
-                del image_manifest_templ['images'][target][artifact_name]
-                continue
+            img = artifact_info['image']
+            if 'file://' in img:
+                image_file = img.split('file://')[-1]
+                if not os.path.exists(image_file):
+                    logger.warning(f"Specified image-file {img} missing - ignore for now")
+                    del image_manifest_templ['images'][target][artifact_name]
+                    continue
+            elif 'container://' in img:
+                image_file = img.split('container://')[-1]
+            else:
+                image_file = img
+
+            metadata = {}
+            if artifact_info.get('metadata', None):
+                metadata_file = artifact_info['metadata'].split('file://')[-1]
+                if os.path.exists(metadata_file):
+                    with open(metadata_file) as fp:
+                        metadata = json.load(fp)
 
             if artifact_info['kind'] == 'helm-chart':
                 artifact_info['location'] = f"file://{image_file}"
-                #artifact_info['version'] = 'sanity' # TODO derive correct version for each artifact
-            elif artifact_info['kind'] == 'olm-bundle':
-                artifact_info['location'] = f"file://{image_file}"
+                artifact_info['version'] = metadata.get("ReleaseTag", artifact_info.get("version", "NA"))
             elif artifact_info['kind'] == 'debian':
                 artifact_info['location'] = f"file://{image_file}"
-            elif artifact_info['kind'] == 'container':
+                artifact_info['version'] = metadata.get("ReleaseTag", artifact_info.get("version", "NA"))
+            elif artifact_info['kind'] == 'olm-bundle':
+                artifact_info['location'] = f"container://{image_file}"
+                artifact_info['version'] = metadata.get("ReleaseTag", artifact_info.get("version", "NA"))
+            elif artifact_info['kind'] in ['container']:
                 try:
                     with open(image_file, 'rb') as fp:
                         loaded_images = client.images.load(fp)
@@ -421,7 +442,7 @@ def _load_images(logger, registry, seed_image_manifest, image_manifest, target):
                 logger.info(f"For artifact: {artifact_name}, image-tag: {loaded_image_tag}, derived image-name: {image_name} tag: {image_tag}")
 
                 # Push tag to specified registry
-                tag = loaded_image.attrs['Config']['Labels'].get('HOURLY_TAG', "")
+                tag = loaded_image.attrs['Config']['Labels'].get('HOURLY_TAG', metadata.get("ReleaseTag", ""))
                 if "agfhc" in image_tag:
                     tag = f"agfhc-{tag}"
                 if tag == "":
@@ -465,11 +486,12 @@ def _load_images(logger, registry, seed_image_manifest, image_manifest, target):
                     logger.error(f"Failed to push image {new_image}:{tag}")
                     result = False
     if result:
-        # Update driver section
-        artifact_name = 'driver'
-        driver_info = image_manifest_templ['images'][target][artifact_name]
-        # driver_info['location'] = f"container://{registry}/driver-builds"
-        driver_info['location'] = f"container://registry.test.pensando.io:5000/amdgpu_kmod"
+        # Update driver section (only for k8 and standalone)
+        if target in ['k8', 'standalone']:
+            artifact_name = 'driver'
+            driver_info = image_manifest_templ['images'][target][artifact_name]
+            # driver_info['location'] = f"container://{registry}/driver-builds"
+            driver_info['location'] = f"container://registry.test.pensando.io:5000/amdgpu_kmod"
         with open(image_manifest, 'w') as fp:
             yaml.dump(image_manifest_templ, fp)
     return result
@@ -611,12 +633,39 @@ def _run_testbed_commands(logger):
         else:
             logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
             sys.exit(1)
-        if masters and _fetch_kube_config(logger, masters[0]):
-            logger.debug("Successfully downloaded /etc/kubernetes/admin.conf file")
-        else:
-            logger.error("Failed to download /etc/kubernetes/admin.conf file - Abort")
-            sys.exit(1)
+        if GlobalOptions.target in ["k8", "standalone"]:
+            if masters and _fetch_kube_config(logger, masters[0]):
+                logger.debug("Successfully downloaded /etc/kubernetes/admin.conf file")
+            else:
+                logger.error("Failed to download /etc/kubernetes/admin.conf file - Abort")
+                sys.exit(1)
+        elif GlobalOptions.target in ["openshift"]:
+            # - Fetch http://pm.test.pensando.io/systest/oc-config/<cluster-name>.config
+            # - Fetch http://pm.test.pensando.io/systest/oc-config/<cluster-name>.hosts
+            cluster_name = _get_cluster_name(GlobalOptions.testbed)
+            if cluster_name:
+                try:
+                    resp = requests.get(f"http://pm.test.pensando.io/systest/oc-config/{cluster_name}.config")
+                    if resp.status_code != 200:
+                        logger.error(f"Failed to fetch cluster config for {cluster_name}")
+                        sys.exit(1)
+                    dest_file = os.path.join(os.getenv("HOME"), ".kube", "config")
+                    with open(dest_file, "wb") as fp:
+                        fp.write(resp.content)
 
+                    resp = requests.get(f"http://pm.test.pensando.io/systest/oc-config/{cluster_name}.hosts")
+                    if resp.status_code != 200:
+                        logger.error(f"Failed to fetch cluster config for {cluster_name}")
+                        sys.exit(1)
+                    dest_file = os.path.join("/etc", "hosts")
+                    with open(dest_file, "ab") as fp:
+                        fp.write(resp.content)
+                except Exception as e:
+                    logger.error(f"Failed to fetch openshift cluster config and hosts files, {e}")
+                    sys.exit(1)
+            else:
+                logger.error(f"Unknown cluster - missing cluster-name in the testbed.json file")
+                sys.exit(1)
     if GlobalOptions.reboot_workers:
         testbed_info = _load_testbed_json(GlobalOptions.testbed)
         if testbed_info:
@@ -633,21 +682,6 @@ def _run_testbed_commands(logger):
             logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
             sys.exit(1)
 
-    if GlobalOptions.testbed_yaml:
-        testbed_info = _load_testbed_json(GlobalOptions.testbed)
-        if testbed_info:
-            masters = _get_master_nodes(testbed_info)
-            workers = _get_worker_nodes(testbed_info)
-            logger.debug(f"Found {len(masters)} master(s) and {len(workers)} workers in the k8-cluster")
-        else:
-            logger.error(f"Failed to load testbed.json file {GlobalOptions.testbed} - Abort")
-            sys.exit(1)
-        if _generate_testbed_yaml(testbed_info, GlobalOptions.testbed_yaml):
-            logger.info(f"Successfully generated testbed-yaml - {GlobalOptions.testbed_yaml}")
-        else:
-            logger.error(f"Failed to genreate testbed-yaml file")
-            sys.exit(1)
-
 def _run_image_commands(logger):
     if GlobalOptions.load_images:
         if _load_images(logger, GlobalOptions.registry, GlobalOptions.seed_image_manifest, 
@@ -658,14 +692,53 @@ def _run_image_commands(logger):
             sys.exit(1)
     if GlobalOptions.setup_insecure_registry:
         testbed_info = _load_testbed_json(GlobalOptions.testbed)
-        if _upload_docker_daemon_conf(logger, GlobalOptions.registry, testbed_info) == 0:
-            logger.info("Successfully uploaded new /etc/docker/daemon.json to all nodes")
-        else:
-            logger.warning(f"Failed to upload /etc/docker/daemon.json to all nodes - ignoring this error")
-        if _upload_crio_registry_conf(logger, GlobalOptions.registry, testbed_info) == 0:
-            logger.info("Successfully uploaded new /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
-        else:
-            logger.warning(f"Failed to upload /etc/containers/registries.conf.d/runner-registry.conf to all nodes - ignoring")
+        if GlobalOptions.target in ["k8", "standalone"]:
+            if _upload_docker_daemon_conf(logger, GlobalOptions.registry, testbed_info) == 0:
+                logger.info("Successfully uploaded new /etc/docker/daemon.json to all nodes")
+            else:
+                logger.warning(f"Failed to upload /etc/docker/daemon.json to all nodes - ignoring this error")
+            if _upload_crio_registry_conf(logger, GlobalOptions.registry, testbed_info) == 0:
+                logger.info("Successfully uploaded new /etc/containers/registries.conf.d/runner-registry.conf to all nodes")
+            else:
+                logger.warning(f"Failed to upload /etc/containers/registries.conf.d/runner-registry.conf to all nodes - ignoring")
+        elif GlobalOptions.target in ["openshift"]:
+            # Patch machine-config on openshift cluster to make regsitry insecure
+
+            # Remove older/stale insecure registry
+            patch_json = {
+                "spec": {
+                    "registrySources": {
+                        "insecureRegistries": [
+                            "registry.test.pensando.io:5000",
+                        ]
+                    }
+                }
+            }
+            kubectl_patch_cmd = ["kubectl", "patch", "image.config.openshift.io/cluster", "--type=merge",
+                                 "--patch", json.dumps(patch_json)]
+            result = subprocess.run(kubectl_patch_cmd, stdout=subprocess.PIPE, stderr = subprocess.PIPE)
+            if result.returncode != 0:
+                logger.error(f"Failed to run kubectl_patch_cmd : {kubectl_patch_cmd}, error: {result}")
+                sys.exit(1)
+
+            # Include new self-hosted registry
+            patch_json = {
+                "spec": {
+                    "registrySources": {
+                        "insecureRegistries": [
+                            GlobalOptions.registry,
+                            "registry.test.pensando.io:5000",
+                        ]
+                    }
+                }
+            }
+            kubectl_patch_cmd = ["kubectl", "patch", "image.config.openshift.io/cluster", "--type=merge",
+                                 "--patch", json.dumps(patch_json)]
+            result = subprocess.run(kubectl_patch_cmd, stdout=subprocess.PIPE, stderr = subprocess.PIPE)
+            if result.returncode != 0:
+                logger.error(f"Failed to run kubectl_patch_cmd : {kubectl_patch_cmd}, error: {result}")
+                sys.exit(1)
+
     if GlobalOptions.pull_images:
         if _is_pull_images_enabled(GlobalOptions.testbed):
             testbed_info = _load_testbed_json(GlobalOptions.testbed)

@@ -64,8 +64,8 @@ function install_operator_sdk_tool() {
         echo "operator-sdk tool already downloaded"
     else
         mkdir -p $PWD/bin
-        curl -o /tmp/operator-sdk-linux-x86_64.tar.gz https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/operator-sdk/4.18.9/operator-sdk-linux-x86_64.tar.gz
-        tar -zxf /tmp/operator-sdk-linux-x86_64.tar.gz ./x86_64/operator-sdk  -O > $PWD/bin/operator-sdk
+        curl -LO  https://github.com/operator-framework/operator-sdk/releases/download/v1.42.0/operator-sdk_linux_amd64
+        mv operator-sdk_linux_amd64 $PWD/bin/operator-sdk
         chmod +x $PWD/bin/operator-sdk
     fi
     export PATH=$PATH:$PWD/bin

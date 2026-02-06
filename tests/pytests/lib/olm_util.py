@@ -58,23 +58,36 @@ def olm_install(k8_cluster : common.k8_cluster, repo_url : str, namespace: str, 
     namespace  : Namespace to use
     """
     cmd = ["operator-sdk", "run", "bundle", repo_url, "--namespace", namespace]
-    if kwargs.get('skip-tls', True):
+    # Working version:
+    # ./bin/operator-sdk run bundle docker.io/amdpsdo/gpu-operator-olm-bundle:v1.4.1-31 --namespace openshift-amd-gpu 
+    # --pull-secret-name docker-amdpsdo-auth --security-context-config restricted --kubeconfig /root/.kube/config --verbose
+    if kwargs.get('skip-tls', False):
         cmd.append("--skip-tls")
-    if kwargs.get('skip-tls-verify', True):
+    if kwargs.get('skip-tls-verify', False):
         cmd.append("--skip-tls-verify")
     if kwargs.get('use-http', True):
         cmd.append("--use-http")
     if kwargs.get("pull-secret-name", None):
         cmd.extend(["--pull-secret-name", kwargs.get("pull-secret-name")])
+        if k8_util.k8_create_auth_file(kwargs.get("pull-secret-name"), namespace):
+            Logger.debug(f"Created auth-file for operator-sdk to work")
+        else:
+            Logger.warning(f"Failed to create auth-file for operator-sdk to pull olm-bundle from secure location - result unexpected")
+    else:
+        cmd.append("--skip-tls")
+        cmd.append("--skip-tls-verify")
+        cmd.append("--use-http")
+
     cmd.extend(["--security-context-config", kwargs.get("security-context-config", "restricted")])
     if k8_cluster.k8_kube_config:
         cmd.extend(["--kubeconfig", k8_cluster.k8_kube_config])
 
+    cmd.append("--verbose")
     Logger.debug(f"olm-install command: {cmd}")
     cmd_resp = subprocess.run(cmd, check=False,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                encoding='utf-8')
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              encoding='utf-8')
     return cmd_resp.returncode, cmd_resp.stdout, cmd_resp.stderr
 
 @log_arguments
@@ -106,7 +119,7 @@ def olm_cleanup(k8_cluster : common.k8_cluster, release_name : str, namespace : 
     """
     oc delete catalogsources -n openshift-amd-gpu amd-gpu-operator-catalog
     """
-    return k8_delete_custom_resource("operators.coreos.com", "v1alpha1", "catalogsources", namespace, f"{release_name}-catalog")
+    return k8_util.k8_delete_custom_resource("operators.coreos.com", "v1alpha1", "catalogsources", namespace, f"{release_name}-catalog")
 
 @log_arguments
 def olm_manage_amdgpu_driver_blacklist(enable : bool, is_mini_kube_cluster : bool) -> (int, str, str):
@@ -180,7 +193,7 @@ def olm_manage_amdgpu_driver_blacklist(enable : bool, is_mini_kube_cluster : boo
 
 
 @log_arguments
-def update_secrets(k8_cluster : common.k8_cluster, namespace : str) -> (int, str, str):
+def patch_secrets(k8_cluster : common.k8_cluster, namespace : str) -> (int, str, str):
     """
     API to patch openshift serviceaccount with image pull secrets
     """
@@ -191,7 +204,7 @@ def update_secrets(k8_cluster : common.k8_cluster, namespace : str) -> (int, str
         patch["imagePullSecrets"].append({"name": entry.get("name")})
 
     Logger.debug(f"Applying following patch to Openshift default-namespace service-account, {patch}")
-    ret_code, ret_stdout, ret_stderr = k8_util.k8_patch_serviceaccount(namespace, "default", patch)
+    ret_code, ret_stdout, ret_stderr = k8_util.k8_patch_serviceaccount(namespace, "amd-gpu-operator-controller-manager", patch)
     if ret_code != 0:
         Logger.error(f"failed to patch openshift serviceaccount with image pull-secret, stderr: {ret_stderr}")
         return ret_code, ret_stdout, ret_stderr

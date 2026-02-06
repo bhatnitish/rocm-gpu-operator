@@ -49,6 +49,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
 
   build-external-test-runner:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
@@ -57,6 +58,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest.metadata
 
   build-external-test-runner-agfhc:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
@@ -65,6 +67,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.metadata
 
   build-external-config-manager:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-config-manager && \
@@ -73,6 +76,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
       - /device-config-manager/docker/obj/device-config-manager.tgz
+      - /device-config-manager/docker/obj/device-config-manager.metadata
 
   build-external-kernel-module-manager:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
@@ -81,6 +85,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /kernel-module-management/kernel-module-management-operator.tar.gz
+     - /kernel-module-management/kernel-module-management-operator.metadata
 
   build-external-kernel-module-signimage:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
@@ -89,6 +94,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /kernel-module-management/kernel-module-management-signimage.tar.gz
+     - /kernel-module-management/kernel-module-management-signimage.metadata
 
   build-external-kernel-module-webhook-server:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
@@ -97,6 +103,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+     - /kernel-module-management/kernel-module-management-webhook-server.metadata
 
   build-external-kernel-module-worker:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
@@ -105,6 +112,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /kernel-module-management/kernel-module-management-worker.tar.gz
+     - /kernel-module-management/kernel-module-management-worker.metadata
 
   build-external-device-metrics-exporter-helm-artifact:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
@@ -113,6 +121,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.metadata
      - /device-metrics-exporter/tools/techsupport_dump.sh
 
   build-external-device-metrics-exporter-debian-package-ub22.04:
@@ -122,6 +131,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.metadata
 
   build-external-device-metrics-exporter-debian-package-ub24.04:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
@@ -130,6 +140,16 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.metadata
+
+  gpu-operator-olm-bundle-sanity-build:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh gpu-operator-olm-bundle-sanity-build \
+       --alien-repo pensando/gpu-operator --alien-target build-gpu-operator --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /gpu-operator/artifacts.metadata
+     - /gpu-operator/amdpsdo-gpu-operator-olm-bundle.tar.gz
 
   # Following are added for specific v1.4.2 DME release
   build-external-device-metrics-exporter-v1.4.2:

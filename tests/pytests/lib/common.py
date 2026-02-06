@@ -361,6 +361,10 @@ class cluster(object):
     def get_gpu_variants(self):
         return [node.gpu_series for node in self._cluster_nodes if node.gpu_series is not None]
 
+    def find_node_by_gpu_series(self, gpu_series):
+        node = next((n for n in self._cluster_nodes if n.gpu_series == gpu_series), None)
+        return node
+
 class k8_cluster(cluster):
 
     @staticmethod

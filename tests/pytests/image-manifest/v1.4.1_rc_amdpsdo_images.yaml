@@ -110,7 +110,7 @@ images:
             kind        : container
 
         gpu-operator:
-            location    : container://registry.test.pensando.io:5000/amd-gpu-operator-bundle
+            location    : container://<registry>/amdpsdo/amd-gpu-operator-bundle
             version     : v1.4.1
             kind        : olm-bundle
 

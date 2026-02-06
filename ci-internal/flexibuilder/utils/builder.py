@@ -7,6 +7,7 @@ import subprocess
 import urllib
 import urllib.request
 import time
+import json
 
 from utils.opts import GlobalOptions
 from utils.logger import Logger
@@ -152,6 +153,11 @@ class BuilderInterface:
                 timer.Start()
                 Logger.info(f"Total number of artifacts to download: {len(self.target_spec['artifacts'])}")
                 for idx, entry in enumerate(self.target_spec['artifacts']):
+                    _, ext = os.path.splitext(entry)
+                    if ext == '.metadata':
+                        with open(entry, "w") as fp:
+                            fp.write(json.dumps({ "ReleaseTag" : f"{self.__hourly_bld}" }))
+                        continue
                     Logger.info(f"Artifact-{idx+1}: {entry}")
                     # Download file from self.__url_prefix + artifact-name + prefix/suffix
                     url_suffix = self._find_matching_file_with_release_tag(entry)
@@ -170,6 +176,7 @@ class BuilderInterface:
                 Logger.info(f"Downloaded all artifacts from {self.__url_prefix}, TotalTime: {timer.TotalTime()}")
             else:
                 Logger.warn("Missing 'artifacts' in build-specification - IGNORED")
+
             return types.return_codes.SUCCESS
 
 
@@ -192,9 +199,9 @@ class BuilderInterface:
             self.__build_id = target_id
 
         def CreateArtifacts(self):
-            return self.DownloadArtifactsFromBuild(self.__build_id)
+            return self.DownloadArtifactsFromBuild(self.__build_id, "dev")
 
-        def DownloadArtifactsFromBuild(self, target_id):
+        def DownloadArtifactsFromBuild(self, target_id, release_tag):
             """
             Use jobd REST/APIs download each artifact
             """
@@ -203,6 +210,11 @@ class BuilderInterface:
                 timer.Start()
                 Logger.info(f"Total number of artifacts to download: {len(self.target_spec['artifacts'])}")
                 for idx, entry in enumerate(self.target_spec['artifacts']):
+                    _, ext = os.path.splitext(entry)
+                    if ext == '.metadata':
+                        with open(entry, "w") as fp:
+                            fp.write(json.dumps({ "ReleaseTag" : f"{release_tag}" }))
+                        continue
                     Logger.info(f"Artifact-{idx+1}: {entry}")
                     resp = JobdInterface.DownloadBuildArtifact(target_id, entry, entry)
                     if resp != types.return_codes.SUCCESS:
@@ -232,7 +244,7 @@ class BuilderInterface:
                 Logger.error(f"Invalid target_name or missing artifacts. SubmissionId: {self.__submission_id}, target: {self.target_name}")
                 return types.return_codes.UNKNOWN_FAILURE
 
-            return self.DownloadArtifactsFromBuild(target_id)
+            return self.DownloadArtifactsFromBuild(target_id, "private")
 
     class SanityBuildArtifactBuilder(DirtyJobArtifactBuilder):
 
@@ -260,7 +272,7 @@ class BuilderInterface:
                     submission_id = submission["ID"]
                     target_id = JobdInterface.GetRootBuildTargetId(submission_id, self.target_name)
                     if target_id:
-                        resp = self.DownloadArtifactsFromBuild(target_id)
+                        resp = self.DownloadArtifactsFromBuild(target_id, submission["ReleaseTag"])
                         if resp == types.return_codes.SUCCESS:
                             self.__release_candidate = submission["ReleaseTag"]
                             break

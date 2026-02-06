@@ -1,3 +1,4 @@
+
 #!/usr/bin/python3
 
 '''
@@ -390,6 +391,8 @@ def _build_image_info(environment, image_manifest):
                 image_info[f'{artifact}.olm-bundle'] = file_path
                 image_info[f'{artifact}.olm-bundle.version'] = artifact_info['version']
                 image_info[f'{artifact}.olm-bundle.repository'] = file_path
+                if 'secret' in artifact_info:
+                    image_info[f"{artifact}.olm-bundle.secret"] = artifact_info['secret']
             elif artifact_info['kind'] == 'debian':
                 image_info[f'{artifact}.debian'] = file_path
                 image_info[f'{artifact}.debian.version'] = artifact_info['version']
@@ -415,6 +418,8 @@ def _build_image_info(environment, image_manifest):
                 image_info[f'{artifact}.helm-chart'] = file_path
             elif artifact_info['kind'] == 'olm-bundle':
                 image_info[f'{artifact}.olm-bundle'] = file_path
+                if 'secret' in artifact_info:
+                    image_info[f"{artifact}.olm-bundle.secret"] = artifact_info['secret']
         elif 'container://' in artifact_info['location']:
             location = artifact_info['location']
             if '<registry>' in location and environment.default_registry:
@@ -434,7 +439,7 @@ def _build_image_info(environment, image_manifest):
                 image_info[f'{artifact}.olm-bundle.version'] = version
                 image_info[f'{artifact}.olm-bundle.repository'] = f"{parsed_data.netloc}{parsed_data.path}"
                 if 'secret' in artifact_info:
-                    image_info[f'{artifact}.secret'] = artifact_info['secret']
+                    image_info[f'{artifact}.olm-bundle.secret'] = artifact_info['secret']
     return image_info
 
 @pytest.fixture(scope="session", autouse=True)
