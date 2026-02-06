@@ -10,7 +10,6 @@ targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-gpu-operator-openshift
 
 image:
   bind_dir: "/go/src/github.com/pensando/gpu-operator"

@@ -41,10 +41,6 @@ copy_artifacts () {
     cp /gpu-operator/build/charts/internal-gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/internal-gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
     # copy amdpsdo k8s helm package
     cp /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-k8s-$PROJECT_VERSION.tgz  $BUNDLE_DIR/amdpsdo-gpu-operator-helm-k8s-$PROJECT_VERSION-$RELEASE.tgz
-    # copy internal openshift helm package
-    cp /gpu-operator/build/charts/internal-gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/internal-gpu-operator-helm-openshift-$PROJECT_VERSION-$RELEASE.tgz
-    # copy amdpsdo openshift helm package
-    cp /gpu-operator/build/charts/amdpsdo-gpu-operator-helm-openshift-$PROJECT_VERSION.tgz  $BUNDLE_DIR/amdpsdo-gpu-operator-helm-openshift-$PROJECT_VERSION-$RELEASE.tgz
     # copy gpu operator OLM bundle package
     cp /gpu-operator/internal-gpu-operator-olm-bundle.tar.gz  $BUNDLE_DIR/internal-gpu-operator-olm-bundle-$RELEASE.tar.gz
     # copy gpu operator OLM bundle package for amdpsdo repository
