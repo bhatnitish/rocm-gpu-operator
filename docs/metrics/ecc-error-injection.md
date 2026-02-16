@@ -117,7 +117,7 @@ You should now see that one of the GPUs, `GPU 0`, in this case has been marked a
 
 ### 6. Checking the Unhealthy GPU Node label
 
-The Metrics Exporter should of also added an unhealthy GPU label to your affected node to identify which GPU is unhealthy. Run the following to check for unhealth gpu node labels:
+The Metrics Exporter should of also added an unhealthy GPU label to your affected node to identify which GPU is unhealthy. Run the following to check for unhealthy gpu node labels:
 
 ```bash
 kubectl describe node $NODE_NAME | grep unhealthy

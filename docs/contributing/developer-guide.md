@@ -115,4 +115,4 @@ python3 -m mkdocs build
 python3 -m mkdocs serve --dev-addr localhost:2345
 ```
 
-- The local docs website will dynmically update as changes are made to markdown docs.
+- The local docs website will dynamically update as changes are made to markdown docs.

@@ -8,7 +8,7 @@ This guide outlines the steps to upgrade the AMD GPU Operator on a Kubernetes cl
 
 Ensure the cluster is healthy and ready for the upgrade. A typical system will look like this before an upgrade:
 
-```
+```bash
 NAMESPACE      NAME                                                              READY   STATUS    AGE
 cert-manager   cert-manager-5d45994f57-95pkz                                     1/1     Running   8d
 cert-manager   cert-manager-cainjector-5d69455fd6-kczfq                          1/1     Running   8d
@@ -31,27 +31,31 @@ All pods should be in the `Running` state. Resolve any issues such as restarts o
 
 ### 2. Understand Upgrade Safeguards
 
-**Pre-Upgrade Hook**
+#### Pre-Upgrade Hook
 
 * ```pre-upgrade-check```: The AMD GPU Operator includes a **pre-upgrade** hook that prevents upgrades if any **driver upgrades** are active. This ensures stability by blocking the upgrade when the operator is actively managing driver installations.
 * ```upgrade-crd```: This hook helps users to patch the new version Custom Resource Definition (CRD) to the helm deployment. Helm by default doesn't support automatic upgrade of CRD so we implemented this hook for auto-upgrade the CRDs.
 
-- **Manual Driver Upgrades in KMM:** Manual driver upgrades initiated by users through KMM are allowed but not recommended during an operator upgrade.
-- **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```, you would have to manually use new version's CRD to upgrade then in cluster.
+* **Manual Driver Upgrades in KMM:** Manual driver upgrades initiated by users through KMM are allowed but not recommended during an operator upgrade.
+* **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```, you would have to manually use new version's CRD to upgrade then in cluster.
 
-**Error Scenario**
+#### Error Scenario
 
 If the pre-upgrade hook detects active driver upgrades, the Helm upgrade process will fail with:
-```
+
+```bash
 Error: UPGRADE FAILED: pre-upgrade hooks failed: 1 error occurred:
     * job pre-upgrade-check failed: BackoffLimitExceeded
 ```
 
 To resolve:
+
 1. Inspect the failed `pre-upgrade-check` Job:
-```bash
-kubectl logs job/pre-upgrade-check -n kube-amd-gpu
-```
+
+   ```bash
+   kubectl logs job/pre-upgrade-check -n kube-amd-gpu
+   ```
+
 2. Resolve any active driver upgrades and retry the upgrade.
 
 ### 3. Perform the Upgrade
@@ -85,8 +89,9 @@ helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
 
 ```{note}
 Upgrade Options:
-* If you encounter the pre-upgrade hook failure and wish to bypass it, please use `--no-hooks` option, then you need to manually patch to upgrade the new version CRDs in the cluster.
 * **Error Scenario**: In case there is chart name or release name mismatch happened, you can use `--set fullnameOverride=amd-gpu-operator-gpu-operator-charts --set nameOverride=gpu-operator-charts` to resolve the conflict. The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
+* By default, the default ```values.yaml``` from the new helm charts will be applied. If you have customized values.yaml applied to your older version helm chart, you need to apply it along with ```helm upgrade``` command by using ```-f values.yaml``` option. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. 
+* If you encounter the pre-upgrade hook failure and wish to bypass it, please use `--no-hooks` option, then you need to manually patch to upgrade the CRDs in the cluster.
 ```
 
 ```{warning}
@@ -115,9 +120,10 @@ kubectl get deviceconfigs -n kube-amd-gpu -oyaml
 
 #### **Notes**
 
-- Avoid upgrading during active driver upgrades initiated by the operator.
-- Use `--no-hooks` only if necessary and after assessing the potential impact.
-- For additional troubleshooting, check operator logs:
+* Avoid upgrading during active driver upgrades initiated by the operator.
+* Use `--no-hooks` only if necessary and after assessing the potential impact.
+* For additional troubleshooting, check operator logs:
+
   ```bash
   kubectl logs -n kube-amd-gpu amd-gpu-operator-controller-manager-848455579d-p6hlm
   ```

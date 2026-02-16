@@ -15,7 +15,7 @@
 3. **GPU Operator unable to install amdgpu driver if existing driver is already installed**
    - ***Impact:*** Driver install will fail if amdgpu in-box Driver is present/already installed
    - ***Affected Configurations:*** All configurations
-   - ***Workaround:*** When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
+   - ***Workaround:*** When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
 </br></br>
 
 4. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
@@ -24,18 +24,92 @@
    - ***Workaround:*** Restart the Device plugin pod deployed.
 </br></br>
 
-5. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and readded with Operator installed**
+5. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and re-added with Operator installed**
    - ***Impact:*** Node upgrade will not proceed automatically and requires manual intervention
    - ***Affected Configurations:*** All configurations
-   - ***Workaround:*** Manually mark the node as unschedulable, preventing new pods from being scheduled on it, by cordoning it off:
+   - ***Workaround:*** Manually mark the node as unschedulable, preventing new pods from being scheduled on it, by cordoning it off: `kubectl cordon <node-name>`.
+</br></br>
 
-    ```bash
-    kubectl cordon <node-name>
-    ```
+6. **Due to issue with KMM 2.2 deletion of DeviceConfig Custom Resource gets stuck in Red Hat OpenShift**
+   - ***Impact:*** Not able to delete the DeviceConfig Custom Resource if the node reboots during uninstall.
+   - ***Affected Configurations:*** This issue only affects Red Hat OpenShift
+   - ***Workaround:*** This issue will be fixed in the next release of KMM. For the time being you can use a previous version of KMM aside from 2.2 or manually remove the status from NMC:
+    1. List all the NMC resources and pick up the correct NMC (there is one nmc per node, named the same as the node it related to).
 
-</br>
+        ```bash
+        oc get nmc -A
+        ```
 
-6. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module**
+    2. Edit the NMC.
+
+        ```bash
+        oc edit nmc <nmc name>
+        ```
+
+    3. Remove from NMC status for all the data related to your module and save. That should allow the module to be finally deleted.
+</br></br>
+
+7. **Incomplete Cleanup on Manual Module Removal**
+   - **Impact:** When AMD GPU drivers are manually removed (instead of using the operator for uninstallation), not all GPU modules are cleaned up completely.
+   - **Recommendation:** Always use the GPU Operator for installing and uninstalling drivers to ensure complete cleanup.
+</br></br>
+
+8. **Inconsistent Node Detection on Reboot**
+   - **Impact:** In some reboot sequences, Kubernetes fails to detect that a worker node has reloaded, which prevents the operator from installing the updated driver. This happens as a result of the node rebooting and coming back online too quickly before the default time check interval of 50s.
+   - **Recommendation:** Consider tuning the kubelet and controller-manager flags (such as --node-status-update-frequency=10s, --node-monitor-grace-period=40s, and --node-monitor-period=5s) to improve node status detection. Refer to [Kubernetes documentation](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/) for more details.
+</br></br>
+
+9. **Inconsistent Metrics Fetch Using NodePort**
+   - **Impact:** When accessing metrics via a Nodeport service (NodeIP:NodePort) from within a cluster, Kuberntes' built-in load balancing may sometimes route requests to different pods, leading to occasional inconsistencies in the returned metrics. This behavior is inherent to Kubernetes networking and is not a defect in the GPU Operator.
+   - **Recommendation:** Only use the internal PodIP and configured pod port (default: 5000) when retrieving metrics from within the cluster instead of the NodePort. Refer to the Metrics Exporter document section for more details.
+</br></br>
+
+10. **Helm Install Fails if GPU Operator Image is Unavailable**
+    - **Impact:** If the image provided via --set controllerManager.manager.image.repository and --set controllerManager.manager.image.tag does not exist, the controller manager pod may enter a CrashLoopBackOff state and hinder uninstallation unless --no-hooks is used.
+    - **Recommendation:** Ensure that the correct GPU Operator controller image is available in your registry before installation. To uninstall the operator after seeing a *ErrImagePull* error, use --no-hooks to bypass all pre-uninstall helm hooks.
+</br></br>
+
+11. **Driver Reboot Requirement with ROCm 6.3.x**
+    - **Impact:** While using ROCm 6.3+ drivers, the operator may not complete the driver upgrade properly unless a node reboot is performed.
+    - **Recommendation:** Manually reboot the affected nodes after the upgrade to complete driver installation. Alternatively, we recommend setting rebootRequired to true in the upgrade policy for driver upgrades. This ensures that a reboot is triggered after the driver upgrade, guaranteeing that the new driver is fully loaded and applied. This workaround should be used until the underlying issue is resolved in a future release.
+</br></br>
+
+12. **Driver Upgrade Timing Issue**
+
+    - **Impact:** During an upgrade, if a node's ready status fluctuates (e.g., from Ready to NotReady to Ready) before the driver version label is updated by the operator, the old driver might remain installed. The node might continue running the previous driver version even after an upgrade has been initiated.
+    - **Recommendation:** Ensure nodes are fully stable before triggering an upgrade, and if necessary, manually update node labels to enforce the new driver version. Refer to driver upgrade documentation for more details.
+</br></br>
+
+13. **Driver Upgrade Issue when maxParallel Upgrades is equal to total number of worker nodes in Red Hat OpenShift**
+
+    - **Impact:** Not able to perform driver upgrade
+    - **Affected Configurations:** This issue only affects Red Hat OpenShift when Image registry pod is running on one of the worker nodes or kmm build pod is required to be run on one of the worker nodes
+    - **Recommendation:** Please set maxParallel Upgrades to a number less than total number of worker nodes
+</br></br>
+
+14. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentally when rebootRequired is set to false**
+
+    - **Impact:** Not able to perform driver install/upgrade
+    - **Affected Configurations:** All configurations
+    - **Recommendation:** Please re-trigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
+
+15. **The Device Config Manager requires running a docker container if you wish to run it in standalone mode (without Kubernetes).**
+
+    - *Impact:* Users wishing to use a standalone version of the Device Config Manager will need to run a standalone docker image and configure the partitions using config.json file.
+    - *Root Cause:* DCM does not currently support standalone installation via a Debian package like other standalone components of the GPU Operator. We will be adding a Debian package to support standalone bare metal installations in the next release of DCM.
+    - *Recommendation:* Those wishing to use GPU partitioning in a bare metal environment should instead use the standalone docker image for DCM. Alternatively users can use amd-smi to change partitioning modes. See [amdgpu-docs documentation](https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/gpu-partitioning/mi300x/quick-start-guide.html) for how to do this.
+
+16. **The GPU Operator will report an error when ROCm driver install version doesn't match the version string in the [Radeon Repo](https://repo.radeon.com/rocm/apt/).**
+
+    - *Impact:* The DeviceConfig will report an error if you specify `"6.4.0"` or `"6.3.0"` for the `spec.driver.version`.
+    - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
+    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
+
+</br></br>
+
+## Fixed Issues
+
+1. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module <span style="color:red">(Fixed in v1.2.0)</span>**
    - ***Impact:*** Driver upgrade is blocked
    - ***Affected Configurations:*** All configurations
    - ***Workaround:*** Disable the Metrics Exporter on specific node to allow driver upgrade as follows:
@@ -58,48 +132,7 @@
         kubectl label node [node-to-exclude] amd.com/device-metrics-exporter-
         ```
 
-</br>
-
-7. **Due to issue with KMM 2.2 deletion of DeviceConfig Custom Resource gets stuck in Red Hat OpenShift**
-   - ***Impact:*** Not able to delete the DeviceConfig Custom Resource if the node reboots during uninstall.
-   - ***Affected Configurations:*** This issue only affects Red Hat OpenShift
-   - ***Workaround:*** This issue will be fixed in the next release of KMM. For the time being you can use a previous version of KMM aside from 2.2 or manually remove the status from NMC:
-    1. List all the NMC resources and pick up the correct NMC (there is one nmc per node, named the same as the node it related to).
-
-        ```bash
-        oc get nmc -A
-        ```
-
-    2. Edit the NMC.
-
-        ```bash
-        oc edit nmc <nmc name>
-        ```
-
-    3. Remove from NMC status for all the data related to your module and save. That should allow the module to be finally deleted.
-
-</br>
-
-8. **Driver Upgrade Issue when maxParallel Upgrades is equal to total number of worker nodes in Red Hat OpenShift**
-   - ***Impact:*** Not able to perform driver upgrade
-   - ***Affected Configurations:*** This issue only affects Red Hat OpenShift when Image registry pod is running on one of the worker nodes or kmm build pod is required to be run on one of the worker nodes
-   - ***Workaround:*** Please set maxParallel Upgrades to a number less than total number of worker nodes
-
-</br>
-
-9. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentally when rebootRequired is set to false**
-   - ***Impact:*** Not able to perform driver install/upgrade
-   - ***Affected Configurations:*** All configurations
-   - ***Workaround:*** Please retrigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
-
-10. **The Device Config Manager requires running a docker container if you wish to run it in standalone mode (without Kubernetes).**
-
-    - *Impact:* Users wishing to use a standalone version of the Device Config Manager will need to run a standalone docker image and configure the partitions using config.json file.
-    - *Root Cause:* DCM does not currently support standalone installation via a Debian package like other standalone components of the GPU Operator. We will be adding a Debian package to support standalone bare metal installations in the next release of DCM.
-    - *Recommendation:* Those wishing to use GPU partitioning in a bare metal environment should instead use the standalone docker image for DCM. Alternatively users can use amd-smi to change partitioning modes. See [amdgpu-docs documentation](https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/gpu-partitioning/mi300x/quick-start-guide.html) for how to do this.
-
-11. **The GPU Operator will report an error when ROCm driver install version doesn't match the version string in the [Radeon Repo](https://repo.radeon.com/rocm/apt/).**
-
-    - *Impact:* The DeviceConfig will report an error if you specify `"6.4.0"` or `"6.3.0"` for the `spec.driver.version`.
-    - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
-    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
+2. **Failure to Blacklist In-Tree Driver When Creating MachineConfig Manually <span style="color:red">(Fixed in v1.2.1)</span>** [[#93]](https://github.com/ROCm/gpu-operator/issues/93)
+   - ***Issue***: When creating a MachineConfig manually, the GPU Operator failed to blacklist the in-tree driver, as it kept deleting the `/etc/modprobe.d/blacklist-amdgpu.conf` file.
+   - ***Root Cause***: OpenShift MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
+   - ***Resolution***: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.

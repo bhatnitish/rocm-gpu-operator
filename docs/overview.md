@@ -63,7 +63,7 @@ The [AMD GPU Device Plugin](https://github.com/ROCm/k8s-device-plugin) enables G
 
 ### Node Labeller
 
-The [Node Labeller](https://github.com/ROCm/k8s-device-plugin/blob/master/cmd/k8s-node-labeller/README) provides detailed GPU information through node labels:
+The [Node Labeller](https://github.com/ROCm/k8s-device-plugin/blob/master/cmd/k8s-node-labeller/README.md) provides detailed GPU information through node labels:
 
 - Automatically detects GPU properties
 - Adds detailed GPU-specific labels to nodes
@@ -92,7 +92,7 @@ The [Device Config Manager](https://github.com/ROCm/device-config-manager)  is u
 
 - DCM will be handling the GPU partitioning configurations
 - Different partition types supported are:
-    - Memory partitions (NPS1, NPS2, NPS4)
-    - Compute partitions (SPX, DPX, QPX, CPX)
+  - Memory partitions (NPS1, NPS2, NPS4)
+  - Compute partitions (SPX, DPX, QPX, CPX)
 - Supports Systemd integration to start/stop service files
 - Report partition results as Kubernetes events.

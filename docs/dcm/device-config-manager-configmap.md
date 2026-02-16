@@ -53,14 +53,14 @@ data:
 Below is an explanation of each field in the ConfigMap:
 
 | **Field** | **Description** |
-|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `gpu-config-profiles`   | Defines a set of partitioning config profiles from which the user can choose the profile to apply                                                                 |
-| `cpx-profile` and `spx-profile` | Example profile names                                                                                                                                           |
-| `skippedGPUs` (Optional) | List of GPU IDs to skip partitioning                                                                                                                             |
-| `computePartition`      | Compute partition type                                                                                                                                           |
-| `memoryPartition`       | Memory partition type                                                                                                                                            |
-| `numGPUsAssigned`       | Number of GPUs to be partitioned on the node                                                                                                                     |
-| `gpuClientSystemdServices`       | Defines a list of systemd service unit files to be stopped/restarted on the node                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gpu-config-profiles` | Defines a set of partitioning config profiles from which the user can choose the profile to apply |
+| `cpx-profile` and `spx-profile` | Example profile names |
+| `skippedGPUs` (Optional) | List of GPU IDs to skip partitioning |
+| `computePartition` | Compute partition type |
+| `memoryPartition` | Memory partition type |
+| `numGPUsAssigned` | Number of GPUs to be partitioned on the node |
+| `gpuClientSystemdServices` | Defines a list of systemd service unit files to be stopped/restarted on the node |
 
 ```{note}
 Users can create a heterogeneous partitioning config profile by specifying more than one `computePartition` scheme in the `profiles` array, however this is not a recommmended or supported configuration by AMD. Note that NPS4 memory partition mode does not work with heterogenous parition schemes and only supports CPX on MI300X systems.

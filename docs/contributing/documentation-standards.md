@@ -32,7 +32,7 @@ Examples:
 #### Technical Terms
 
 | Term | Usage Notes |
-|------|-------------|
+| ------ | ------------- |
 | AMD GPU driver | Standard term for the driver. Don't use "AMDGPU driver" or "GPU driver" alone |
 | worker node | Standard term for cluster nodes. Don't use "worker" or "node" alone |
 | DeviceConfig | One word, capital 'D' and 'C' when referring to the resource |

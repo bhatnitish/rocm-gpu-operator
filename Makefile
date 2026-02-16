@@ -119,7 +119,7 @@ SHELL = /usr/bin/env bash -o pipefail
 DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
-DOCKER_BUILDER_TAG := v1.2
+DOCKER_BUILDER_TAG := v1.3
 DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 BUILD_BASE_IMG ?= ubuntu:22.04
@@ -275,6 +275,21 @@ lint: golangci-lint ## Run golangci-lint against code.
 		exit 1; \
 	fi
 	$(GOLANGCI_LINT) run -v --timeout 5m0s
+
+DOCS_MARKDOWNLINTCONFIG ?= docs/.markdownlint.yaml
+DOCS_MD_GLOB ?= "**/*.md"
+DOCS_SPELLCHECK_CONFIG ?= .spellcheck.yaml
+
+.PHONY: docs-lint-markdown
+docs-lint-markdown:
+	markdownlint-cli2 $(DOCS_MD_GLOB) --config $(DOCS_MARKDOWNLINTCONFIG)
+
+.PHONY: docs-lint-spelling
+docs-lint-spelling:
+	pyspelling -c $(DOCS_SPELLCHECK_CONFIG)
+
+.PHONY: docs-lint
+docs-lint: docs-lint-markdown docs-lint-spelling ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
 
 ##@ Build
 

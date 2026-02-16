@@ -5,6 +5,7 @@ This guide walks through the process of upgrading AMD GPU drivers on worker node
 ## Overview
 
 The driver can be upgraded in the following methods.
+
 1. Automatic Upgrade Process
 2. Manual Upgrade Process
 
@@ -15,12 +16,15 @@ If this field is not configured, then user has to follow the manual steps as sho
 If this field is configured and the `version` field is changed in driver spec, automatic driver upgrade progress is initiated.
 
 The following operations are sequentially executed by the gpu operator for each selected node
+
 1. The node is cordoned so that no pods can be scheduled on this node
 2. The existing pods (that require amd gpus) are drained/deleted based on the config in the upgrade policy.
 3. The desired driver version label is updated as shown below.
-   ```bash 
+
+   ```bash
    kmm.node.kubernetes.io/version-module.<namespace>.<config-name>=<new-version>
    ```
+
 4. KMM operator unloads the old driver version and loads the new driver version.
 5. If the node requires reboot post installation (configurable in upgradePolicy), the node is rebooted
 6. Once the node is rebooted and the desired driver is loaded, the node is uncordoned and available for scheduling.
@@ -31,6 +35,7 @@ The following are the steps to perform the automatic driver upgrade
 2. Track the upgrade status through CR status
 
 ### 1. Set desired driver version and configure upgrade policy
+
 The following sample config shows the relevant fields to start automatic driver upgrade across the nodes in the cluster with default upgrade configuration.
 
 ```yaml
@@ -59,7 +64,7 @@ To check the full spec of upgrade configuration run kubectl get crds deviceconfi
 #### `driver.upgradePolicy` Parameters
 
 | Parameter | Description | Default |
-|-----------|-------------|---------|
+| ----------- | ------------- | --------- |
 | `enable` | Enable this upgrade policy | `false` |
 | `maxParallelUpgrades` | Maximum number of nodes which will be upgraded in parallel | `1` |
 | `maxUnavailableNodes` | Maximum number (or Percentage) of nodes which can be unavailable (cordoned) in the cluster | `25%` |
@@ -70,20 +75,21 @@ To check the full spec of upgrade configuration run kubectl get crds deviceconfi
 #### `driver.upgradePolicy.nodeDrainPolicy` Parameters
 
 | Parameter | Description | Default |
-|-----------|-------------|---------|
+| ----------- | ------------- | --------- |
 | `force` | Allow drain to proceed on the node even if there are managed pods such as daemon-sets. In such cases drain will not proceed unless this option is set to true | `true` |
 | `timeout` | The length of time to wait before giving up. Zero means infinite | `300s` |
 
 #### `driver.upgradePolicy.podDeletionPolicy` Parameters
 
 | Parameter | Description | Default |
-|-----------|-------------|---------|
+| ----------- | ------------- | --------- |
 | `force` | Force delete all pods that use amd gpus | `true` |
 | `timeout` | The length of time to wait before giving up. Zero means infinite | `300s` |
 
-
 ### 2. Track the upgrade status through CR status
+
 The `status.nodeModuleStatus.<worker-node>.status` captures the status of the upgrade process for each node
+
 ```yaml
 status:
   nodeModuleStatus:
@@ -112,7 +118,7 @@ status:
 The following are the different node states during the upgrade process
 
 | State | Description |
-|-----------|---------|
+| ----------- | --------- |
 | `Install-In-Progress` | Driver is being installed on the node for the first time |
 | `Install-Complete` | Driver install is complete |
 | `Upgrade-Not-Started` | Automatic upgrade enabled and driver version change is detected. All nodes move to this state |
@@ -121,12 +127,13 @@ The following are the different node states during the upgrade process
 | `Upgrade-Timed-Out` | Driver upgrade couldn't finish within 2 hours |
 | `Cordon-Failed` | Cordoning of the node failed |
 | `Uncordon-Failed` | Uncordoning of the node failed |
-| `Drain-Failed` | Drain node or Delete pods operation failed|
+| `Drain-Failed` | Drain node or Delete pods operation failed |
 | `Reboot-In-Progress` | Driver upgrade is done and reboot is in progress |
 | `Reboot-Failed` | Driver upgrade is done and reboot attempt failed |
 | `Upgrade-Failed` | Driver upgrade failed for any other reasons |
 
 The following are considered during the automatic upgrade process
+
 1. Selection of a node should satisfy both `maxUnavailableNodes` and `maxParallelUpgrades` criteria
 2. All nodes in failed state is considered while calculating `maxUnavailableNodes`
 
@@ -134,8 +141,8 @@ The following are considered during the automatic upgrade process
 
 If it is observed that the upgrade status is in failed state for a specific node, the user can debug the node, fix it and then add this label to the node to restart upgrade on it. The upgrade state will be reset and it can be tracked as it was before
 
-  - Command:   `kubectl label node <nodename> operator.amd.com/gpu-driver-upgrade-state=upgrade-required`
-  - Label:     `operator.amd.com/gpu-driver-upgrade-state: upgrade-required`
+- Command:   `kubectl label node <nodename> operator.amd.com/gpu-driver-upgrade-state=upgrade-required`
+- Label:     `operator.amd.com/gpu-driver-upgrade-state: upgrade-required`
 
 ## 2. Manual Upgrade Process
 
@@ -146,7 +153,6 @@ The manual upgrade process involves the following steps:
 3. Managing workloads
 4. Updating node labels
 5. Performing the upgrade
-
 
 ### 1. Check Current Driver Version
 
@@ -187,7 +193,7 @@ The operator will automatically:
 The operator uses specific tag formats based on the OS:
 
 | OS | Tag Format | Example |
-|----|------------|---------|
+| ---- | ------------ | --------- |
 | Ubuntu | `ubuntu-<version>-<kernel>-<driver>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
 | RHEL CoreOS | `coreos-<version>-<kernel>-<driver>` | `coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2` |
 
