@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
-    createdAt: "2026-02-09T20:40:13Z"
+    createdAt: "2026-02-12T09:47:18Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -767,10 +767,10 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:remediationWorkflow
       - description: Name of the ConfigMap that holds condition-to-workflow mappings.
-        displayName: ConditionalWorkflows
-        path: remediationWorkflow.conditionalWorkflows
+        displayName: Config
+        path: remediationWorkflow.config
         x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows
+        - urn:alm:descriptor:com.amd.deviceconfigs:config
       - description: enable remediation workflows. disabled by default enable if operator
           should automatically handle remediation of node incase of gpu issues
         displayName: Enable
