@@ -8,10 +8,11 @@ function usage() {
     echo "          --help print help/usage information"
     echo "          --deployment <deployment> Eg: k8, openshift, standalone"
     echo "          --app <app-name> Eg: gpu-operator, exporter, network-operator, debian, docker"
+    echo "          --module <module-name>"
     echo "          --type <selection: sanity|compat>"
     echo "          --registry <selection: local|master|global>"
     echo "          --testbed /path/to/testbed.json, default /warmd.json"
-    echo "          --amdgpu-driver <selection: inbox|deviceconfig, default deviceconfig"
+    echo "          --amdgpu-driver <selection: inbox|default-deviceconfig|{version} eg: 7.0.1>"
     echo "          --seed-image-manifest <path-to-seed-image-manifest>"
     echo ""
 }
@@ -20,7 +21,8 @@ LOCAL_REGISTRY_PORT="5000"
 REGISTRY_SELECTION="local"
 TESTBED_JSON="/warmd.json"
 DEPLOYMENT="NA"
-AMDGPU_DRIVER="deviceconfig"
+MODULE="ALL"
+AMDGPU_DRIVER="default-deviceconfig"
 GEN_IMAGE_MANIFEST="/tmp/images.yaml"
 SEED_IMAGE_MANIFEST="/gpu-operator/ci-internal/sanity-images.yml"
 GLOBAL_REGISTRY="registry.test.pensando.io:5000"
@@ -46,7 +48,12 @@ function upload_reports() {
         final_report="${TARGET_ID}.html"
         sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "rm -rf /var/www/html/${TARGET_NAME}/${TARGET_ID}"
         sshpass -p vm timeout 30 ssh -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vm@10.11.18.6 "mkdir -p /var/www/html/${TARGET_NAME}/${TARGET_ID}"
-        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/${DEPLOYMENT}/${APP_NAME}.html vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
+        local HTML_REPORT_FILE="${DEPLOYMENT}/${APP_NAME}.html"
+        if [[ "${MODULE}" != "ALL" ]] ;
+        then
+            HTML_REPORT_FILE="${DEPLOYMENT}_${APP_NAME}_${MODULE}.html"
+        fi
+        sshpass -p vm timeout 30 scp -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${PWD}/logs/${HTML_REPORT_FILE} vm@10.11.18.6:/var/www/html/${TARGET_NAME}/${TARGET_ID}/${final_report}
 
         echo "Links:"
         echo "Consolidated report       : http://10.11.18.6/${TARGET_NAME}/${TARGET_ID}/${final_report}"
@@ -177,9 +184,17 @@ function launch_pytest_k8() {
     if [[ "${AMDGPU_DRIVER}" == "inbox" ]];
     then
         CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
-    elif [[ "${AMDGPU_DRIVER}" == "deviceconfig" ]];
+    elif [[ "${AMDGPU_DRIVER}" == "default-deviceconfig" ]];
     then
         CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    else
+        local DRIVER_SPEC="lib/files/amd-deviceconfig-driver-spec-${AMDGPU_DRIVER}.json"
+        if [[ ! -f "${DRIVER_SPEC}" ]] ;
+        then
+            echo "FATAL ERROR: AMDGPU Driver spec file not found for ${AMDGPU_DRIVER} - ${DRIVER_SPEC}"
+            exit 1
+        fi
+        CMD_OPTS+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
     fi
     echo "Running k8 pytests with CMD_OPTS: ${CMD_OPTS}"
     if [[ "${APP_NAME}" == "gpu-operator" ]];
@@ -193,6 +208,10 @@ function launch_pytest_k8() {
         cp /device-metrics-exporter/tools/techsupport_dump.sh /gpu-operator/tests/pytests/exporter_techsupport_dump.sh
         chmod +x /gpu-operator/tests/pytests/exporter_techsupport_dump.sh
         export TECH_SUPPORT_TOOL=/gpu-operator/tests/pytests/exporter_techsupport_dump.sh
+    fi
+    if [[ "${MODULE}" != "ALL" ]] ;
+    then
+        CMD_OPTS+=" --module ${MODULE}"
     fi
     /gpu-operator/tests/pytests/k8_test_launcher.sh ${CMD_OPTS}
     RET=$?
@@ -212,7 +231,25 @@ function launch_pytest_openshift() {
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
     CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS}"
-    CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    if [[ "${AMDGPU_DRIVER}" == "inbox" ]];
+    then
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
+    elif [[ "${AMDGPU_DRIVER}" == "default-deviceconfig" ]];
+    then
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    else
+        local DRIVER_SPEC="lib/files/amd-deviceconfig-driver-spec-${AMDGPU_DRIVER}.json"
+        if [[ ! -f "${DRIVER_SPEC}" ]] ;
+        then
+            echo "FATAL ERROR: AMDGPU Driver spec file not found for ${AMDGPU_DRIVER} - ${DRIVER_SPEC}"
+            exit 1
+        fi
+        CMD_OPTS+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
+    fi
+    if [[ "${MODULE}" != "ALL" ]] ;
+    then
+        CMD_OPTS+=" --module ${MODULE}"
+    fi
     echo "Running openshift pytests with CMD_OPTS: ${CMD_OPTS}"
     TECH_SUPPORT_TOOL=/gpu-operator/tools/techsupport_dump.sh /gpu-operator/tests/pytests/oc_test_launcher.sh ${CMD_OPTS}
     RET=$?
@@ -232,7 +269,25 @@ function launch_pytest_standalone() {
     local SECRETS="/tmp/secrets.json"
     curl -s http://pm.test.pensando.io/systest/gpu-operator-secrets/secrets.json -o ${SECRETS}
     CMD_OPTS=" --image-manifest ${GEN_IMAGE_MANIFEST} --secrets ${SECRETS} --app ${APP_NAME}"
-    CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    if [[ "${AMDGPU_DRIVER}" == "inbox" ]];
+    then
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-inbox-driver-spec.json"
+    elif [[ "${AMDGPU_DRIVER}" == "default-deviceconfig" ]];
+    then
+        CMD_OPTS+=" --amdgpu-driver-spec lib/files/amd-deviceconfig-default-driver-spec.json"
+    else
+        local DRIVER_SPEC="lib/files/amd-deviceconfig-driver-spec-${AMDGPU_DRIVER}.json"
+        if [[ ! -f "${DRIVER_SPEC}" ]] ;
+        then
+            echo "FATAL ERROR: AMDGPU Driver spec file not found for ${AMDGPU_DRIVER} - ${DRIVER_SPEC}"
+            exit 1
+        fi
+        CMD_OPTS+=" --amdgpu-driver-spec ${DRIVER_SPEC}"
+    fi
+    if [[ "${MODULE}" != "ALL" ]] ;
+    then
+        CMD_OPTS+=" --module ${MODULE}"
+    fi
     CMD_OPTS+=" --testbed /gpu-operator/tests/pytests/testbed.json"
     echo "Running standalone pytests with CMD_OPTS: ${CMD_OPTS}"
     /gpu-operator/tests/pytests/standalone_test_launcher.sh ${CMD_OPTS}
@@ -258,6 +313,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --app)
             APP_NAME="$2"
+            shift
+        ;;
+        --module)
+            MODULE="$2"
             shift
         ;;
         --type)

@@ -432,11 +432,13 @@ def exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, env
     K8Helper.triage(environment, (len(gpu_nodes) > 0), "No nodes with AMD/GPU found in the cluster")
 
     # Restore default mode (non-rbac) for this testcase
+    dme_version = None
     for spec_name, tcfg in deviceconfig_install.test_cfg_map.items():
         tcfg['metricsExporter.enable'] = True
         tcfg['metricsExporter.serviceType'] = 'NodePort'
         tcfg['metricsExporter.rbacConfig.enable'] = False
         tcfg['metricsExporter.rbacConfig.disableHttps'] = False
+        dme_version = tcfg['metricsExporter.image.version']
 
         cr_spec = spec_util.generate_k8_deviceconfig_cr(environment.gpu_operator_version, tcfg)
         ret_code, ret_stdout, ret_stderr = k8_util.k8_modify_deviceconfig_cr(cr_spec)
@@ -455,7 +457,8 @@ def exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install, env
         if not cluster_node:
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         metrics_data = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
-                                                         amdgpu_driver = cluster_node.amdgpu_driver_version)
+                                                         amdgpu_driver = cluster_node.amdgpu_driver_version, 
+                                                         dme_version = dme_version)
         list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
     common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
     Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")

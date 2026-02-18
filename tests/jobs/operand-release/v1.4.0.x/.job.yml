@@ -15,8 +15,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml \
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml \
          --module exporter"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
@@ -27,7 +27,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-test-runner
       - build-external-test-runner-agfhc
       - build-external-kernel-module-manager
@@ -48,8 +48,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml \
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml \
          --module exporter"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
@@ -60,7 +60,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-test-runner
       - build-external-test-runner-agfhc
       - build-external-kernel-module-manager
@@ -82,7 +82,7 @@ e2e-targets:
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app gpu-operator \
          --type sanity --testbed /warmd.json --amdgpu-driver inbox \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml \
          --module exporter"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
@@ -93,7 +93,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-test-runner
       - build-external-test-runner-agfhc
       - build-external-kernel-module-manager
@@ -143,8 +143,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -153,12 +153,12 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
       - build-external-kernel-module-worker
-      - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+      - build-external-device-metrics-exporter-helm-artifact-v1.4.0
     resources:
     - generic:
       - type: K8-GPU-Node
@@ -172,8 +172,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -182,12 +182,12 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
       - build-external-kernel-module-worker
-      - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+      - build-external-device-metrics-exporter-helm-artifact-v1.4.0
     resources:
     - generic:
       - type: K8-GPU-Node
@@ -202,7 +202,7 @@ e2e-targets:
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment k8 --app exporter \
          --type sanity --testbed /warmd.json --amdgpu-driver inbox \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -211,12 +211,12 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
       - build-external-kernel-module-worker
-      - build-external-device-metrics-exporter-helm-artifact-v1.4.2
+      - build-external-device-metrics-exporter-helm-artifact-v1.4.0
     resources:
     - generic:
       - type: K8-GPU-Node
@@ -230,8 +230,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app debian \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -244,8 +244,8 @@ e2e-targets:
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
       - build-external-kernel-module-worker
-      - build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.2
-      - build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.2
+      - build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.0
+      - build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.0
     resources:
     - generic:
       - type: K8-GPU-Node
@@ -259,8 +259,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app debian \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -273,8 +273,8 @@ e2e-targets:
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server
       - build-external-kernel-module-worker
-      - build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.2
-      - build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.2
+      - build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.0
+      - build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.0
     resources:
     - generic:
       - type: K8-GPU-Node
@@ -288,8 +288,8 @@ e2e-targets:
         "-c",
         "cat /warmd.json && cd /gpu-operator/tests/pytests && \
          /gpu-operator/ci-internal/run_sanity.sh --deployment standalone --app docker \
-         --type sanity --testbed /warmd.json --amdgpu-driver 30.20.1 \
-         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.1_internal_images.yaml"
+         --type sanity --testbed /warmd.json --amdgpu-driver 7.0.1 \
+         --seed-image-manifest /gpu-operator/ci-internal/release_v1.4.0_internal_images.yaml"
     ]
     owners: ["email:srivatsa.sangli@amd.com"]
     tcp-ports: [5000]
@@ -298,7 +298,7 @@ e2e-targets:
     build-dependencies:
       - build-gpu-operator
       - build-gpu-operator-k8s
-      - build-external-device-metrics-exporter-v1.4.2
+      - build-external-device-metrics-exporter-v1.4.0
       - build-external-kernel-module-manager
       - build-external-kernel-module-signimage
       - build-external-kernel-module-webhook-server

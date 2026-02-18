@@ -25,6 +25,7 @@ import os
 import pprint
 import time
 import threading
+from packaging import version
 from collections import defaultdict
 from prometheus_client.parser import text_string_to_metric_families
 import lib.k8_util as k8_util
@@ -102,7 +103,7 @@ def parse_metric_data(http_response):
             })
     return metrics
 
-def get_supported_metrics(gpu_series = None, skip_profiler_metrics = True, amdgpu_driver = None):
+def get_supported_metrics(gpu_series = None, skip_profiler_metrics = True, amdgpu_driver = None, dme_version = None):
     global Logger
     with open('lib/files/metrics-support.json', 'r') as fp:
         data = json.load(fp)
@@ -124,30 +125,48 @@ def get_supported_metrics(gpu_series = None, skip_profiler_metrics = True, amdgp
 
     # check deprecation-matrix
     if amdgpu_driver:
+        amdgpu_driver_version = version.Version(amdgpu_driver)
         supported_metrics = []
         for entry in metrics:
-            deprecated = False
-            if entry.get("deprecation-matrix", None):
-                # Check driver-based deprecation
-                if amdgpu_driver and entry["deprecation-matrix"].get("driver", None):
-                    for ver, support in entry["deprecation-matrix"]["driver"].items():
-                        if amdgpu_driver >= ver:
-                            deprecated = True
-                            break
-            if not deprecated:
+            if entry.get("driver-support", None):
+                min_version = version.Version(entry["driver-support"].get("ini", "0.0.0"))
+                max_version = version.Version(entry["driver-support"].get("fini", "99.99.99"))
+                if min_version <= amdgpu_driver_version and amdgpu_driver_version <= max_version:
+                    supported_metrics.append(entry)
+            else:
+                supported_metrics.append(entry)
+        metrics = supported_metrics
+
+    # Filter based on supported device-metrics-exporter version
+    if dme_version:
+        if "exporter-0.0.1" in dme_version:
+            exporter_version = version.Version("v99.99.99") # TODO: Hack till CI/CD versioning is fixed
+            #Logger.debug(f"Running latest/main DME {exporter_version}")
+        else:
+            exporter_version = version.Version(dme_version.split("-")[0])
+            #Logger.debug(f"Running DME {exporter_version}")
+        supported_metrics = []
+        for entry in metrics:
+            if entry.get("exporter-support", None):
+                min_version = version.Version(entry["exporter-support"].get("ini", "v1.0.0"))
+                max_version = version.Version(entry["exporter-support"].get("fini", "v99.99.99"))
+                if min_version <= exporter_version and exporter_version <= max_version:
+                    supported_metrics.append(entry)
+            else:
                 supported_metrics.append(entry)
         metrics = supported_metrics
     return metrics
 
-def is_metric_supported(metric_to_test, gpu_series, amdgpu_driver):
+def is_metric_supported(metric_to_test, gpu_series, amdgpu_driver, dme_version):
     global Logger
 
     supported_metrics = get_supported_metrics(gpu_series = gpu_series,
                                               skip_profiler_metrics = False,
-                                              amdgpu_driver = amdgpu_driver)
+                                              amdgpu_driver = amdgpu_driver, dme_version = dme_version)
 
     for entry in supported_metrics:
-        if entry['name'].lower() == metric_to_test.lower():
+        metric_name = entry['name']
+        if metric_name.lower() == metric_to_test.lower():
             return True
     return False
 
@@ -156,9 +175,20 @@ def get_metric_metadata(metric_to_test):
 
     all_metrics = get_supported_metrics(skip_profiler_metrics = False)
     for entry in all_metrics:
-        if entry['name'].lower() == metric_to_test.lower():
+        metric_name = entry['name']
+        if metric_name.lower() == metric_to_test.lower():
             return entry
     return None
+
+def is_metric_contingent(metric_to_test):
+    global Logger
+
+    metric_metadata = get_metric_metadata(metric_to_test)
+    if metric_metadata:
+        metric_types = metric_metadata.get("type", {})
+        if metric_types.get("contingent", "no") == "yes":
+            return True
+    return False
 
 def get_metric_support_info(metric_metadata, gpu_series):
     global Logger

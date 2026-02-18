@@ -3,16 +3,19 @@
         {
             "name" : "GPU_AFID_ERRORS",
             "skip-validation" : "yes",
-            "type" : [
-                "contingent"
-            ],
+            "type" : {
+                "contingent" : "yes"
+            },
             "gpu-support" : [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "amd-smi" : "",
                     "gpu-agent" : ""
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_PACKAGE_POWER",
@@ -100,10 +103,8 @@
         {
             "name": "GPU_HBM_TEMPERATURE",
             "skip-validation" : "yes",
-            "deprecation-matrix" : {
-                "driver" : {
-                    "6.14.14" : "yes"
-                }
+            "driver-support" : {
+                "fini" : "6.14.14"
             },
             "gpu-support": [
                 {
@@ -266,213 +267,456 @@
             ]
         },
         {
-            "name": "GPU_CLOCK:SYSTEM",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_SYSTEM",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status",
                     "amd-smi": "clock.gfx_{idx}.clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.0.0",
+                "fini" : "v1.4.1"
+            }
         },
         {
-            "name": "GPU_CLOCK:DATA",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_DATA",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] MEMORY",
                     "amd-smi": "clock.dclk_{idx}.clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.0.0",
+                "fini" : "v1.4.1"
+            }
         },
         {
-            "name": "GPU_CLOCK:SOC",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_SOC",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] VIDEO",
                     "amd-smi": "clock.socclk_{idx}.clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.0.0",
+                "fini" : "v1.4.1"
+            }
         },
         {
-            "name": "GPU_CLOCK:FABRIC",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_FABRIC",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.fclk_{idx}.clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.0.0",
+                "fini" : "v1.4.1"
+            }
         },
         {
-            "name": "GPU_CLOCK:MEMORY",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_MEMORY",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.mem_{idx}.clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.0.0",
+                "fini" : "v1.4.1"
+            }
         },
         {
-            "name": "GPU_CLOCK:VIDEO",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:GPU_CLOCK_TYPE_VIDEO",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.vclk_{idx}.clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.0.0",
+                "fini" : "v1.4.1"
+            }
         },
         {
-            "name": "GPU_MIN_CLOCK:SYSTEM",
-            "label" : "clock_type",
+            "name": "GPU_CLOCK:SYSTEM",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status",
+                    "amd-smi": "clock.gfx_{idx}.clk"
+                }
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
+        },
+        {
+            "name": "GPU_CLOCK:DATA",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
+            "gpu-support": [
+                {
+                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu-agent": "status.clock_status[i] MEMORY",
+                    "amd-smi": "clock.dclk_{idx}.clk"
+                }
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
+        },
+        {
+            "name": "GPU_CLOCK:SOC",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
+            "gpu-support": [
+                {
+                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu-agent": "status.clock_status[i] VIDEO",
+                    "amd-smi": "clock.socclk_{idx}.clk"
+                }
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
+        },
+        {
+            "name": "GPU_CLOCK:FABRIC",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
+            "gpu-support": [
+                {
+                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.fclk_{idx}.clk"
+                }
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
+        },
+        {
+            "name": "GPU_CLOCK:MEMORY",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
+            "gpu-support": [
+                {
+                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.mem_{idx}.clk"
+                }
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
+        },
+        {
+            "name": "GPU_CLOCK:VIDEO",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
+            "gpu-support": [
+                {
+                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu-agent": "status.clock_status[i] DATA",
+                    "amd-smi": "clock.vclk_{idx}.clk"
+                }
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
+        },
+        {
+            "name": "GPU_MIN_CLOCK:SYSTEM",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
+            "gpu-support": [
+                {
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu-agent": "status.clock_status",
                     "amd-smi": "clock.gfx_{idx}.min_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MIN_CLOCK:DATA",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] MEMORY",
                     "amd-smi": "clock.dclk_{idx}.min_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MIN_CLOCK:SOC",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] VIDEO",
                     "amd-smi": "clock.socclk_{idx}.min_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MIN_CLOCK:FABRIC",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.fclk_{idx}.min_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MIN_CLOCK:MEMORY",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.mem_{idx}.min_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MIN_CLOCK:VIDEO",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.vclk_{idx}.min_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MAX_CLOCK:SYSTEM",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status",
                     "amd-smi": "clock.gfx_{idx}.max_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MAX_CLOCK:DATA",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] MEMORY",
                     "amd-smi": "clock.dclk_{idx}.max_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MAX_CLOCK:SOC",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] VIDEO",
                     "amd-smi": "clock.socclk_{idx}.max_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MAX_CLOCK:FABRIC",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.fclk_{idx}.max_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MAX_CLOCK:MEMORY",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.mem_{idx}.max_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_MAX_CLOCK:VIDEO",
-            "label" : "clock_type",
+            "type" : {
+                "labeled" : {
+                    "label" : "clock_type"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "status.clock_status[i] DATA",
                     "amd-smi": "clock.vclk_{idx}.max_clk"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name": "GPU_POWER_USAGE",
             "skip-validation" : "yes",
             "gpu-support": [
                 {
-                    "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent": "stats.power_usage",
                     "amd-smi": "gpu_metrics.average_socket_power"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "fini" : "v1.4.1"
+            }
         },
         {
             "name": "GPU_TOTAL_VRAM",
@@ -1888,7 +2132,7 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.hbm_thermal_violation_activity"
                 }
             ]
         },
@@ -1899,7 +2143,7 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.ppt_violation_activity"
                 }
             ]
         },
@@ -1910,9 +2154,12 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.prochot_violation_activity"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_SOCKET_THERMAL_RESIDENCY_PERCENTAGE",
@@ -1921,9 +2168,12 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.socket_thermal_violation_activity"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_VR_THERMAL_RESIDENCY_PERCENTAGE",
@@ -1932,97 +2182,164 @@
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.vr_thermal_violation_activity"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_POWER_ACCUMULATED",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.gfx_clk_below_host_limit_power_accumulated.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_THERMAL_ACCUMULATED",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.gfx_clk_below_host_limit_thermal_accumulated.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
-            "name" : "GPU_VIOLATION_GFX_CLOCK_LOW_UTILIZATION_ACCUMULATED",
+            "name" : "GPU_VIOLATION_LOW_UTILIZATION_ACCUMULATED",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.low_utilization_accumulated.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_TOTAL_ACCUMULATED",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.total_gfx_clk_below_host_limit_accumulated.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_THERMAL_PERCENTAGE",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.gfx_clk_below_host_limit_thermal_violation_activity.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_POWER_PERCENTAGE",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.gfx_clk_below_host_limit_power_violation_activity.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
-            "name" : "GPU_VIOLATION_GFX_CLOCK_LOW_UTILIZATION_PERCENTAGE",
+            "name" : "GPU_VIOLATION_LOW_UTILIZATION_PERCENTAGE",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
-                    "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
+                    "gpu" : ["MI325X", "MI325X-VF", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.low_utilization_violation_activity.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         },
         {
             "name" : "GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_TOTAL_PERCENTAGE",
             "skip-validation" : "yes",
+            "type" : {
+                "array" : {
+                    "label" : "xcc_index"
+                }
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI325X", "MI325X-VF", "MI300X", "MI350X"],
                     "gpu-agent" : "",
-                    "amd-smi" : ""
+                    "amd-smi" : "throttle.total_gfx_clk_below_host_limit_violation_activity.xcp_{partition_id}"
                 }
-            ]
+            ],
+            "exporter-support" : {
+                "ini" : "v1.4.2"
+            }
         }
     ]
 }

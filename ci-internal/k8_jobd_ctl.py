@@ -621,6 +621,13 @@ def _pull_images(logger, node, image_manifest_file, target):
             if result.return_code != 0:
                 logger.error(f"Failed to download image : {img} on node {node}")
                 return_val = False
+            else:
+                logger.info(f"Successfully downloaded image {img} on node {node}")
+    result = run_command(node, "sudo crictl images")
+    if result.return_code == 0:
+        logger.info(f"Following images are downloaded on node {node}, {result.stdout}")
+    else:
+        logger.error(f"Failed to collect downloaded images from node {node}")
     return return_val
 
 def _run_testbed_commands(logger):

@@ -82,13 +82,13 @@ function launch_pytest() {
     then
         if [[ "${TC_NAME}" != "ALL" ]];
         then
-            html_file=logs/${DEPLOYMENT}_${TC_MODULE}_${TC_NAME}.html
-            xml_file=logs/${DEPLOYMENT}_${TC_MODULE}_${TC_NAME}.xml
+            html_file=logs/${DEPLOYMENT}_${APP_NAME}_${TC_MODULE}_${TC_NAME}.html
+            xml_file=logs/${DEPLOYMENT}_${APP_NAME}_${TC_MODULE}_${TC_NAME}.xml
             test_sel=${DEPLOYMENT}/${APP_NAME}/test_${TC_MODULE}.py::test_${TC_NAME}
         else
-            test_sel=${DEPLOYMENT}/${APP_NAME}/test_${TC_MODULE}.py
-            html_file=logs/${test_sel}.html
-            xml_file=logs/${test_sel}.xml
+            html_file=logs/${DEPLOYMENT}_${APP_NAME}_${TC_MODULE}.html
+            xml_file=logs/${DEPLOYMENT}_${APP_NAME}_${TC_MODULE}.xml
+            test_sel="${DEPLOYMENT}/${APP_NAME}/ -k ${TC_MODULE}"
         fi
     fi
     CMD_OPT="--verbose --show-capture=log --no-header -p no:warnings --disable-warnings --self-contained-html"

@@ -378,7 +378,8 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, amdgpu_driver_instal
         if node.is_gpu_node():
             metrics_data = metric_util.get_supported_metrics(gpu_series = node.gpu_series,
                                                              skip_profiler_metrics = False,
-                                                             amdgpu_driver = node.amdgpu_driver_version)
+                                                             amdgpu_driver = node.amdgpu_driver_version, 
+                                                             dme_version = environment.exporter_version)
             list_of_metrics_set.append(set(map(lambda x: x['name'].split(":")[0].lower(), metrics_data)))
     common_metrics = list(functools.reduce(lambda s1, s2: s1.intersection(s2), list_of_metrics_set))
     Logger.info(f"Using {common_metrics} for metrics-exporter configmap validation")
@@ -495,6 +496,13 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, amdgpu_driver_instal
             obs_metric_info = metric_util.parse_metric_data(resp)
             obs_metrics = set(obs_metric_info.keys())
 
+            # To ignore any contingent metric(s), adding to obs_metrics
+            for metric in expected_metrics:
+                if metric in {'promhttp_metric_handler_errors_total', 'gpu_nodes_total'}:
+                    continue
+                if metric_util.is_metric_contingent(metric):
+                    obs_metrics.add(metric)
+
             # Check for metrics
             if obs_metrics != expected_metrics:
                 Logger.error(f"Mismatch in metrics Expected : {expected_metrics} vs Observed : {obs_metrics} config-map:{exp_config}")
@@ -534,20 +542,35 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, amdgpu_driver_inst
 
     def _test_if_metrics_exported(metric_to_test, gpu_id, exporter_metrics):
         metric_metadata = metric_util.get_metric_metadata(metric_to_test)
-        if ':' in metric_to_test:
-            label_name = metric_metadata['label']
-            metric_name, label_value = metric_to_test.split(":")
+        metric_types = metric_metadata.get("type", {})
+        if 'labeled' in metric_types.keys():
+            if ':' in metric_to_test:
+                label_name = metric_types['labeled']['label']
+                metric_name, label_value = metric_to_test.split(":")
+                m_info_list = []
+                for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
+                    if entry['labels']['gpu_id'] != str(gpu_id):
+                        continue
+                    K8Helper.triage(environment, (label_name in entry['labels']),
+                                    f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
+                    lval = entry['labels'][label_name]
+                    if lval.lower() != label_value.lower():
+                        continue
+                    m_info_list.append(entry)
+
+                Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
+                if len(m_info_list) > 0:
+                    Logger.info(f"Found {len(m_info_list)} entries of {metric_to_test}")
+                    return True
+        elif 'array' in metric_types.keys():
+            label_name = metric_types['array']['label']
             m_info_list = []
-            for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
+            for _, entry in enumerate(exporter_metrics[metric_to_test.lower()]):
                 if entry['labels']['gpu_id'] != str(gpu_id):
                     continue
                 K8Helper.triage(environment, (label_name in entry['labels']),
                                 f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
-                lval = entry['labels'][label_name]
-                if lval.lower() != label_value.lower():
-                    continue
                 m_info_list.append(entry)
-
             Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
             if len(m_info_list) > 0:
                 Logger.info(f"Found {len(m_info_list)} entries of {metric_to_test}")
@@ -556,8 +579,8 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, amdgpu_driver_inst
             if metric_to_test.lower() in exporter_metrics:
                 Logger.info(f"Found {metric_to_test}")
                 return True
-        metric_types = metric_metadata.get("type", [])
-        if "contingent" in metric_types:
+
+        if metric_types.get("contingent", "no") == "yes":
             Logger.warning(f"Missing {metric_to_test} - contingent")
             return True
 
@@ -664,7 +687,8 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, amdgpu_driver_inst
 
         supported_metrics = metric_util.get_supported_metrics(gpu_series = node.gpu_series,
                                                               skip_profiler_metrics = False,
-                                                              amdgpu_driver = node.amdgpu_driver_version)
+                                                              amdgpu_driver = node.amdgpu_driver_version,
+                                                              dme_version = environment.exporter_version)
         Logger.info(f"Node: {node.host_name} having {node.gpu_series} has {len(supported_metrics)} metrics")
         for entry in supported_metrics:
             metric_to_test = entry['name']
@@ -676,7 +700,7 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, amdgpu_driver_inst
 
     K8Helper.triage(environment, (len(failed_endpoints) == 0), f"One or more metric endpoints HTTP-GET failed, nodes: {failed_endpoints}")
     K8Helper.triage(environment, (len(failed_metrics) == 0),
-                    f"Metics validation failed: {failed_metrics.keys()} from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
+                    f"Metics validation failed: {list(failed_metrics.keys())} from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
 
 def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, amdgpu_driver_install, images, environment):
     global Logger

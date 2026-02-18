@@ -185,6 +185,40 @@ builds:
     artifacts:
      - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
 
+  # Following are added for specific v1.4.0.x DME patch-release
+  build-external-device-metrics-exporter-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+
+  build-external-device-metrics-exporter-helm-artifact-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-helm-artifact \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-helm-artifact --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+     - /device-metrics-exporter/tools/techsupport_dump.sh
+
+  build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub22.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub22.04 --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+
+  build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub24.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub24.04 --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+
 targets:
   gpu-operator-sanity:
     commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make generate && make vet && make lint && make unit-test"]
@@ -235,18 +269,14 @@ jobs:
     labels: ["CI-Precheckin-Gpuoperator"]
   asset-build:
     labels: ["CI-Sanity-Build"]
-  tests/jobs/compat/mi200:
-    labels: ["CI-Pytest-Compat-MI200"]
-  tests/jobs/compat/mi210:
-    labels: ["CI-Pytest-Compat-MI210"]
-  tests/jobs/compat/mi250:
-    labels: ["CI-Pytest-Compat-MI250"]
   tests/jobs/sanity:
     labels: ["CI-Pytest-Sanity"]
   tests/jobs/regression:
     labels: ["CI-Sanity-Build", "CI-Pytest-Regression"]
   tests/jobs/operand-release/v1.4.2:
-    labels: ["CI-Sanity-Build", "CI-Pytest-Operand-Release-v1.4.2"]
+    labels: ["CI-Pytest-Operand-Release-v1.4.2"]
+  tests/jobs/operand-release/v1.4.0.x:
+    labels: ["CI-Pytest-Operand-Release-v1.4.0"]
       # ci-internal:
     #    labels: [""]
 host_mounts:

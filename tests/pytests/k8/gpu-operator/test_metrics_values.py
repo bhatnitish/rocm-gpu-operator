@@ -216,7 +216,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize('prof_metric_to_test', metrics_to_test)
 
 
-def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environment):
+def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, images, environment):
     """
     Ensure the exporter endpoint returns all supported metrics for the designated GPU series via curl.
     """
@@ -225,20 +225,35 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
 
     def _test_if_metrics_exported(metric_to_test, gpu_id, exporter_metrics):
         metric_metadata = metric_util.get_metric_metadata(metric_to_test)
-        if ':' in metric_to_test:
-            label_name = metric_metadata['label']
-            metric_name, label_value = metric_to_test.split(":")
+        metric_types = metric_metadata.get("type", {})
+        if 'labeled' in metric_types.keys():
+            if ':' in metric_to_test:
+                label_name = metric_types['labeled']['label']
+                metric_name, label_value = metric_to_test.split(":")
+                m_info_list = []
+                for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
+                    if entry['labels']['gpu_id'] != str(gpu_id):
+                        continue
+                    K8Helper.triage(environment, (label_name in entry['labels']),
+                                    f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
+                    lval = entry['labels'][label_name]
+                    if lval.lower() != label_value.lower():
+                        continue
+                    m_info_list.append(entry)
+
+                Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
+                if len(m_info_list) > 0:
+                    Logger.info(f"Found {len(m_info_list)} entries of {metric_to_test}")
+                    return True
+        elif 'array' in metric_types.keys():
+            label_name = metric_types['array']['label']
             m_info_list = []
-            for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
+            for _, entry in enumerate(exporter_metrics[metric_to_test.lower()]):
                 if entry['labels']['gpu_id'] != str(gpu_id):
                     continue
                 K8Helper.triage(environment, (label_name in entry['labels']),
                                 f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
-                lval = entry['labels'][label_name]
-                if lval.lower() != label_value.lower():
-                    continue
                 m_info_list.append(entry)
-
             Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
             if len(m_info_list) > 0:
                 Logger.info(f"Found {len(m_info_list)} entries of {metric_to_test}")
@@ -247,8 +262,8 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
             if metric_to_test.lower() in exporter_metrics:
                 Logger.info(f"Found {metric_to_test}")
                 return True
-        metric_types = metric_metadata.get("type", [])
-        if "contingent" in metric_types:
+
+        if metric_types.get("contingent", "no") == "yes":
             Logger.warning(f"Missing {metric_to_test} - contingent")
             return True
 
@@ -274,7 +289,8 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
 
         supported_metrics = metric_util.get_supported_metrics(gpu_series = cluster_node.gpu_series,
                                                               skip_profiler_metrics = False,
-                                                              amdgpu_driver = cluster_node.amdgpu_driver_version)
+                                                              amdgpu_driver = cluster_node.amdgpu_driver_version,
+                                                              dme_version = images['metricsExporter.image.version'])
         Logger.info(f"Node: {node_name} having {cluster_node.gpu_series} has {len(supported_metrics)} metrics")
         for entry in supported_metrics:
             metric_to_test = entry['name']
@@ -290,7 +306,7 @@ def test_exporter_all_supported_metrics(gpu_cluster, metrics_samples, environmen
                     f"Metics validation failed: {failed_metrics.keys()} from exported-metrics\n{LogPrettyPrinter.pformat(failed_metrics)}")
 
 
-def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to_test, environment):
+def test_exporter_metrics_value_accuracy(gpu_cluster, images, metrics_samples, metric_to_test, environment):
     """
     To verify that the metrics published by the AMD Device Metrics Exporter (DME)
     accurately reflect the real-time hardware state as reported by the amd-smi utility.
@@ -298,6 +314,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
 
     global Logger
     metric_metadata = metric_util.get_metric_metadata(metric_to_test)
+    metric_types = metric_metadata.get("type", {})
     def _extract_amd_smi_value(amd_smi_metrics, path_to_metric):
         if len(path_to_metric) == 0:
             return None
@@ -329,8 +346,10 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
             K8Helper.triage(environment, (amd_smi_source != None),
                             f"Missing amd-smi source information for {metric_to_test}, {gpu_support_info}")
 
-            if ':' in metric_to_test:
-                label_name = metric_metadata['label']
+            if 'labeled' in metric_types.keys():
+                if ':' not in metric_to_test:
+                    pytest.fail(f"Invalid configuration - missing label-value for labeled metric {metric_to_test}")
+                label_name = metric_types['labeled']['label']
                 metric_name, label_value = metric_to_test.split(":")
                 m_info_list = []
                 for _, entry in enumerate(exporter_metrics[metric_name.lower()]):
@@ -358,6 +377,48 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
                     else:
                         break
                     idx = idx + 1
+                Logger.debug(f"Found total {len(amd_smi_values)} from amd-smi output for {metric_to_test}")
+                for idx, entry in enumerate(list(zip(m_info_list, amd_smi_values))):
+                    metric_info, amd_smi_val = entry
+                    if isinstance(amd_smi_val, dict):
+                        if amd_smi_val["value"] == "N/A":
+                            Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
+                            continue
+                        lower_limit = int(0.95 * float(amd_smi_val["value"]))
+                        upper_limit = int(1.05 * float(amd_smi_val["value"]))
+                    elif isinstance(amd_smi_val, int):
+                        lower_limit = int(0.95 * float(amd_smi_val))
+                        upper_limit = int(1.05 * float(amd_smi_val))
+                    elif isinstance(amd_smi_val, str) and amd_smi_val == "N/A":
+                        Logger.warn(f"No amd-smi metric information for idx {idx} {metric_to_test}, got {amd_smi_val}")
+                        continue
+                    Logger.debug(f"{metric_to_test} Sample:{sample_id} AMD-SMI: {amd_smi_val}, exporter : {metric_info}")
+                    if lower_limit <= int(metric_info["value"]) <= upper_limit:
+                        hit_count = hit_count + 1
+                    else:
+                        miss_count = miss_count + 1
+            elif 'array' in metric_types.keys():
+                label_name = metric_types['array']['label']
+                m_info_list = []
+                for _, entry in enumerate(exporter_metrics[metric_to_test.lower()]):
+                    if entry['labels']['gpu_id'] != str(gpu_id):
+                        continue
+                    K8Helper.triage(environment, (label_name in entry['labels']),
+                                    f"Label {label_name} missing in exported metrics {entry}, {metric_metadata}")
+                    m_info_list.append(entry)
+                Logger.debug(f"Found total {len(m_info_list)} exported metrics for {metric_to_test}")
+                K8Helper.triage(environment, (len(m_info_list) > 0),
+                                f"Unable to get {metric_to_test} from exporter-metrics for gpu:{gpu_id}")
+                path_to_metric = amd_smi_source.format(partition_id = partition_id).split(".")
+                if isinstance(amd_smi_metrics, list):
+                    amd_smi_value_list = _extract_amd_smi_value(amd_smi_metrics[gpu_id], path_to_metric)
+                elif isinstance(amd_smi_metrics, dict) and 'gpu_data' in amd_smi_metrics.keys():
+                    amd_smi_value_list = _extract_amd_smi_value(amd_smi_metrics['gpu_data'][gpu_id], path_to_metric)
+                for amd_smi_val in amd_smi_value_list:
+                    if amd_smi_val != None:
+                        amd_smi_values.append(amd_smi_val)
+                    else:
+                        break
                 Logger.debug(f"Found total {len(amd_smi_values)} from amd-smi output for {metric_to_test}")
                 for idx, entry in enumerate(list(zip(m_info_list, amd_smi_values))):
                     metric_info, amd_smi_val = entry
@@ -428,7 +489,8 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
 
-        if not metric_util.is_metric_supported(metric_to_test, cluster_node.gpu_series, cluster_node.amdgpu_driver_version):
+        if not metric_util.is_metric_supported(metric_to_test, cluster_node.gpu_series, cluster_node.amdgpu_driver_version, 
+                                               images["metricsExporter.image.version"]):
             continue
         metric_validated = True
 
@@ -473,7 +535,7 @@ def test_exporter_metrics_value_accuracy(gpu_cluster, metrics_samples, metric_to
     if not metric_validated:
         pytest.skip(f"Metric {metric_to_test} cannot be validated in this setup - skip")
 
-def test_exporter_prof_metrics_support(gpu_cluster, metrics_samples, prof_metric_to_test, environment):
+def test_exporter_prof_metrics_support(gpu_cluster, images, metrics_samples, prof_metric_to_test, environment):
     """
     Verify that variations are reflected in the profiler metrics published by the AMD Device Metrics Exporter (DME).
     """
@@ -535,7 +597,8 @@ def test_exporter_prof_metrics_support(gpu_cluster, metrics_samples, prof_metric
             pytest.fail(f"Unable to get worker node from cluster for ip: {node_ip}")
         node_name = k8_util.k8_get_node_hostname(node)
 
-        if not metric_util.is_metric_supported(prof_metric_to_test, cluster_node.gpu_series, cluster_node.amdgpu_driver_version):
+        if not metric_util.is_metric_supported(prof_metric_to_test, cluster_node.gpu_series, cluster_node.amdgpu_driver_version, 
+                                               images["metricsExporter.image.version"]):
             continue
         metric_validated = True
 
