@@ -24,3 +24,4 @@ kubernetes
 prometheus_client
 xmltodict
 py
+requests_toolbelt

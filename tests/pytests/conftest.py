@@ -181,12 +181,16 @@ def pytest_metadata(metadata):
     metadata.clear()
 
 @pytest.fixture(scope="function", autouse=True)
-def update_environment(request, environment):
+def context(request, environment):
     global Logger
-    setattr(environment, 'current_tc_name', request.node.name)
+    class Context(object):
+        pass
+
+    environment.context = Context()
+    setattr(environment.context, 'current_tc_name', request.node.name)
     Logger.debug(f"Starting Testcase: {request.node.name}")
     yield
-    delattr(environment, 'current_tc_name')
+    environment.context = None
     Logger.debug(f"Testcase Completed: {request.node.name}")
 
 @pytest.fixture(scope="session")

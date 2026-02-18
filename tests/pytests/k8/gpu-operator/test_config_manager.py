@@ -658,14 +658,14 @@ def verify_logs(environment, log_msg_list, pod_str="config-manager", since="1800
             debug_on_failure(environment, flag,
                              f"didn't find one of {log_msg_list} in\n" + LogPrettyPrinter.pformat(stdout.split('\n')))
 
-def wait_for_pods(local_workload_ctxts):
+def wait_for_pods(environment,local_workload_ctxts):
     workload_pods = []
     status_info = None
     for ctxt in local_workload_ctxts:
         workload_pods.append(common.PodInfo(ctxt['pod_name'], 1, 1))
 
     for _ in range(2):
-        status_info = k8_util.k8_check_pod_status("default", workload_pods)
+        status_info = k8_util.k8_check_pod_status(environment, "default", workload_pods)
         if "Pending" in status_info.values():
             time.sleep(5)
         else:
@@ -885,7 +885,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
         request.addfinalizer(_cleanup_workload)
         _untaint_all_nodes()
         _start_workload()
-        status_info = wait_for_pods(local_workload_ctxts)
+        status_info = wait_for_pods(environment, local_workload_ctxts)
         for status in status_info.values():
             debug_on_failure(environment, status == 'Running',
                              f"Workload not in RUNNING state, {pprint.pformat(status_info)}")
@@ -944,7 +944,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
     if workload:
         # Since earlier workload would have evicted, recreate and check it lands in PENDING state
         _start_workload()
-        status_info = wait_for_pods(local_workload_ctxts)
+        status_info = wait_for_pods(environment, local_workload_ctxts)
         debug_on_failure(environment, status_info[local_workload_ctxts[-1]['pod_name']] == 'Pending',
                          f"Workload not in PENDING state, {pprint.pformat(local_workload_ctxts[-1])}")
         debug_on_failure(environment, status_info[local_workload_ctxts[0]['pod_name']] == 'Running',
@@ -989,7 +989,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
     after_events = k8_util.k8_get_events(namespace=environment.gpu_operator_namespace)
 
     if workload:
-        status_info = wait_for_pods(local_workload_ctxts)
+        status_info = wait_for_pods(environment, local_workload_ctxts)
         workload_status = []
         for status in status_info.values():
             workload_status.append(status == 'Running')

@@ -1069,15 +1069,19 @@ def k8_delete_cron_job(namespace : str, job_name : str):
         return -1, "", str(e)
 
 @log_arguments
-def k8_check_pod_status(namespace : str, pod_list : List) -> Dict:
+def k8_check_pod_status(environment, namespace, pod_list) -> Dict:
+    """
+    API to check the status of pods in a given namespace, returns a dict of pod_name -> phase and pod info
+    """
     pod_status = dict()
     ret_code, k8_pod_list = k8_get_pods(namespace)
     assert ret_code == 0, "Error while getting all pods from k8-cluster"
     for pod_info in pod_list:
         sel_pods = list(filter(lambda x: pod_info.PodName in x['metadata'].get('name', None), k8_pod_list))
         for sel_pod_info in sel_pods:
+            name = sel_pod_info.get('metadata', {}).get('name')
             status_json = sel_pod_info.get('status', {})
-            pod_status[sel_pod_info['metadata'].get('name')] = status_json.get('phase', 'Done')
+            pod_status[name] = (status_json.get('phase', 'Unknown'), sel_pod_info)
     return pod_status
 
 
@@ -1547,40 +1551,55 @@ def k8_watch_daemon_set_rollout(namespace, timeout = 300):
     """
     global Logger
 
+    def _is_rollout_complete(ds):
+        status = getattr(ds, "status", None)
+        if not status:
+            return False
+        observed_generation = status.observed_generation or 0
+        generation = ds.metadata.generation or 0
+        updated_scheduled = status.updated_number_scheduled or 0
+        desired_scheduled = status.desired_number_scheduled or 0
+        num_available = status.number_available or 0
+
+        if observed_generation < generation:
+            return False
+
+        return updated_scheduled == desired_scheduled and num_available == desired_scheduled
+
     start_time = time.time()
     v1_api = client.AppsV1Api()
     watcher = watch.Watch()
+    ds_items  = v1_api.list_namespaced_daemon_set(namespace=namespace).items
+    ds_status = {ds.metadata.name : False for ds in ds_items }
+ 
+    if not ds_status:
+        Logger.info(f"No DaemonSets present in namespace {namespace}")
+        return  ds_status
+
+    for ds in ds_items:
+        if _is_rollout_complete(ds):
+            ds_status[ds.metadata.name] = True
+            if all(ds_status.values()):
+                Logger.info(f"All DaemonSets in namespace {namespace} already rolled out")
+                return ds_status
+
     for event in watcher.stream(v1_api.list_namespaced_daemon_set,
                                 namespace = namespace,
-                                timeout_seconds = 10):
+                                timeout_seconds = timeout):
         daemon_set = event["object"]
-        status = daemon_set.status
-        if (time.time() - start_time) > timeout:
-            Logger.error(f"Daemonset in namespace {namespace} rollout timeout")
-            watcher.stop()
-            return False
 
-        # TODO: Enhancements
-        #labels = ",".join([f"{k}={v}" for k, v in ds.spec.selector.match_labels.items()])
-        #pods = core_v1.list_namespaced_pod(namespace, label_selector=labels)
-        #for pod in pods.items:
-        #    if pod.status.container_statuses:
-        #        for cs in pod.status.container_statuses:
-        #            if cs.state.waiting and cs.state.waiting.reason in ["ImagePullBackOff", "CrashLoopBackOff", "ErrImagePull"]:
-        #                watcher.stop()
-        #                return False
-
-        if daemon_set.metadata.generation == 1 or status.observed_generation > daemon_set.metadata.generation:
-            updated_scheduled = status.updated_number_scheduled or 0
-            desired_scheduled = status.desired_number_scheduled or 0
-            num_available = status.number_available or 0
-            if updated_scheduled == desired_scheduled and num_available == desired_scheduled:
-                Logger.info(f"Daemonset rollout complete")
+        if _is_rollout_complete(daemon_set):
+            ds_status[daemon_set.metadata.name] = True
+            Logger.info(f"Daemonset {daemon_set.metadata.name} rollout complete")
+            if all(ds_status.values()):
                 watcher.stop()
-                return True
-    Logger.error(f"Daemonset rollout failed to complete within given time")
-    return False
+                break
 
+    if not all(ds_status.values()) and (time.time() - start_time) >= timeout:
+        Logger.error(f"Daemonset in namespace {namespace} rollout timeout")     
+
+    return ds_status
+    
 @log_arguments
 def k8_metrics_error(counts, error_list, namespace : str):
     """

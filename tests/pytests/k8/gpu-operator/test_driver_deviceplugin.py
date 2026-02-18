@@ -593,7 +593,7 @@ def test_driver_deviceplugin_multiple_workloads_with_gpu(request, deviceconfig_i
     ]
     workload_status = None
     for _ in range(5):
-        status_info = k8_util.k8_check_pod_status("default", workload_pods)
+        status_info = k8_util.k8_check_pod_status(environment, "default", workload_pods)
         workload_status = status_info[second_workload['pod_name']]
         if workload_status == 'Pending':
             time.sleep(30)

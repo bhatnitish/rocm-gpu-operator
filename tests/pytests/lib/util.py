@@ -156,7 +156,7 @@ class K8Helper:
         time.sleep(20)
         for _ in range(10):
             build_pod_status.clear()
-            status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, build_pods)
+            status_info = k8_util.k8_check_pod_status(environment, environment.gpu_operator_namespace, build_pods)
             Logger.debug(f"build pod status: {status_info}")
 
             for pod_name, status in status_info.items():
@@ -191,7 +191,7 @@ class K8Helper:
         time.sleep(20)
         for _ in range(5):
             kmm_pod_status.clear()
-            status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, kmm_worker_pods)
+            status_info = k8_util.k8_check_pod_status(environment, environment.gpu_operator_namespace, kmm_worker_pods)
             Logger.debug(f"kmm-worker status: {status_info}")
 
             for pod_name, status in status_info.items():
@@ -351,6 +351,12 @@ class K8Helper:
             # Test/condition passed
             return
         # Test/Condition Failed - triage
+        ctx = getattr(environment, 'context', None)
+        if ctx and hasattr(ctx, 'current_tc_name') and hasattr(ctx, 'unhealthy_pods'):
+            Logger.info(f"Adding context about testcase with unhealthy pods information")
+            context_file = os.path.join(environment.logdir, f"context_{environment.context.current_tc_name}.json")
+            with open(context_file, "w") as fp:
+                fp.write(json.dumps(environment.context.unhealthy_pods, indent=4, default= str))
         if expected_to_fail:
             pytest.xfail(message)
         else:
@@ -367,9 +373,9 @@ class K8Helper:
                 if cmd_resp.returncode == 0:
                     for file_name in os.listdir(os.getcwd()):
                         if "techsupport-" in file_name:
-                            if hasattr(environment, 'current_tc_name'):
+                            if ctx and hasattr(ctx, 'current_tc_name'):
                                 shutil.move(file_name, 
-                                            os.path.join(environment.logdir, "tech-support", f"tech_support_{environment.current_tc_name}.tgz"))
+                                            os.path.join(environment.logdir, "tech-support", f"tech_support_{environment.context.current_tc_name}.tgz"))
                             else:
                                 shutil.move(file_name, environment.logdir)
                             break
@@ -426,7 +432,7 @@ class K8Helper:
             if workload_config.get("no_look", False):
                 return None
             for _ in range(20):
-                status_info = k8_util.k8_check_pod_status(cr_spec['metadata']['namespace'], workload_pods)
+                status_info = k8_util.k8_check_pod_status(environment, cr_spec['metadata']['namespace'], workload_pods)
                 Logger.debug(f"workload pod status: {status_info}")
                 for pod_name, status in status_info.items():
                     if pod_name == workload_config['pod_name']:
@@ -542,7 +548,7 @@ class K8Helper:
                 })
 
             for _ in range(5):
-                status_info = k8_util.k8_check_pod_status(namespace, workload_pods)
+                status_info = k8_util.k8_check_pod_status(environment, namespace, workload_pods)
                 Logger.debug(f"test-runner pod status: {status_info}")
                 for pod_name, status in status_info.items():
                     if workload_config['pod_name'] in pod_name:
@@ -594,3 +600,61 @@ class K8Helper:
             k8_util.k8_delete_all_pods_with_name_pattern(namespace, "test-runner-manual-trigger-")
         return
 
+    @staticmethod
+    def watch_for_daemon_rollout(environment, namespace, gpu_nodes_count):
+        # Check for daemon rollout to complete and PODs to be started and completed
+        global Logger
+        ds_status = k8_util.k8_watch_daemon_set_rollout(namespace) 
+        
+        if all(ds_status.values()) : 
+            return 
+
+        Logger.warning(f"Daemonset rollout did not complete in namespace '{namespace}'. Checking pod statuses...")
+        ds_pods = [common.PodInfo(ds_name, gpu_nodes_count, 1) for ds_name in ds_status]
+        unhealthy_pods = []
+        status_summary = {}
+
+        status_info = k8_util.k8_check_pod_status(environment, namespace, ds_pods)
+        for name, (phase, full_pod_info) in status_info.items():
+            status_summary[name] = phase
+            if  K8Helper.is_unhealthy_pod(full_pod_info):
+                unhealthy_pods.append(full_pod_info)
+
+        if unhealthy_pods:
+            setattr(environment.context, 'unhealthy_pods', unhealthy_pods )
+            K8Helper.triage(environment, False, f"Daemonset rollout failed in '{namespace}': {len(unhealthy_pods)} pods are unhealthy.")
+
+    @staticmethod
+    def is_unhealthy_pod(pod: dict) -> bool:
+        metadata = pod.get('metadata', {})
+        status = pod.get("status", {})
+        phase = status.get('phase', 'Unknown')
+        name = metadata.get('name', '')
+
+        if metadata.get('deletionTimestamp'):
+            Logger.warning(f"Pod {name} is being deleted.")
+            return True
+        if phase in {'Failed', 'Unknown'}:
+            Logger.error(f"Pod {name} is in critical phase: {phase}")
+            return True
+
+        bad_reasons = {'CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError', 
+                    'CreateContainerError', 'RunContainerError', 'ContainerCreating'}
+        
+        container_statuses = status.get('initContainerStatuses', []) + status.get('containerStatuses', [])
+        for cs in container_statuses:
+            waiting = cs.get('state', {}).get('waiting', {})
+            reason = waiting.get('reason')
+            if reason in bad_reasons:
+                Logger.error(f"Pod {name} container '{cs.get('name')}' error: {reason}")
+                return True
+        if phase == 'Pending':
+            msg = next((c.get('message') for c in status.get('conditions', []) if c.get('type') == 'PodScheduled' and c.get('status') == 'False'), 
+                    "Waiting for resources/init")
+            Logger.error(f"Pod {name} is Pending: {msg}")
+            return True
+        if phase == 'Running':
+            if not any(c.get('type') == 'Ready' and c.get('status') == 'True' for c in status.get('conditions', [])):
+                Logger.error(f"Pod {name} is Running but not Ready.")
+                return True
+        return False

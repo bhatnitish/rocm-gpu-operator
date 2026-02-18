@@ -30,6 +30,7 @@ from invoke.exceptions import UnexpectedExit
 from invoke.exceptions import CommandTimedOut
 from collections import namedtuple
 from enum import Enum
+from requests_toolbelt.adapters.host_header_ssl import HostHeaderSSLAdapter
 
 Logger = logging.getLogger("lib.common")
 
@@ -270,6 +271,30 @@ class cluster_node(object):
                 ret_code = -1
                 ret_stderr = f"Exception : {e}"
             time.sleep(5)
+        return ret_code, ret_stdout, ret_stderr
+
+    def session_https_get(self, http_port, url_suffix, retries = 5, cert= None, verify = False, CN= None):
+        if CN:
+            headers = {"Host": CN }
+        url = f"https://{self._ip_address}:{http_port}/{url_suffix}"
+        ret_code = 0
+        ret_stdout = ""
+        ret_stderr = ""
+        
+        with requests.Session() as session:
+            session.mount('https://', HostHeaderSSLAdapter())
+            for _ in range(retries):
+                try:
+                    resp = session.get(url, headers= headers, cert= cert, verify= verify)
+                    if resp.status_code == 200:
+                        return 0, resp.content, None
+                    else:
+                        ret_code = -1
+                        ret_stderr = f"Error : {resp}"
+                except Exception as e:
+                    ret_code = -1
+                    ret_stderr = f"Exception : {e}"
+                time.sleep(5)
         return ret_code, ret_stdout, ret_stderr
 
     def proxy_http_get(self, http_ip, http_port, url_suffix, token = None, retries = 5):

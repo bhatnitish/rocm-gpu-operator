@@ -132,7 +132,7 @@ def helm_install(k8_cluster : common.k8_cluster, release_name : str, namespace :
     if version:
         cmd.extend([f"--version={version}"])
 
-    for key, value in kwargs:
+    for key, value in kwargs.items():
         cmd.extend(["--set", f"{key}={value}"])
 
     if release_name == 'gpu-operator':

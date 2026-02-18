@@ -127,8 +127,7 @@ def gpu_operator_install(gpu_cluster, gpu_operator_release_name, images, environ
         Logger.error(f"Stdout: {ret_stdout}")
         Logger.error(f"Stderr: {ret_stderr}")
     K8Helper.triage(environment, (ret_code == 0), f"Failed to install {gpu_operator_release_name}")
-    if k8_util.k8_watch_daemon_set_rollout(environment.gpu_operator_namespace):
-        Logger.warning(f"{environment.gpu_operator_namespace} daemonset rollout failed")
+    K8Helper.watch_for_daemon_rollout(environment, environment.gpu_operator_namespace, len(gpu_cluster.cluster_nodes))
     time.sleep(30)
     yield
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
