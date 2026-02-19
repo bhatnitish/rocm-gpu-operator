@@ -962,6 +962,7 @@ RollingUpdate
 Techsupport
 UpgradeStrategy
 UtilsContainer
+AutoStartWorkflow
 allocatable
 allowPrivilegeEscalation
 amdgpuhealth
