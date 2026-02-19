@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# podman is used by openshift/RHEL instead of docker, this checks which one is available and uses that container engine.
+if command -v podman >/dev/null 2>&1; then
+  ENGINE=podman
+elif command -v docker >/dev/null 2>&1; then
+  if docker --version 2>/dev/null | grep -qi 'podman'; then
+    ENGINE=podman
+  else
+    ENGINE=docker
+  fi
+else
+  echo "No container engine found" >&2
+  exit 1
+fi
+
+echo "Using $ENGINE"
 
 echo "List builds for each sw-artifacts from amdpsdo"
 
@@ -39,7 +54,7 @@ function retrieve_all_posted_image_tags() {
     for artifact in "${build_artifacts[@]}" ;
     do
         echo "${artifact}:"
-        docker run --rm -it quay.io/skopeo/stable list-tags --creds=amdpsdo:dckr_oat_YirfnS7e0IMqU1vv-jMTn8rdBnQZeO5K docker://amdpsdo/$artifact | grep $RELEASE | sort 
+        $ENGINE run --rm -it quay.io/skopeo/stable list-tags --creds=amdpsdo:dckr_oat_YirfnS7e0IMqU1vv-jMTn8rdBnQZeO5K docker://amdpsdo/$artifact | grep $RELEASE | sort 
         echo ""
     done
 }
@@ -48,7 +63,7 @@ function retrieve_given_posted_image_tags() {
     artifact=$ARTIFACT
     echo ""
     echo "${artifact}:"
-    docker run --rm -it quay.io/skopeo/stable list-tags --creds=amdpsdo:dckr_oat_YirfnS7e0IMqU1vv-jMTn8rdBnQZeO5K docker://amdpsdo/$artifact | grep $RELEASE | sort 
+    $ENGINE run --rm -it quay.io/skopeo/stable list-tags --creds=amdpsdo:dckr_oat_YirfnS7e0IMqU1vv-jMTn8rdBnQZeO5K docker://amdpsdo/$artifact | grep $RELEASE | sort 
     echo ""
 }
 
@@ -88,3 +103,4 @@ then
 else
     retrieve_given_posted_image_tags
 fi
+
