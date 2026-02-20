@@ -382,7 +382,7 @@ def _load_images(logger, registry, seed_image_manifest, image_manifest, target):
         image_manifest_templ = yaml.load(fp)
 
     for tgt in ['k8', 'standalone', 'openshift']:
-        if target != tgt:
+        if target != tgt and tgt in image_manifest_templ['images']:
             del image_manifest_templ['images'][tgt]
 
     client = docker.from_env(timeout=300)

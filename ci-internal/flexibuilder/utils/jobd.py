@@ -22,6 +22,8 @@ class JobdInterface(object):
         filename = f"{target_id}{artifact_name}"
         full_url = f"{url_prefix}?filename={filename}"
         Logger.debug(f"Downloading {full_url} into {output}")
+        if os.getenv("JOB_ID") is None:
+            output = os.path.join("sandbox", output.lstrip("/"))
         os.makedirs(os.path.dirname(output), exist_ok = True)
         timer = timeprofiler.TimeProfiler()
         try:

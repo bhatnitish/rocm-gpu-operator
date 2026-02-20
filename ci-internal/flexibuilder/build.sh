@@ -138,7 +138,7 @@ echo CMD_ARGS=${CMD_ARGS}
 ARGS=( $CMD_ARGS )
 pip install beautifulsoup4
 pip install PyYAML
-time python3 /gpu-operator/ci-internal/flexibuilder/fb.py ${ARGS[*]}
+time python3 $PWD/ci-internal/flexibuilder/fb.py ${ARGS[*]}
 ret=$?
 
 exit $ret

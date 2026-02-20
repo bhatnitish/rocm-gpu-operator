@@ -155,7 +155,10 @@ class BuilderInterface:
                 for idx, entry in enumerate(self.target_spec['artifacts']):
                     _, ext = os.path.splitext(entry)
                     if ext == '.metadata':
-                        with open(entry, "w") as fp:
+                        metadata_file = entry
+                        if os.getenv("JOB_ID") is None:
+                            metadata_file = os.path.join("sandbox", metadata_file.lstrip("/"))
+                        with open(metadata_file, "w") as fp:
                             fp.write(json.dumps({ "ReleaseTag" : f"{self.__hourly_bld}" }))
                         continue
                     Logger.info(f"Artifact-{idx+1}: {entry}")
@@ -212,7 +215,10 @@ class BuilderInterface:
                 for idx, entry in enumerate(self.target_spec['artifacts']):
                     _, ext = os.path.splitext(entry)
                     if ext == '.metadata':
-                        with open(entry, "w") as fp:
+                        metadata_file = entry
+                        if os.getenv("JOB_ID") is None:
+                            metadata_file = os.path.join("sandbox", metadata_file.lstrip("/"))
+                        with open(metadata_file, "w") as fp:
                             fp.write(json.dumps({ "ReleaseTag" : f"{release_tag}" }))
                         continue
                     Logger.info(f"Artifact-{idx+1}: {entry}")

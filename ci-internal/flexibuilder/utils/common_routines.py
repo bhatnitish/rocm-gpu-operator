@@ -48,6 +48,8 @@ def fetch_page(url):
     return resp.text
 
 def download_file(full_url, dest_file):
+    if os.getenv("JOB_ID") is None:
+        dest_file = os.path.join("sandbox", dest_file.lstrip("/"))
     os.makedirs(os.path.dirname(dest_file), exist_ok = True)
     timer = timeprofiler.TimeProfiler()
     try:
