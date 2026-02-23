@@ -180,12 +180,12 @@ def transform_image_info():
 def pytest_metadata(metadata):
     metadata.clear()
 
+class Context(object):
+    pass
+
 @pytest.fixture(scope="function", autouse=True)
 def context(request, environment):
     global Logger
-    class Context(object):
-        pass
-
     environment.context = Context()
     setattr(environment.context, 'current_tc_name', request.node.name)
     Logger.debug(f"Starting Testcase: {request.node.name}")
@@ -203,6 +203,7 @@ def environment(request):
     setattr(tenv, 'deployment_mode', request.config.option.deployment)
     setattr(tenv, 'download_folder', 'downloads')
     setattr(tenv, 'logdir', "logs")
+    tenv.context = Context()
     if request.config.option.amdgpu_driver_spec:
         with open(request.config.option.amdgpu_driver_spec, "r") as fp:
             driver_spec = json.load(fp)

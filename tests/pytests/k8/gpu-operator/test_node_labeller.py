@@ -48,7 +48,7 @@ EXPECTED_BETA_LABELS = {
 }
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, environment):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -99,6 +99,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)

@@ -116,6 +116,9 @@
         },
         {
             "name": "GPU_GFX_ACTIVITY",
+            "driver-support" : {
+                "fini" : "6.14.14"
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],
@@ -126,6 +129,9 @@
         },
         {
             "name": "GPU_UMC_ACTIVITY",
+            "driver-support" : {
+                "fini" : "6.14.14"
+            },
             "gpu-support": [
                 {
                     "gpu" : ["MI210", "MI250", "MI325X", "MI325X-VF", "MI300X", "MI350X"],

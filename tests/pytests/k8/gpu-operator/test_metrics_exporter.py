@@ -39,7 +39,7 @@ import subprocess
 Logger = logging.getLogger("k8.test_metrics_exporter")
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, environment):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -90,6 +90,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -515,7 +516,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, deviceconfig_install
         K8Helper.triage(environment, (ret_code == 0), f"Failed to create deviceconfig, stderr: {ret_stderr}")
 
     exporter_config_defn = {}
-    label_support_info = metric_util.get_label_details(environment.gpu_operator_version)
+    label_support_info = metric_util.get_label_details(dme_version)
     non_mandatory_labels = list(filter(lambda x: label_support_info[x] == "no", label_support_info.keys()))
     mandatory_labels = list(filter(lambda x: label_support_info[x] == "yes", label_support_info.keys()))
 

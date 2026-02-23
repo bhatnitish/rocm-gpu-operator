@@ -24,6 +24,7 @@ import logging
 import shutil
 import json
 import io
+from packaging import version
 from ruamel.yaml import YAML
 from ruamel.yaml import comments
 from ruamel.yaml import scalarstring
@@ -346,18 +347,124 @@ device_config_template_v1_4_1 = {
         },
     },
 }
-device_config_templates = {
-    'v1.0.0' : device_config_template_v1_0_0,
-    'v1.1.0' : device_config_template_v1_0_0,
-    'v1.2.0' : device_config_template_v1_2_0,
-    'v1.2.1' : device_config_template_v1_2_0,
-    'v1.2.2' : device_config_template_v1_2_0,
-    'v1.3.0' : device_config_template_v1_3_0,
-    'v1.4.0' : device_config_template_v1_3_0,
-    'v1.4.1' : device_config_template_v1_4_1,
+
+device_config_template_main = {
+    'apiVersion'    : 'amd.com/v1alpha1',
+    'kind'          : 'DeviceConfig',
+    'metadata'      : {
+        'name'      : 'test-deviceconfig',
+        'namespace' : 'default',
+    },
+    'spec'          : {
+        'commonConfig' : {
+        },
+        'driver'    : {
+            'enable': False,
+            'blacklist' : True,
+            'imageRegistryTLS' : {
+                'insecure'                  : True,
+                'insecureSkipTLSVerify'     : True,
+            },
+            'upgradePolicy' : {
+                'enable' : False,
+                'maxParallelUpgrades' : 1,
+                'maxUnavailableNodes' : '25%',
+                'nodeDrainPolicy' : {
+                    'force' : False,
+                    'timeoutSeconds' : 300,
+                },
+                'rebootRequired' : True,
+            },
+            'imageBuild' : {
+                'baseImageRegistry' : 'docker.io',
+            },
+        },
+        'devicePlugin' : {
+            'devicePluginImagePullPolicy' : 'Always',
+            'enableNodeLabeller' : False,
+            'nodeLabellerImagePullPolicy' : 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'metricsExporter' : {
+            'imagePullPolicy'   : 'Always',
+            'enable'            : False,
+            'nodePort'          : 32500,
+            'port'              : 5000,
+            'serviceType'       : DQ('ClusterIP'),
+            'rbacConfig' : {
+                'enable'        : False,
+                'disableHttps'  : True,
+            },
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+            'podAnnotations' : {},
+            'serviceAnnotations' : {},
+            'prometheus' : {
+                'serviceMonitor' : {
+                    'enable': False,
+                    'honorLabels': False,
+                    'honorTimestamps': False,
+                    'interval': '30s',
+                    'attachMetadata' : {
+                        'node': False,
+                    },
+                    'relabelings': [
+                        {
+                            'sourceLabels': ['pod'],
+                            'targetLabel': 'exporter_pod',
+                            'action': 'replace',
+                            'regex': '(.*)',
+                            'replacement': '$1',
+                        },
+                        {
+                            'action': 'labeldrop',
+                            'regex': 'pod',
+                        },
+                    ],
+                },
+            },
+        },
+        'testRunner' : {
+            'enable' : False,
+            'config' : None,
+            'imagePullPolicy': 'Always',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'configManager' : {
+            'enable' : False,
+            'imagePullPolicy' : 'IfNotPresent',
+            'upgradePolicy' : {
+                'maxUnavailable' : 1,
+                'upgradeStrategy' : 'RollingUpdate',
+            },
+        },
+        'selector' : {
+            'feature.node.kubernetes.io/amd-gpu' : DQ('true'),
+        },
+    },
 }
 
-device_config_template_default = device_config_template_v1_4_1
+device_config_templates = {
+    'v1.0.0'    : device_config_template_v1_0_0,
+    'v1.1.0'    : device_config_template_v1_0_0,
+    'v1.2.0'    : device_config_template_v1_2_0,
+    'v1.2.1'    : device_config_template_v1_2_0,
+    'v1.2.2'    : device_config_template_v1_2_0,
+    'v1.3.0'    : device_config_template_v1_3_0,
+    'v1.4.0'    : device_config_template_v1_3_0,
+    'v1.4.1'    : device_config_template_v1_4_1,
+    'v99.99.99' : device_config_template_main,
+}
+
+device_config_template_default = device_config_template_main
 
 gpu_operator_helm_deployment_template_0 = {
     'node-feature-discovery' : {
@@ -491,7 +598,13 @@ def get_yaml(data):
 
 def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections = {}):
     global Logger
-    device_config = copy.deepcopy(device_config_templates.get(gpu_operator_version, device_config_template_default))
+
+    if "main" in gpu_operator_version:
+        gpu_op_version = version.Version("v99.99.99")
+    else:
+        gpu_op_version = version.Version(gpu_operator_version.split("-")[0])
+
+    device_config = copy.deepcopy(device_config_templates.get(f"v{str(gpu_op_version)}", device_config_template_default))
     device_config['metadata']['name'] = spec.get('metadata.name', 'deviceconfig')
     device_config['metadata']['namespace'] = spec.get('metadata.namespace', 'default')
 
@@ -510,9 +623,9 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
         device_config['spec']['driver']['version'] = DQ(spec.get('driver.version', '6.2.2'))
         device_config['spec']['driver']['enable'] = spec.get('driver.enable', False)
         device_config['spec']['driver']['blacklist'] = spec.get('driver.blacklist', True)
-        if gpu_operator_version >= 'v1.2.0':
+        if gpu_op_version >= version.Version('v1.2.0'):
             rebootReqDefault = True
-            if gpu_operator_version == 'v1.2.0':
+            if gpu_op_version == version.Version('v1.2.0'):
                 rebootReqDefault = False
             device_config['spec']['driver']['upgradePolicy']['enable'] = spec.get('driver.upgradePolicy.enable', False)
             device_config['spec']['driver']['upgradePolicy']['rebootRequired'] = spec.get('driver.upgradePolicy.rebootRequired', rebootReqDefault)
@@ -540,7 +653,7 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
             img = f"{spec.get('devicePlugin.nodeLabellerImage.repository')}:{spec.get('devicePlugin.nodeLabellerImage.version')}"
             device_config['spec']['devicePlugin']['nodeLabellerImage'] = img
         device_config['spec']['devicePlugin']['enableNodeLabeller'] = spec.get('devicePlugin.enableNodeLabeller', False)
-        if gpu_operator_version >= 'v1.2.0':
+        if gpu_op_version >= version.Version("v1.2.0"):
             device_config['spec']['devicePlugin']['upgradePolicy']['maxUnavailable'] = spec.get('devicePlugin.upgradePolicy.maxUnavailable', 1)
             device_config['spec']['devicePlugin']['upgradePolicy']['upgradeStrategy'] = spec.get('devicePlugin.upgradePolicy.upgradeStrategy', 'RollingUpdate')
         if spec.get('devicePlugin.devicePluginImage.secret', None):
@@ -574,10 +687,10 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
             device_config['spec']['metricsExporter']['imageRegistrySecret'] = {
                     'name' : spec.get('metricsExporter.image.secret')
             }
-        if gpu_operator_version >= 'v1.2.0':
+        if gpu_op_version >= version.Version('v1.2.0'):
             device_config['spec']['metricsExporter']['upgradePolicy']['maxUnavailable'] = spec.get('metricsExporter.upgradePolicy.maxUnavailable', 1)
             device_config['spec']['metricsExporter']['upgradePolicy']['upgradeStrategy'] = spec.get('metricsExporter.upgradePolicy.upgradeStrategy', 'RollingUpdate')
-        if gpu_operator_version > 'v1.2.0':
+        if gpu_op_version > version.Version('v1.2.0'):
             if spec.get('prometheus.serviceMonitor.enable', False):
                 device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['enable'] = True
             if spec.get('prometheus.serviceMonitor.honorLabels', False):
@@ -590,7 +703,7 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
                 device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['attachMetadata']['node'] = spec.get('prometheus.serviceMonitor.attachMetadata.node', True)
             if spec.get('prometheus.serviceMonitor.relabelings',None):
                 device_config['spec']['metricsExporter']['prometheus']['serviceMonitor']['relabelings'] = spec.get('prometheus.serviceMonitor.relabelings', [])
-        if gpu_operator_version >= 'v1.4.1':
+        if gpu_op_version >= version.Version('v1.4.1'):
             device_config['spec']['metricsExporter']['podAnnotations'] = spec.get('metricsExporter.podAnnotations', {})
             device_config['spec']['metricsExporter']['serviceAnnotations'] = spec.get('metricsExporter.serviceAnnotations', {})
             if spec.get('metricsExporter.rbacConfig.secret.name' ,None):
@@ -635,7 +748,7 @@ def generate_k8_deviceconfig_cr(gpu_operator_version, spec = {}, skip_sections =
                 device_config['spec']['testRunner']['imageRegistrySecret'] = {
                         'name' : spec.get('testRunner.image.secret')
                 }
-            if gpu_operator_version >= 'v1.2.0':
+            if gpu_op_version >= version.Version('v1.2.0'):
                 device_config['spec']['testRunner']['upgradePolicy']['maxUnavailable'] = spec.get('testRunner.upgradePolicy.maxUnavailable', 1)
                 device_config['spec']['testRunner']['upgradePolicy']['upgradeStrategy'] = spec.get('testRunner.upgradePolicy.upgradeStrategy', 'RollingUpdate')
         elif not skip_sections.get('testRunnerAgfhc', False):
@@ -749,7 +862,7 @@ def generate_helmchart_deployment_config(gpu_operator_version, images, file_name
         return dump_yaml(file_name, helmchart_values)
     return modifed
 
-def generate_exporter_helmchart_deployment_config(exporter_version, images, file_name, **kwargs):
+def generate_exporter_helmchart_deployment_config(dme_version, images, file_name, **kwargs):
     '''
     Generate values.yaml used to install device-metrics-exporter helm-chart
     '''
@@ -783,7 +896,12 @@ def generate_exporter_helmchart_deployment_config(exporter_version, images, file
         helmchart_values['service']['NodePort']['port'] = kwargs['service.NodePort.port']
         modifed = True
 
-    if exporter_version >= 'v1.4.1':
+    if 'exporter-0.0.1' in dme_version:
+        exporter_version = version.Version('v99.99.99') # main
+    else:
+        exporter_version = version.Version(dme_version.split("-")[0])
+
+    if exporter_version >= version.Version('v1.4.1'):
         if 'podAnnotations' in kwargs:
             helmchart_values['podAnnotations'] = kwargs['podAnnotations']
         if 'service.annotations' in kwargs:

@@ -34,7 +34,7 @@ from lib.util import K8Helper
 
 Logger = logging.getLogger("k8.test_driver_deviceplugin")
 
-def install_deviceconfig(images, environment):
+def install_deviceconfig(gpu_cluster, images, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -87,6 +87,7 @@ def install_deviceconfig(images, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -95,7 +96,7 @@ def install_deviceconfig(images, environment):
     return devcfg_info
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, environment):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup
@@ -103,7 +104,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     for devcfg_name, _ in device_cfg_info.items():
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
 
-    devcfg_info = install_deviceconfig(images, environment)
+    devcfg_info = install_deviceconfig(gpu_cluster, images, environment)
     yield devcfg_info
 
     device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)

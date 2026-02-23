@@ -1069,7 +1069,7 @@ def k8_delete_cron_job(namespace : str, job_name : str):
         return -1, "", str(e)
 
 @log_arguments
-def k8_check_pod_status(environment, namespace, pod_list) -> Dict:
+def k8_check_pod_status(namespace, pod_list) -> Dict:
     """
     API to check the status of pods in a given namespace, returns a dict of pod_name -> phase and pod info
     """

@@ -156,10 +156,10 @@ class K8Helper:
         time.sleep(20)
         for _ in range(10):
             build_pod_status.clear()
-            status_info = k8_util.k8_check_pod_status(environment, environment.gpu_operator_namespace, build_pods)
+            status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, build_pods)
             Logger.debug(f"build pod status: {status_info}")
 
-            for pod_name, status in status_info.items():
+            for pod_name, (status, full_pod_info) in status_info.items():
                 if status == 'Running':
                     build_pod_status.add(K8Helper.PodStatus.RUNNING)
                 elif status == 'Pending':
@@ -191,10 +191,10 @@ class K8Helper:
         time.sleep(20)
         for _ in range(5):
             kmm_pod_status.clear()
-            status_info = k8_util.k8_check_pod_status(environment, environment.gpu_operator_namespace, kmm_worker_pods)
+            status_info = k8_util.k8_check_pod_status(environment.gpu_operator_namespace, kmm_worker_pods)
             Logger.debug(f"kmm-worker status: {status_info}")
 
-            for pod_name, status in status_info.items():
+            for pod_name, (status, full_pod_info) in status_info.items():
                 if status == 'Running':
                     kmm_pod_status.add(K8Helper.PodStatus.RUNNING)
                 elif status == 'Pending':
@@ -263,6 +263,23 @@ class K8Helper:
             Logger.info(f'Configured Version: {devcfg_driver_version}') 
             K8Helper.triage(environment, config_version == devcfg_driver_version,
                             f"Expected config_version: {config_version}, device_config: {devcfg_driver_version}")
+    @staticmethod
+    def update_node_driver_version(gpu_cluster, environment):
+        # collect currently applied deviceconfigs
+        devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+
+        ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
+        for node in gpu_nodes:
+            node_ip = k8_util.k8_get_node_address(node)
+            cluster_node = gpu_cluster.find_node_by_ip(node_ip)
+            # Match to one of the deviceconfigs
+            for devcfg_name, _ in devcfg_map.items():
+                version_module_label = f"kmm.node.kubernetes.io/version-module.{environment.gpu_operator_namespace}.{devcfg_name}"
+                node_driver_version = node['metadata']['labels'].get(version_module_label, None)
+                if node_driver_version:
+                    cluster_node.amdgpu_driver_version = node_driver_version
+                    break
+        return
 
     @staticmethod
     def check_node_driver_version(gpu_cluster, config_version, rocm_version, environment):
@@ -432,9 +449,9 @@ class K8Helper:
             if workload_config.get("no_look", False):
                 return None
             for _ in range(20):
-                status_info = k8_util.k8_check_pod_status(environment, cr_spec['metadata']['namespace'], workload_pods)
+                status_info = k8_util.k8_check_pod_status(cr_spec['metadata']['namespace'], workload_pods)
                 Logger.debug(f"workload pod status: {status_info}")
-                for pod_name, status in status_info.items():
+                for pod_name, (status, full_pod_info) in status_info.items():
                     if pod_name == workload_config['pod_name']:
                         if status == 'Running':
                             workload_config['podStatus'] = K8Helper.PodStatus.RUNNING
@@ -548,9 +565,9 @@ class K8Helper:
                 })
 
             for _ in range(5):
-                status_info = k8_util.k8_check_pod_status(environment, namespace, workload_pods)
+                status_info = k8_util.k8_check_pod_status(namespace, workload_pods)
                 Logger.debug(f"test-runner pod status: {status_info}")
-                for pod_name, status in status_info.items():
+                for pod_name, (status, full_pod_info) in status_info.items():
                     if workload_config['pod_name'] in pod_name:
                         if status == 'Running':
                             workload_config['podStatus'] = K8Helper.PodStatus.RUNNING
@@ -614,7 +631,7 @@ class K8Helper:
         unhealthy_pods = []
         status_summary = {}
 
-        status_info = k8_util.k8_check_pod_status(environment, namespace, ds_pods)
+        status_info = k8_util.k8_check_pod_status(namespace, ds_pods)
         for name, (phase, full_pod_info) in status_info.items():
             status_summary[name] = phase
             if  K8Helper.is_unhealthy_pod(full_pod_info):
@@ -658,3 +675,16 @@ class K8Helper:
                 Logger.error(f"Pod {name} is Running but not Ready.")
                 return True
         return False
+
+    @staticmethod
+    def collect_unhealthy_pods(environment, pods):
+        unhealthy_pods = []
+        status_info = k8_util.k8_check_pod_status("default", pods)
+        for name, (phase, full_pod_info) in status_info.items():
+            if  K8Helper.is_unhealthy_pod(full_pod_info):
+                unhealthy_pods.append(full_pod_info)
+
+        if unhealthy_pods:
+            setattr(environment.context, 'unhealthy_pods', unhealthy_pods)
+        return unhealthy_pods
+

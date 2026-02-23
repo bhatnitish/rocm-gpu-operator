@@ -39,20 +39,24 @@ def get_label_details(version_string):
     with open('lib/files/label-support-matrix.json', 'r') as fp:
         label_data = json.load(fp)
 
-    version = version_string.split('-', 1)[0]
+    if 'main' in version_string or 'exporter' in version_string:
+        sw_version = version.Version("v99.99.99")
+    else:
+        sw_version = version.Version(version_string.split('-', 1)[0])
+
     label_support_info = {}
     for label, info in label_data.items():
-        min_version = info['min-version']
-        if min_version > version:
-            Logger.debug(f"skipping label : {label} with info: {info} for current-version : {version}")
+        min_version = version.Version(info['min-version'])
+        if min_version > sw_version:
+            Logger.debug(f"skipping label : {label} with info: {info} for current-version : {sw_version}")
             continue
         if info.get("eos-version", None) != None:
-            eos_version = info["eos-version"]
-            if version > eos_version:
-                Logger.debug(f"skipping label : {label} with info: {info} for current-version : {version}")
+            eos_version = version.Version(info["eos-version"])
+            if sw_version > eos_version:
+                Logger.debug(f"skipping label : {label} with info: {info} for current-version : {sw_version}")
                 continue
 
-        label_support_info[label] = info["mandatory"].get(version, "no")
+        label_support_info[label] = info["mandatory"].get(f"v{str(sw_version)}", "no")
     return label_support_info
 
 def dump_metrics(http_response, out_file):

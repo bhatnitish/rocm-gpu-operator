@@ -105,7 +105,7 @@ def verify_events(gpu_cluster, environment, profile, before, after):
                      f"Successful profile change has not happened with {profile}")
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, add_tolerations, environment):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, add_tolerations, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -157,6 +157,7 @@ def deviceconfig_install(images, gpu_operator_install, add_tolerations, environm
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -220,6 +221,7 @@ def reset_dcm_profile(gpu_cluster, environment, skip_reboot = True):
                 continue
 
             partition_status = extract_partition_info(environment, output)
+            Logger.debug(f"Current Partition Status: {LogPrettyPrinter.pformat(output)}")
             for gpu_id, profile in partition_status.items():
                 if profile != "SPX_NPS1":
                     partitioned.append(True)
@@ -658,18 +660,20 @@ def verify_logs(environment, log_msg_list, pod_str="config-manager", since="1800
             debug_on_failure(environment, flag,
                              f"didn't find one of {log_msg_list} in\n" + LogPrettyPrinter.pformat(stdout.split('\n')))
 
-def wait_for_pods(environment,local_workload_ctxts):
+def wait_for_pods(environment, local_workload_ctxts):
     workload_pods = []
     status_info = None
     for ctxt in local_workload_ctxts:
         workload_pods.append(common.PodInfo(ctxt['pod_name'], 1, 1))
 
-    for _ in range(2):
-        status_info = k8_util.k8_check_pod_status(environment, "default", workload_pods)
-        if "Pending" in status_info.values():
+    for _ in range(5):
+        status_info = k8_util.k8_check_pod_status("default", workload_pods)
+        statuses = [status for name, (status, full_pod_info) in status_info.items()]
+        if "Pending" in statuses:
             time.sleep(5)
         else:
             break
+    K8Helper.collect_unhealthy_pods(environment, workload_pods)
     return status_info
 
 #Unsupported compute partition combination
@@ -801,8 +805,8 @@ def test_negative_partitioning(request, gpu_cluster, deviceconfig_install, creat
         node_name = node['metadata']['labels']['kubernetes.io/hostname']
         pod_name = k8_util.k8_get_pod_name("config-manager", namespace, node_name)
         ret_code, output, resp_stderr = k8_util.exec_command_in_pod(namespace, ["amd-smi", "partition", "-c", "--json"], pod_name)
-        Logger.debug(f"Current Partition Status: {LogPrettyPrinter.pformat(output)}")
         debug_on_failure(environment, (ret_code == 0), f"Failed to collect current partition information, error : {resp_stderr}")
+        Logger.debug(f"Current Partition Status: {LogPrettyPrinter.pformat(output)}")
         pre_partition_status[node_name] = extract_partition_info(environment, output)
 
     labels_dict = {"dcm.amd.com/gpu-config-profile" : profile}
@@ -886,9 +890,17 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
         _untaint_all_nodes()
         _start_workload()
         status_info = wait_for_pods(environment, local_workload_ctxts)
-        for status in status_info.values():
+        for name, (status, full_pod_info) in status_info.items():
             debug_on_failure(environment, status == 'Running',
                              f"Workload not in RUNNING state, {pprint.pformat(status_info)}")
+
+    # Watch for all pod creation
+    time.sleep(20)
+    devicecfg_pods = [
+        common.PodInfo('config-manager', len(gpu_nodes), 1),
+    ]
+    failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, devicecfg_pods, sleep_time = 20)
+    debug_on_failure(environment, (not failed_pods), f"One or more pods are not ready - {failed_pods}")
 
     pre_partition_status = {}
     for node in gpu_nodes:
@@ -896,6 +908,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
         pod_name = k8_util.k8_get_pod_name("config-manager", namespace, node_name)
         ret_code, output, resp_stderr = k8_util.exec_command_in_pod(namespace, ["amd-smi", "partition", "-c", "--json"], pod_name)
         debug_on_failure(environment, (ret_code == 0), f"Failed to collect current partition information, error : {resp_stderr}")
+        Logger.debug(f"Current Partition Status: {LogPrettyPrinter.pformat(output)}")
         pre_partition_status[node_name] = extract_partition_info(environment, output)
 
     patch_body = {
@@ -980,6 +993,7 @@ def run_partition_test_scenario(gpu_cluster, environment, request, profile, work
         pod_name = k8_util.k8_get_pod_name("config-manager", namespace, node_name)
         ret_code, output, resp_stderr = k8_util.exec_command_in_pod(namespace, ["amd-smi", "partition", "-c", "--json"], pod_name)
         debug_on_failure(environment, (ret_code == 0), f"Failed to collect current partition information, error : {resp_stderr}")
+        Logger.debug(f"Current Partition Status: {LogPrettyPrinter.pformat(output)}")
         post_partition_status[node_name] = extract_partition_info(environment, output)
     # TODO : Check applied partition in post_partition_status
     # If pre is SPX_NPS1 and requested profile is SPX_NPS1, the no change will be observed

@@ -118,10 +118,14 @@ def gpu_operator_install(gpu_cluster, gpu_operator_release_name, images, environ
     else:
         values_yaml = None
 
+    options = {
+        "crds.defaultCR.install" : "false",
+    }
+
     ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, gpu_operator_release_name,
                                                               environment.gpu_operator_namespace,
                                                               images.get('gpu-operator.helm-chart', None),
-                                                              environment.gpu_operator_version, values_yaml)
+                                                              environment.gpu_operator_version, values_yaml, **options)
     if ret_code != 0:
         Logger.error(f"Failed to install helm chart for {gpu_operator_release_name}")
         Logger.error(f"Stdout: {ret_stdout}")

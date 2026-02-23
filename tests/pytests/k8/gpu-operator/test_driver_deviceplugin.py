@@ -36,7 +36,7 @@ from lib.util import K8Helper
 Logger = logging.getLogger("k8.test_driver_deviceplugin")
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, environment):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -89,6 +89,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -593,13 +594,16 @@ def test_driver_deviceplugin_multiple_workloads_with_gpu(request, deviceconfig_i
     ]
     workload_status = None
     for _ in range(5):
-        status_info = k8_util.k8_check_pod_status(environment, "default", workload_pods)
-        workload_status = status_info[second_workload['pod_name']]
-        if workload_status == 'Pending':
+        status_info = k8_util.k8_check_pod_status("default", workload_pods)
+        workload_status = {status for name, (status, full_pod_info) in status_info.items()}
+        if "Pending" in workload_status:
             time.sleep(30)
-        elif workload_status in ['Running', 'Failed']:
+        else:
             break
-    K8Helper.triage(environment, (workload_status == "Running"), f"Invalid workload-status: {status_info}")
+
+    K8Helper.collect_unhealthy_pods(environment, workload_pods)
+    K8Helper.triage(environment, (workload_status == {"Running"}),
+                    f"Invalid workload-status: {workload_status} for pod: {second_workload['pod_name']}")
 
     # delete wl2
     Logger.info(f"Delete the second workload with gpu")

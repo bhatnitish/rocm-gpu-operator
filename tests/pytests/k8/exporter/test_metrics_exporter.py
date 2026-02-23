@@ -40,7 +40,7 @@ Logger = logging.getLogger("k8.test_metrics_exporter")
 LogPrettyPrinter = pprint.PrettyPrinter(indent = 2)
 
 @pytest.fixture(scope="module")
-def amdgpu_driver_install(images, gpu_operator_install, environment):
+def amdgpu_driver_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -81,6 +81,8 @@ def amdgpu_driver_install(images, gpu_operator_install, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
+
     yield
 
     device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)
@@ -130,7 +132,7 @@ def test_exporter_helmchart_clusterip_deploy(request, gpu_cluster, amdgpu_driver
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
 
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -199,7 +201,7 @@ def test_exporter_helmchart_clusterip_custom_deploy(request, gpu_cluster, amdgpu
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
 
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -272,7 +274,7 @@ def test_exporter_helmchart_nodeport_deploy(request, gpu_cluster, amdgpu_driver_
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
 
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -334,7 +336,7 @@ def test_exporter_helmchart_nodeport_custom_deploy(request, gpu_cluster, amdgpu_
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -363,7 +365,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, amdgpu_driver_instal
 
     exporter_release_name = "device-metrics-exporter"
     exporter_config_defn = {}
-    label_support_info = metric_util.get_label_details(environment.gpu_operator_version)
+    label_support_info = metric_util.get_label_details(environment.exporter_version)
     non_mandatory_labels = list(filter(lambda x: label_support_info[x] == "no", label_support_info.keys()))
     mandatory_labels = list(filter(lambda x: label_support_info[x] == "yes", label_support_info.keys()))
 
@@ -465,7 +467,7 @@ def test_exporter_nodeport_exp_config(request, gpu_cluster, amdgpu_driver_instal
                         helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                         "exporter helm-chart is in failed state")
         K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
-        time.sleep(10) # Wait for exporter pods to start working
+        time.sleep(20) # Wait for exporter pods to start working
         exporter_pods = []
         for node in gpu_cluster.cluster_nodes:
             if node.is_gpu_node():
@@ -653,7 +655,7 @@ def test_exporter_all_supported_metrics(request, gpu_cluster, amdgpu_driver_inst
                     helm_util.is_helm_chart_healthy(gpu_cluster, exporter_release_name, environment.exporter_namespace),
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -737,7 +739,7 @@ def test_exporter_helmchart_servicemonitor_enable(request, gpu_cluster, amdgpu_d
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
 
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.num_gpus:
@@ -811,7 +813,7 @@ def test_exporter_helmchart_pod_annotations(request, gpu_cluster, amdgpu_driver_
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
 
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():
@@ -898,7 +900,7 @@ def test_exporter_helmchart_service_annotations(request, gpu_cluster, amdgpu_dri
                     "exporter helm-chart is in failed state")
     K8Helper.watch_for_daemon_rollout(environment, environment.exporter_namespace, len(gpu_cluster.cluster_nodes))
 
-    time.sleep(10) # Wait for exporter pods to start working
+    time.sleep(20) # Wait for exporter pods to start working
     exporter_pods = []
     for node in gpu_cluster.cluster_nodes:
         if node.is_gpu_node():

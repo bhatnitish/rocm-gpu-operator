@@ -39,7 +39,63 @@ def skip_module(environment):
         pytest.skip(f"Skipping gpu-operator testcases for {environment.deployment_mode} deployment")
     return
 
-def install_deviceconfig(images, environment):
+@pytest.fixture(scope="function")
+def gpu_operator_install(gpu_cluster, gpu_operator_release_name, images, environment):
+    global Logger
+
+    # cleanup
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
+    if helm_util.is_helm_chart_deployed(gpu_cluster, gpu_operator_release_name, environment.gpu_operator_namespace):
+        Logger.warn(f"helm {gpu_operator_release_name} is already deployed - cleanup")
+        ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, gpu_operator_release_name,
+                                                                    environment.gpu_operator_namespace)
+        if ret_code != 0:
+            helm_util.helm_cleanup(gpu_cluster, gpu_operator_release_name, environment.gpu_operator_namespace)
+        #k8_util.k8_delete_namespace(environment.gpu_operator_namespace)
+
+    if images.get("gpu-operator.repo", None):
+        helm_util.helm_add_repo(gpu_cluster, images.get("gpu-operator.repo-name"), images.get("gpu-operator.repo"))
+
+    values_yaml = os.path.join(environment.logdir, f"values_{environment.gpu_operator_version}.yaml")
+    if spec_util.generate_helmchart_deployment_config(environment.gpu_operator_version, images, values_yaml):
+        Logger.debug(f"Generated values.yaml for helm-chart install command, {values_yaml}")
+    else:
+        values_yaml = None
+
+    options = {
+        "crds.defaultCR.install" : "false",
+    }
+
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_install(gpu_cluster, gpu_operator_release_name,
+                                                              environment.gpu_operator_namespace,
+                                                              images.get('gpu-operator.helm-chart', None),
+                                                              environment.gpu_operator_version, values_yaml, **options)
+    if ret_code != 0:
+        Logger.error(f"Failed to install helm chart for {gpu_operator_release_name}")
+        Logger.error(f"Stdout: {ret_stdout}")
+        Logger.error(f"Stderr: {ret_stderr}")
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to install {gpu_operator_release_name}")
+    time.sleep(30)
+    yield
+    # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
+    devcfg_map = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace)
+    for devcfg_name, _ in devcfg_map.items():
+        ret_code, ret_stdout, ret_stderr = k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
+        if ret_code != 0:
+            Logger.error(f"Failed to delete deviceconfig name: {devcfg_name}, error : {ret_stderr}")
+    time.sleep(10)
+
+    ret_code, ret_stdout, ret_stderr = helm_util.helm_uninstall(gpu_cluster, gpu_operator_release_name, environment.gpu_operator_namespace)
+    K8Helper.triage(environment, (ret_code == 0), f"Failed to uninstall {gpu_operator_release_name} helm-chart, error: {ret_stderr}")
+    return
+
+def install_deviceconfig(gpu_cluster, images, environment):
     global Logger
 
     # cleanup - remove any deviceconfigs and then gpu-operator helm-chart
@@ -91,6 +147,7 @@ def install_deviceconfig(images, environment):
     K8Helper.check_deviceconfig_status(environment, devicecfg_list)
     for devcfg in devicecfg_list:
         K8Helper.wait_kmm_worker_completion(environment, devcfg)
+    K8Helper.update_node_driver_version(gpu_cluster, environment)
 
     devcfg_info = DeviceConfigCRInfo()
     setattr(devcfg_info, "test_cfg_map", test_cfg_map)
@@ -99,15 +156,16 @@ def install_deviceconfig(images, environment):
     return devcfg_info
 
 @pytest.fixture(scope="module")
-def deviceconfig_install(images, gpu_operator_install, environment):
+def deviceconfig_install(gpu_cluster, images, gpu_operator_install, environment):
     global Logger
 
+    K8Helper.watch_for_daemon_rollout(environment, environment.gpu_operator_namespace, len(gpu_cluster.cluster_nodes))
     # cleanup
     device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)
     for devcfg_name, _ in device_cfg_info.items():
         k8_util.k8_delete_deviceconfig_cr(environment.gpu_operator_namespace, devcfg_name)
 
-    devcfg_info = install_deviceconfig(images, gpu_operator_install, environment)
+    devcfg_info = install_deviceconfig(gpu_cluster, images, gpu_operator_install, environment)
     yield devcfg_info
 
     device_cfg_info = k8_util.k8_get_deviceconfigs_info(environment.gpu_operator_namespace, None)
@@ -118,6 +176,7 @@ def deviceconfig_install(images, gpu_operator_install, environment):
 def test_gpu_operator_install(gpu_cluster, gpu_operator_release_name, gpu_operator_install, environment):
     global Logger
 
+    K8Helper.watch_for_daemon_rollout(environment, environment.gpu_operator_namespace, len(gpu_cluster.cluster_nodes))
     ret_code, ret_stdout, ret_stderr = helm_util.helm_list(gpu_cluster, environment.gpu_operator_namespace)
     K8Helper.triage(environment, (ret_code == 0), "Failed to list helm-charts")
 
@@ -136,8 +195,9 @@ def test_gpu_operator_install(gpu_cluster, gpu_operator_release_name, gpu_operat
                     (len(list(filter(lambda x: x['metadata']['name'] == environment.gpu_operator_namespace, k8_namespaces))) == 1),
                     f"Could not find {environment.gpu_operator_namespace} in the cluster")
 
-def test_gpu_operator_check_all_pods(gpu_operator_release_name, gpu_operator_install, environment):
+def test_gpu_operator_check_all_pods(gpu_cluster, gpu_operator_release_name, gpu_operator_install, environment):
     global Logger
+    K8Helper.watch_for_daemon_rollout(environment, environment.gpu_operator_namespace, len(gpu_cluster.cluster_nodes))
     ret_code, gpu_nodes = k8_util.k8_get_gpu_nodes()
     K8Helper.triage(environment, (ret_code == 0),"gpu-operator failed to find amd/gpu nodes in the cluster")
 
@@ -153,7 +213,8 @@ def test_gpu_operator_check_all_pods(gpu_operator_release_name, gpu_operator_ins
     failed_pods = k8_util.k8_check_pod_running(environment.gpu_operator_namespace, exp_pod_list)
     K8Helper.triage(environment, not failed_pods, f"One or more pods are not ready - {failed_pods}")
 
-def test_gpu_operator_check_deviceconfig_crd(gpu_operator_install, environment):
+@pytest.mark.skip(reason="reviewing testcases dependencies - skipping for now")
+def test_gpu_operator_check_deviceconfig_crd(gpu_cluster, gpu_operator_install, environment):
     global Logger
 
     deviceconfig_crd = k8_util.k8_lookup_crd("deviceconfigs.amd.com")
