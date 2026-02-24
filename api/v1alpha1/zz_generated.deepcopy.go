@@ -278,6 +278,7 @@ func (in *DeviceConfigStatus) DeepCopyInto(out *DeviceConfigStatus) {
 	out.Drivers = in.Drivers
 	out.MetricsExporter = in.MetricsExporter
 	out.ConfigManager = in.ConfigManager
+	out.RemediationWorkflow = in.RemediationWorkflow
 	if in.NodeModuleStatus != nil {
 		in, out := &in.NodeModuleStatus, &out.NodeModuleStatus
 		*out = make(map[string]ModuleStatus, len(*in))

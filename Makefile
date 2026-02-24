@@ -294,7 +294,9 @@ docs-lint-spelling:
 	pyspelling -c $(DOCS_SPELLCHECK_CONFIG)
 
 .PHONY: docs-lint
-docs-lint: docs-lint-markdown docs-lint-spelling ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
+docs-lint: ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
+	${MAKE} docs-lint-markdown
+	${MAKE} docs-lint-spelling
 
 ##@ Build
 

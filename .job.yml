@@ -237,13 +237,12 @@ targets:
     area:
     sub-area:
     feature:
-  #docs-lint:
-  #  commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make docs-lint"]
-  #  owners: ["email:udayb@amd.com"]
-  #  area:
-  #  sub-area:
-  #  feature:
-
+  docs-lint:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make docs-lint"]
+    owners: ["email:udayb@amd.com"]
+    area:
+    sub-area:
+    feature:
   operator-e2e-sim:
     commands: ["sh", "-cx",
     "cd ci-internal && ./setup_e2e.sh;
